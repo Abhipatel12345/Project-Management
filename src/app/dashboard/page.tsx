@@ -1,318 +1,466 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
 import Link from 'next/link';
-import dashboardService, {
-  DashboardProjectItem,
-  DashboardActivityItem,
-} from '@/services/dashboard.service';
-import { useDashboardSummary } from '@/hooks/use-dashboard';
-import { useAuth } from '@/providers/auth-context';
 import {
-  FolderKanban,
-  CheckSquare,
+  ArrowLeft,
+  FileText,
+  Building2,
+  Building,
   AlertTriangle,
-  Activity,
-  ArrowUpRight,
-  RefreshCw,
-  Clock,
-  Car,
-  AlertCircle,
   User,
+  Package,
+  Hash,
+  Wallet,
+  Check,
+  Plus,
+  Trash2,
+  Bot,
+  X,
+  Send,
+  Sparkles,
+  ChevronRight,
   ShieldCheck,
+  Info,
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
+interface LineItem {
+  id: string;
+  itemGroup: string;
+  item: string;
+  description: string;
+  qty: number;
+  uom: string;
+  partName: string;
+}
+
 export default function DashboardPage() {
-  const { user } = useAuth();
-  const { data, isLoading, isError, error, refetch, isFetching } = useDashboardSummary();
+  // Interactive Line Items state
+  const [lineItems, setLineItems] = useState<LineItem[]>([
+    {
+      id: '1',
+      itemGroup: 'Auto Parts',
+      item: 'Brake Pad Set',
+      description: 'Brake Pad Set [Shortfall from Material Request MAT-MR-2026-00066]',
+      qty: 10,
+      uom: 'Nos',
+      partName: '—',
+    },
+  ]);
 
-  if (isLoading) {
-    return <DashboardSkeleton />;
-  }
+  // AI Assistant Chat Widget State
+  const [botOpen, setBotOpen] = useState(false);
+  const [botMessages, setBotMessages] = useState([
+    {
+      sender: 'bot',
+      text: 'Hello! I am your Netlink PDM & Sourcing AI Assistant. I can help verify line item codes, match suppliers, or calculate budget tolerances for MAT-MR-2026-00066.',
+    },
+  ]);
+  const [chatInput, setChatInput] = useState('');
 
-  if (isError) {
-    return (
-      <div className="p-8 rounded-2xl bg-slate-900/80 border border-slate-800 text-center space-y-4 max-w-xl mx-auto my-12">
-        <div className="h-12 w-12 rounded-full bg-rose-500/10 text-rose-400 flex items-center justify-center mx-auto">
-          <AlertCircle className="h-6 w-6" />
-        </div>
-        <div className="space-y-1">
-          <h2 className="text-lg font-bold text-white">Failed to Load ERPNext Data</h2>
-          <p className="text-xs text-slate-400">
-            {error?.message || 'Unable to retrieve projects, tasks, and issues from ERPNext server.'}
-          </p>
-        </div>
-        <button
-          onClick={() => refetch()}
-          className="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-cyan-500 text-slate-950 hover:bg-cyan-400 transition"
-        >
-          <RefreshCw className="h-3.5 w-3.5" /> Retry ERPNext Connection
-        </button>
-      </div>
+  const addLineItem = () => {
+    const newItem: LineItem = {
+      id: String(Date.now()),
+      itemGroup: 'Auto Parts',
+      item: 'Brake Disc Rotor',
+      description: 'Front Ventilated Brake Rotor [Auto Parts Grade A]',
+      qty: 5,
+      uom: 'Nos',
+      partName: '—',
+    };
+    setLineItems([...lineItems, newItem]);
+  };
+
+  const removeLineItem = (id: string) => {
+    if (lineItems.length === 1) return; // keep at least 1
+    setLineItems(lineItems.filter((i) => i.id !== id));
+  };
+
+  const updateLineItem = (id: string, field: keyof LineItem, value: any) => {
+    setLineItems(
+      lineItems.map((item) => (item.id === id ? { ...item, [field]: value } : item))
     );
-  }
+  };
 
-  const projects = data?.projects || [];
-  const tasks = data?.tasks || [];
-  const issues = data?.issues || [];
-  const activities = data?.recentActivities || [];
+  const totalQty = lineItems.reduce((acc, curr) => acc + (Number(curr.qty) || 0), 0);
+
+  const handleSendChat = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!chatInput.trim()) return;
+    const userMsg = chatInput;
+    setBotMessages((prev) => [...prev, { sender: 'user', text: userMsg }]);
+    setChatInput('');
+
+    setTimeout(() => {
+      setBotMessages((prev) => [
+        ...prev,
+        {
+          sender: 'bot',
+          text: `Verified 10 units of Brake Pad Set under Auto Parts. ERPNext stock checks indicate high inventory availability at Netlink Central Warehouse.`,
+        },
+      ]);
+    }, 800);
+  };
 
   return (
-    <div className="space-y-6 pb-8">
-      {/* Top Banner & Logged User Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800/80 shadow-xl">
-        <div className="space-y-1">
-          <div className="flex items-center gap-2.5">
-            <Car className="h-6 w-6 text-cyan-400" />
-            <h1 className="text-2xl font-bold text-white tracking-tight">
-              Welcome back, {user?.fullName || 'Automotive Engineer'}
-            </h1>
-          </div>
-          <p className="text-xs text-slate-400 flex items-center gap-2">
-            <span>Logged in as: <strong className="text-slate-200">{user?.email}</strong></span>
-            <span className="h-1 w-1 rounded-full bg-slate-700" />
-            <span className="text-emerald-400 font-medium inline-flex items-center gap-1">
-              <ShieldCheck className="h-3.5 w-3.5" /> Session Authenticated
-            </span>
-          </p>
+    <div className="space-y-6 pb-20 font-sans text-slate-800">
+      {/* 1. Back to RFQs Link */}
+      <div className="flex items-center gap-2">
+        <Link
+          href="/dashboard"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-sky-600 transition"
+        >
+          <ArrowLeft className="h-4 w-4 text-slate-500" />
+          <span>Back to RFQs</span>
+        </Link>
+      </div>
+
+      {/* 2. Created From Material Request Summary Card Banner */}
+      <div className="rounded-2xl bg-[#EBF5FF] border border-sky-200/90 p-5 sm:p-6 shadow-xs space-y-4">
+        <div className="text-[11px] font-extrabold tracking-wider uppercase text-sky-800">
+          CREATED FROM MATERIAL REQUEST
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-4">
+          <div className="space-y-1">
+            <div className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+              <FileText className="h-3.5 w-3.5 text-slate-400" />
+              <span>MATERIAL REQUEST</span>
+            </div>
+            <div className="text-sm font-bold text-slate-900">MAT-MR-2026-00066</div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+              <Building2 className="h-3.5 w-3.5 text-slate-400" />
+              <span>DEPARTMENT</span>
+            </div>
+            <div className="text-sm font-bold text-slate-900">Production</div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+              <Building className="h-3.5 w-3.5 text-slate-400" />
+              <span>COMPANY</span>
+            </div>
+            <div className="text-sm font-bold text-slate-900">Netlink</div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+              <AlertTriangle className="h-3.5 w-3.5 text-slate-400" />
+              <span>PRIORITY</span>
+            </div>
+            <div className="text-sm font-bold text-slate-900">High</div>
+          </div>
+
+          <div className="space-y-1">
+            <div className="text-[11px] font-bold text-slate-500 uppercase flex items-center gap-1.5">
+              <User className="h-3.5 w-3.5 text-slate-400" />
+              <span>PROCUREMENT OWNER</span>
+            </div>
+            <div className="text-sm font-bold text-slate-900">Procurement Manager</div>
+          </div>
+        </div>
+      </div>
+
+      {/* 3. Stat Metric Pill Cards Row */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-5 gap-3.5">
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-1.5">
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <FileText className="h-3.5 w-3.5 text-slate-400" />
+            <span>MATERIAL REQUEST</span>
+          </div>
+          <div className="text-sm font-extrabold text-slate-900 truncate">MAT-MR-2026-00066</div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-1.5">
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <Package className="h-3.5 w-3.5 text-slate-400" />
+            <span>TOTAL ITEMS</span>
+          </div>
+          <div className="text-sm font-extrabold text-slate-900">{lineItems.length}</div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-1.5">
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <Hash className="h-3.5 w-3.5 text-slate-400" />
+            <span>TOTAL QUANTITY</span>
+          </div>
+          <div className="text-sm font-extrabold text-slate-900">{totalQty}</div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-1.5">
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <Wallet className="h-3.5 w-3.5 text-slate-400" />
+            <span>BUDGET STATUS</span>
+          </div>
+          <div className="text-sm font-extrabold text-slate-900">Check on RFQ page</div>
+        </div>
+
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-1.5">
+          <div className="text-[10px] font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1.5">
+            <AlertTriangle className="h-3.5 w-3.5 text-slate-400" />
+            <span>PRIORITY</span>
+          </div>
+          <div className="text-sm font-extrabold text-slate-900">High</div>
+        </div>
+      </div>
+
+      {/* 4. Process Pipeline Stepper Bar */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 p-4 shadow-xs">
+        <div className="flex flex-wrap items-center gap-3 sm:gap-6 text-xs font-semibold">
+          {/* Step 1: Completed */}
+          <div className="flex items-center gap-2 text-slate-600">
+            <div className="h-6 w-6 rounded-full border-2 border-sky-400 text-sky-600 flex items-center justify-center font-bold">
+              <Check className="h-3.5 w-3.5 stroke-[3]" />
+            </div>
+            <span>RFQ Details</span>
+          </div>
+
+          <ChevronRight className="h-4 w-4 text-slate-300" />
+
+          {/* Step 2: Active */}
+          <div className="flex items-center gap-2 text-slate-900 font-bold">
+            <div className="h-6 w-6 rounded-full bg-[#0088FF] text-white flex items-center justify-center font-bold text-xs shadow-xs">
+              2
+            </div>
+            <span>Add Items</span>
+          </div>
+
+          <ChevronRight className="h-4 w-4 text-slate-300" />
+
+          {/* Step 3 */}
+          <div className="flex items-center gap-2 text-slate-400">
+            <div className="h-6 w-6 rounded-full border border-slate-300 text-slate-400 flex items-center justify-center font-medium text-xs">
+              3
+            </div>
+            <span>Select Suppliers</span>
+          </div>
+
+          <ChevronRight className="h-4 w-4 text-slate-300" />
+
+          {/* Step 4 */}
+          <div className="flex items-center gap-2 text-slate-400">
+            <div className="h-6 w-6 rounded-full border border-slate-300 text-slate-400 flex items-center justify-center font-medium text-xs">
+              4
+            </div>
+            <span>Review & Submit</span>
+          </div>
+        </div>
+      </div>
+
+      {/* 5. Requested Line Items Container Card */}
+      <div className="bg-white rounded-2xl border border-slate-200/90 shadow-sm p-5 sm:p-6 space-y-6">
+        {/* Banner Info Box inside Card */}
+        <div className="rounded-xl bg-[#F0F7FF] border border-sky-100 p-4 flex items-start gap-3.5">
+          <div className="h-9 w-9 rounded-xl bg-sky-500 text-white flex items-center justify-center shrink-0 shadow-xs mt-0.5">
+            <Package className="h-5 w-5" />
+          </div>
+          <div className="space-y-0.5">
+            <h3 className="text-sm font-bold text-slate-900">Requested Line Items</h3>
+            <p className="text-xs text-slate-500">
+              Select an Item Group first, then choose items from your inventory master. Description and UOM are filled automatically.
+            </p>
+          </div>
+        </div>
+
+        {/* Dynamic Line Items Table */}
+        <div className="overflow-x-auto border border-slate-200/80 rounded-xl">
+          <table className="w-full text-left text-xs">
+            <thead>
+              <tr className="bg-slate-50/80 border-b border-slate-200 text-[10px] font-bold uppercase tracking-wider text-slate-500">
+                <th className="py-3 px-3 w-10 text-center">#</th>
+                <th className="py-3 px-3 w-48">ITEM GROUP *</th>
+                <th className="py-3 px-3 w-52">ITEM *</th>
+                <th className="py-3 px-3">DESCRIPTION</th>
+                <th className="py-3 px-3 w-24">QTY *</th>
+                <th className="py-3 px-3 w-20">UOM</th>
+                <th className="py-3 px-3 w-32">PART NAME</th>
+                <th className="py-3 px-3 w-10 text-center"></th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-200/80">
+              {lineItems.map((row, idx) => (
+                <tr key={row.id} className="hover:bg-slate-50/60 transition group">
+                  {/* # */}
+                  <td className="py-3 px-3 font-semibold text-slate-400 text-center">
+                    <span className="inline-block px-2 py-1 bg-slate-100 rounded-md text-[11px] font-bold text-slate-600">
+                      {idx + 1}
+                    </span>
+                  </td>
+
+                  {/* ITEM GROUP */}
+                  <td className="py-3 px-3">
+                    <select
+                      value={row.itemGroup}
+                      onChange={(e) => updateLineItem(row.id, 'itemGroup', e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition"
+                    >
+                      <option value="Auto Parts">Auto Parts</option>
+                      <option value="Engine Systems">Engine Systems</option>
+                      <option value="Transmission">Transmission</option>
+                      <option value="Electrical & Sensors">Electrical & Sensors</option>
+                      <option value="Raw Materials">Raw Materials</option>
+                    </select>
+                  </td>
+
+                  {/* ITEM */}
+                  <td className="py-3 px-3">
+                    <select
+                      value={row.item}
+                      onChange={(e) => updateLineItem(row.id, 'item', e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl font-medium text-slate-800 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition"
+                    >
+                      <option value="Brake Pad Set">Brake Pad Set</option>
+                      <option value="Brake Disc Rotor">Brake Disc Rotor</option>
+                      <option value="Oil Filter Assembly">Oil Filter Assembly</option>
+                      <option value="Spark Plug Heavy Duty">Spark Plug Heavy Duty</option>
+                      <option value="Alloy Wheel Rim 18">Alloy Wheel Rim 18"</option>
+                    </select>
+                  </td>
+
+                  {/* DESCRIPTION */}
+                  <td className="py-3 px-3">
+                    <input
+                      type="text"
+                      value={row.description}
+                      onChange={(e) => updateLineItem(row.id, 'description', e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl text-slate-700 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition"
+                    />
+                  </td>
+
+                  {/* QTY */}
+                  <td className="py-3 px-3">
+                    <input
+                      type="number"
+                      min="1"
+                      value={row.qty}
+                      onChange={(e) => updateLineItem(row.id, 'qty', e.target.value)}
+                      className="w-full px-3 py-2 text-xs bg-white border border-slate-200 rounded-xl font-bold text-slate-900 text-center focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500 transition"
+                    />
+                  </td>
+
+                  {/* UOM */}
+                  <td className="py-3 px-3">
+                    <div className="w-full px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl font-semibold text-slate-600 text-center">
+                      {row.uom}
+                    </div>
+                  </td>
+
+                  {/* PART NAME */}
+                  <td className="py-3 px-3">
+                    <div className="w-full px-3 py-2 text-xs text-slate-400 text-center font-mono">
+                      {row.partName}
+                    </div>
+                  </td>
+
+                  {/* Action Remove */}
+                  <td className="py-3 px-3 text-center">
+                    {lineItems.length > 1 && (
+                      <button
+                        onClick={() => removeLineItem(row.id)}
+                        className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
+                        title="Remove line item"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+
+        {/* Table Footer Controls */}
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
           <button
-            onClick={() => refetch()}
-            disabled={isFetching}
-            className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-white transition disabled:opacity-50"
-            title="Refresh ERPNext Data"
+            onClick={addLineItem}
+            className="inline-flex items-center gap-1.5 px-4 py-2 text-xs font-bold text-sky-600 border border-dashed border-sky-300 rounded-xl hover:bg-sky-50 transition shadow-2xs self-start"
           >
-            <RefreshCw className={cn('h-4 w-4', isFetching && 'animate-spin')} />
+            <Plus className="h-4 w-4" />
+            <span>Add Line Item</span>
           </button>
-          <Link
-            href="/connection-test"
-            className="px-4 py-2.5 text-xs font-semibold rounded-xl border border-slate-800 bg-slate-900 hover:bg-slate-800 text-slate-200 transition flex items-center gap-1.5 shadow-sm"
+
+          <div className="text-[11px] text-slate-500">
+            <strong>{lineItems.length} line</strong> · Item codes are stored automatically
+          </div>
+        </div>
+      </div>
+
+      {/* 6. Floating AI Bot Assistant Button & Modal */}
+      <div className="fixed bottom-6 right-6 z-50">
+        {!botOpen ? (
+          <button
+            onClick={() => setBotOpen(true)}
+            className="relative h-14 w-14 rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center shadow-2xl hover:scale-105 transition-transform group"
+            title="Netlink AI Procurement Assistant"
           >
-            <Activity className="h-3.5 w-3.5 text-emerald-400" /> Connection Test
-          </Link>
-        </div>
-      </div>
-
-      {/* Metric Cards Grid - Pure ERPNext Live Counts */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {/* Projects Card */}
-        <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 relative overflow-hidden group hover:border-slate-700 transition">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-            <span>Total Programs / Projects</span>
-            <div className="h-8 w-8 rounded-xl bg-cyan-500/10 text-cyan-400 flex items-center justify-center">
-              <FolderKanban className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-extrabold text-white tracking-tight">
-            {data?.totalProjects ?? 0}
-          </div>
-          <div className="mt-2 flex items-center justify-between text-[11px]">
-            <span className="text-emerald-400 font-medium">
-              {data?.activeProjects ?? 0} Active Status
-            </span>
-            <Link href="/projects" className="text-slate-500 group-hover:text-cyan-400 flex items-center gap-0.5 transition">
-              Projects <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </div>
-        </div>
-
-        {/* Tasks Card */}
-        <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 relative overflow-hidden group hover:border-slate-700 transition">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-            <span>Total Tasks</span>
-            <div className="h-8 w-8 rounded-xl bg-blue-500/10 text-blue-400 flex items-center justify-center">
-              <CheckSquare className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-extrabold text-white tracking-tight">
-            {data?.totalTasks ?? 0}
-          </div>
-          <div className="mt-2 flex items-center justify-between text-[11px]">
-            <span className="text-amber-400 font-medium">
-              {data?.pendingTasks ?? 0} In Progress
-            </span>
-            <Link href="/tasks" className="text-slate-500 group-hover:text-cyan-400 flex items-center gap-0.5 transition">
-              Task Board <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </div>
-        </div>
-
-        {/* Issues Card */}
-        <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 relative overflow-hidden group hover:border-slate-700 transition">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-            <span>Open Issues</span>
-            <div className="h-8 w-8 rounded-xl bg-rose-500/10 text-rose-400 flex items-center justify-center">
-              <AlertTriangle className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="text-3xl font-extrabold text-white tracking-tight">
-            {data?.openIssues ?? 0}
-          </div>
-          <div className="mt-2 flex items-center justify-between text-[11px]">
-            <span className="text-rose-400 font-medium">
-              {data?.criticalIssues ?? 0} Critical Priority
-            </span>
-            <Link href="/issues" className="text-slate-500 group-hover:text-cyan-400 flex items-center gap-0.5 transition">
-              Issues Log <ArrowUpRight className="h-3 w-3" />
-            </Link>
-          </div>
-        </div>
-
-        {/* User Session Info Card */}
-        <div className="p-5 rounded-2xl bg-slate-900/80 border border-slate-800/80 relative overflow-hidden group hover:border-slate-700 transition">
-          <div className="flex items-center justify-between text-xs text-slate-400 mb-2">
-            <span>Authenticated Roles</span>
-            <div className="h-8 w-8 rounded-xl bg-purple-500/10 text-purple-400 flex items-center justify-center">
-              <User className="h-4 w-4" />
-            </div>
-          </div>
-          <div className="text-lg font-bold text-white truncate max-w-[180px]">
-            {user?.roles[0] || 'System User'}
-          </div>
-          <div className="mt-2 flex items-center justify-between text-[11px]">
-            <span className="text-slate-400 truncate">{user?.roles.length || 1} Assigned Roles</span>
-            <span className="text-emerald-400 font-mono">Verified</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content Grid: Live Programs Table & Recent Activities */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Live Projects Table Section (2 Cols) */}
-        <div className="lg:col-span-2 p-6 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-4">
-          <div className="flex items-center justify-between">
-            <div>
-              <h2 className="text-sm font-bold text-white tracking-tight">Live ERPNext Projects</h2>
-              <p className="text-xs text-slate-400">Queried dynamically from ERPNext Project DocType</p>
-            </div>
-            <Link
-              href="/projects"
-              className="text-xs font-semibold text-cyan-400 hover:text-cyan-300 flex items-center gap-1"
-            >
-              View All <ArrowUpRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-
-          {projects.length === 0 ? (
-            <EmptyState
-              title="No Projects in ERPNext"
-              description="No Project records were found on your ERPNext instance. Create a Project in ERPNext to view live data."
-            />
-          ) : (
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs">
-                <thead>
-                  <tr className="border-b border-slate-800 text-slate-400 uppercase text-[10px] tracking-wider">
-                    <th className="pb-3 font-semibold">Project Name / ID</th>
-                    <th className="pb-3 font-semibold">Status</th>
-                    <th className="pb-3 font-semibold">Progress</th>
-                    <th className="pb-3 font-semibold text-right">Target Date</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-800/60">
-                  {projects.slice(0, 8).map((project: DashboardProjectItem) => (
-                    <tr key={project.name} className="hover:bg-slate-800/30 transition">
-                      <td className="py-3 pr-4 font-medium text-slate-200">
-                        <div>{project.project_name || project.name}</div>
-                        <div className="text-[10px] text-slate-500 font-mono">{project.name}</div>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <span
-                          className={cn(
-                            'px-2 py-0.5 rounded text-[10px] font-semibold uppercase tracking-wider',
-                            project.status === 'In Progress'
-                              ? 'bg-cyan-500/10 text-cyan-400 border border-cyan-500/20'
-                              : project.status === 'Completed'
-                              ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                              : 'bg-slate-800 text-slate-300'
-                          )}
-                        >
-                          {project.status || 'Open'}
-                        </span>
-                      </td>
-                      <td className="py-3 pr-4">
-                        <div className="w-36 space-y-1">
-                          <div className="flex justify-between text-[10px] text-slate-400">
-                            <span>Completion</span>
-                            <span>{project.percent_complete ?? 0}%</span>
-                          </div>
-                          <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
-                            <div
-                              className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500"
-                              style={{ width: `${project.percent_complete ?? 0}%` }}
-                            />
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-3 text-right text-slate-400 font-mono">
-                        {project.expected_end_date || 'N/A'}
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          )}
-        </div>
-
-        {/* Recent ERPNext Activities (1 Col) */}
-        <div className="p-6 rounded-2xl bg-slate-900/80 border border-slate-800/80 space-y-4">
-          <div className="flex items-center justify-between">
-            <h2 className="text-sm font-bold text-white tracking-tight flex items-center gap-2">
-              <Clock className="h-4 w-4 text-cyan-400" /> ERPNext Audit Log
-            </h2>
-            <span className="text-[10px] text-slate-500 font-mono">Live Logs</span>
-          </div>
-
-          {activities.length === 0 ? (
-            <EmptyState title="No Recent Activities" description="Audit log is clear or endpoint restricted." />
-          ) : (
-            <div className="space-y-3">
-              {activities.map((act: DashboardActivityItem) => (
-                <div
-                  key={act.name}
-                  className="p-3 rounded-xl bg-slate-950/60 border border-slate-800/60 text-xs space-y-1 hover:border-slate-700 transition"
-                >
-                  <p className="text-slate-200 font-medium leading-tight">{act.subject}</p>
-                  <div className="flex items-center justify-between text-[10px] text-slate-500">
-                    <span>{act.user}</span>
-                    <span>{act.timestamp}</span>
+            <Bot className="h-7 w-7" />
+            <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
+          </button>
+        ) : (
+          <div className="w-80 sm:w-96 rounded-3xl bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col font-sans text-slate-800 animate-in slide-in-from-bottom-5 duration-200">
+            {/* Bot Header */}
+            <div className="p-4 bg-gradient-to-r from-sky-600 to-blue-700 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="h-8 w-8 rounded-xl bg-white/20 flex items-center justify-center">
+                  <Sparkles className="h-4 w-4 text-white" />
+                </div>
+                <div>
+                  <div className="text-xs font-extrabold tracking-wide uppercase">Netlink AI Assistant</div>
+                  <div className="text-[10px] text-sky-200 flex items-center gap-1">
+                    <ShieldCheck className="h-3 w-3 text-emerald-300" /> Connected to ERPNext Engine
                   </div>
+                </div>
+              </div>
+              <button
+                onClick={() => setBotOpen(false)}
+                className="p-1 rounded-lg hover:bg-white/20 text-white transition"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Chat Body */}
+            <div className="p-4 h-64 overflow-y-auto space-y-3 bg-slate-50/60 custom-scrollbar text-xs">
+              {botMessages.map((msg, idx) => (
+                <div
+                  key={idx}
+                  className={cn(
+                    'p-3 rounded-2xl max-w-[85%] text-xs leading-relaxed',
+                    msg.sender === 'user'
+                      ? 'bg-sky-600 text-white ml-auto rounded-br-xs font-medium'
+                      : 'bg-white border border-slate-200 text-slate-800 mr-auto rounded-bl-xs shadow-2xs'
+                  )}
+                >
+                  {msg.text}
                 </div>
               ))}
             </div>
-          )}
-        </div>
+
+            {/* Chat Form */}
+            <form onSubmit={handleSendChat} className="p-3 bg-white border-t border-slate-100 flex gap-2">
+              <input
+                type="text"
+                placeholder="Ask about part codes, RFQ status..."
+                value={chatInput}
+                onChange={(e) => setChatInput(e.target.value)}
+                className="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-800 placeholder-slate-400 focus:outline-none focus:border-sky-500 focus:ring-1 focus:ring-sky-500"
+              />
+              <button
+                type="submit"
+                className="p-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition shrink-0"
+              >
+                <Send className="h-4 w-4" />
+              </button>
+            </form>
+          </div>
+        )}
       </div>
     </div>
   );
 }
 
-function DashboardSkeleton() {
-  return (
-    <div className="space-y-6 animate-pulse">
-      <div className="h-20 w-full bg-slate-900 rounded-2xl border border-slate-800" />
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        {[1, 2, 3, 4].map((i) => (
-          <div key={i} className="h-28 bg-slate-900 rounded-2xl border border-slate-800" />
-        ))}
-      </div>
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-2 h-72 bg-slate-900 rounded-2xl border border-slate-800" />
-        <div className="h-72 bg-slate-900 rounded-2xl border border-slate-800" />
-      </div>
-    </div>
-  );
-}
-
-function EmptyState({ title, description }: { title: string; description: string }) {
-  return (
-    <div className="p-8 text-center border border-dashed border-slate-800 rounded-xl space-y-2">
-      <div className="text-slate-400 font-medium text-sm">{title}</div>
-      <p className="text-xs text-slate-500">{description}</p>
-    </div>
-  );
-}
