@@ -144,24 +144,24 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Page Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+      {/* Page Header Banner */}
+      <div className="rounded-2xl bg-[#EBF5FF] border border-sky-200/90 p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <div className="flex items-center gap-2 text-xs font-medium text-cyan-400 mb-1">
-            <FolderKanban className="h-4 w-4" />
-            <span>MODULE 2: PROJECT CHARTER</span>
+          <div className="flex items-center gap-2 text-[11px] font-extrabold tracking-wider uppercase text-sky-800 mb-1">
+            <FolderKanban className="h-4 w-4 text-sky-600" />
+            <span>MODULE 2: AUTOMOTIVE PROGRAM & PROJECT DIRECTORY</span>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-100">Project Directory</h1>
-          <p className="text-xs text-slate-400">
+          <h1 className="text-2xl font-black tracking-tight text-slate-900">Project Directory</h1>
+          <p className="text-xs text-slate-500">
             Manage automotive product programs, charter scopes, and lifecycle progression.
           </p>
         </div>
 
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={() => refetch()}
             disabled={isFetching}
-            className="p-2.5 rounded-xl bg-slate-900 border border-slate-800 text-slate-400 hover:text-slate-200 hover:bg-slate-800/80 transition disabled:opacity-50"
+            className="p-2.5 rounded-xl bg-white border border-sky-200 text-slate-600 hover:text-sky-600 hover:bg-sky-50 transition disabled:opacity-50 shadow-2xs"
             title="Refresh Data"
           >
             <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
@@ -172,7 +172,7 @@ export default function ProjectsPage() {
               setActionError(null);
               setIsCreateOpen(true);
             }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-semibold shadow-lg shadow-cyan-500/25 transition"
+            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition"
           >
             <Plus className="h-4 w-4" />
             <span>Create Project</span>
@@ -181,9 +181,9 @@ export default function ProjectsPage() {
       </div>
 
       {/* Filters & Search Toolbar */}
-      <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
           <input
             type="text"
             value={search}
@@ -192,77 +192,55 @@ export default function ProjectsPage() {
               setPage(1);
             }}
             placeholder="Search projects by name or code..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition"
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition"
           />
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
           {/* Status Filter */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
-            <Filter className="h-3.5 w-3.5 text-slate-500" />
-            <span className="text-slate-400">Status:</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+            <Filter className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-slate-500 font-medium">Status:</span>
             <select
               value={status}
               onChange={(e) => {
                 setStatus(e.target.value);
                 setPage(1);
               }}
-              className="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer"
+              className="bg-transparent text-slate-800 font-bold focus:outline-none cursor-pointer"
             >
-              <option value="ALL" className="bg-slate-900 text-slate-200">
-                All Statuses
-              </option>
-              <option value="Open" className="bg-slate-900 text-slate-200">
-                Open
-              </option>
-              <option value="In Progress" className="bg-slate-900 text-slate-200">
-                In Progress
-              </option>
-              <option value="Completed" className="bg-slate-900 text-slate-200">
-                Completed
-              </option>
-              <option value="On Hold" className="bg-slate-900 text-slate-200">
-                On Hold
-              </option>
-              <option value="Cancelled" className="bg-slate-900 text-slate-200">
-                Cancelled
-              </option>
+              <option value="ALL">All Statuses</option>
+              <option value="Open">Open</option>
+              <option value="In Progress">In Progress</option>
+              <option value="Completed">Completed</option>
+              <option value="On Hold">On Hold</option>
+              <option value="Cancelled">Cancelled</option>
             </select>
           </div>
 
           {/* Priority Filter */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
-            <span className="text-slate-400">Priority:</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+            <span className="text-slate-500 font-medium">Priority:</span>
             <select
               value={priority}
               onChange={(e) => {
                 setPriority(e.target.value);
                 setPage(1);
               }}
-              className="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer"
+              className="bg-transparent text-slate-800 font-bold focus:outline-none cursor-pointer"
             >
-              <option value="ALL" className="bg-slate-900 text-slate-200">
-                All Priorities
-              </option>
-              <option value="Critical" className="bg-slate-900 text-slate-200">
-                Critical
-              </option>
-              <option value="High" className="bg-slate-900 text-slate-200">
-                High
-              </option>
-              <option value="Medium" className="bg-slate-900 text-slate-200">
-                Medium
-              </option>
-              <option value="Low" className="bg-slate-900 text-slate-200">
-                Low
-              </option>
+              <option value="ALL">All Priorities</option>
+              <option value="Critical">Critical</option>
+              <option value="High">High</option>
+              <option value="Medium">Medium</option>
+              <option value="Low">Low</option>
             </select>
           </div>
 
           {(search || status !== 'ALL' || priority !== 'ALL') && (
             <button
               onClick={handleResetFilters}
-              className="px-3 py-2 text-xs text-slate-400 hover:text-cyan-400 transition underline underline-offset-2"
+              className="px-3 py-2 text-xs font-semibold text-sky-600 hover:text-sky-700 transition underline underline-offset-2"
             >
               Reset Filters
             </button>
@@ -274,33 +252,33 @@ export default function ProjectsPage() {
       {isLoading ? (
         <ProjectTableSkeleton rows={6} />
       ) : isError ? (
-        <div className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800 text-center space-y-3">
-          <AlertCircle className="h-10 w-10 text-rose-400 mx-auto" />
-          <h3 className="text-base font-semibold text-slate-200">Failed to load Projects</h3>
-          <p className="text-xs text-slate-400 max-w-md mx-auto">
+        <div className="p-8 rounded-2xl bg-white border border-rose-200 text-center space-y-3 shadow-xs">
+          <AlertCircle className="h-10 w-10 text-rose-500 mx-auto" />
+          <h3 className="text-base font-bold text-slate-900">Failed to load Projects</h3>
+          <p className="text-xs text-slate-500 max-w-md mx-auto">
             {error instanceof Error ? error.message : 'An error occurred while communicating with ERPNext.'}
           </p>
           <button
             onClick={() => refetch()}
-            className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition"
+            className="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold hover:bg-sky-500 transition shadow-xs"
           >
             Retry Connection
           </button>
         </div>
       ) : projects.length === 0 ? (
-        <div className="p-12 rounded-2xl bg-slate-900/60 border border-slate-800/80 text-center space-y-4">
-          <div className="h-12 w-12 rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center mx-auto">
+        <div className="p-12 rounded-2xl bg-white border border-slate-200 text-center space-y-4 shadow-xs">
+          <div className="h-12 w-12 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center mx-auto">
             <FolderOpen className="h-6 w-6" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-slate-200">No Projects Found</h3>
-            <p className="text-xs text-slate-400 max-w-sm mx-auto mt-1">
+            <h3 className="text-base font-bold text-slate-900">No Projects Found</h3>
+            <p className="text-xs text-slate-500 max-w-sm mx-auto mt-1">
               No project records match your current filter criteria or exist in ERPNext.
             </p>
           </div>
           <button
             onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs font-medium hover:bg-cyan-500/30 transition"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs"
           >
             <Plus className="h-4 w-4" />
             Create First Project
@@ -308,11 +286,11 @@ export default function ProjectsPage() {
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40">
+          <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
             <div className="overflow-x-auto">
               <table className="w-full text-left border-collapse">
                 <thead>
-                  <tr className="border-b border-slate-800/80 bg-slate-950/60 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                  <tr className="border-b border-slate-200 bg-slate-50/80 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                     <th className="py-3.5 px-4">Project Name & ID</th>
                     <th className="py-3.5 px-4">Type</th>
                     <th className="py-3.5 px-4">Status</th>
@@ -322,29 +300,29 @@ export default function ProjectsPage() {
                     <th className="py-3.5 px-4 text-right">Actions</th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-slate-800/50 text-xs">
+                <tbody className="divide-y divide-slate-200/80 text-xs">
                   {projects.map((project: Project) => (
                     <motion.tr
                       key={project.name}
                       initial={{ opacity: 0 }}
                       animate={{ opacity: 1 }}
-                      className="hover:bg-slate-800/40 transition group"
+                      className="hover:bg-slate-50/60 transition group"
                     >
                       <td className="py-3.5 px-4">
                         <Link
                           href={`/projects/${encodeURIComponent(project.name)}`}
-                          className="group-hover:text-cyan-400 transition"
+                          className="group-hover:text-sky-600 transition"
                         >
-                          <div className="font-semibold text-slate-200 text-sm">
+                          <div className="font-bold text-slate-900 text-sm">
                             {project.project_name || project.name}
                           </div>
-                          <div className="text-[11px] text-slate-500 font-mono mt-0.5">
+                          <div className="text-[11px] text-slate-400 font-mono mt-0.5">
                             {project.name}
                           </div>
                         </Link>
                       </td>
 
-                      <td className="py-3.5 px-4 text-slate-300">
+                      <td className="py-3.5 px-4 text-slate-600 font-medium">
                         {project.project_type || 'Internal'}
                       </td>
 
@@ -358,29 +336,29 @@ export default function ProjectsPage() {
 
                       <td className="py-3.5 px-4">
                         <div className="w-32 space-y-1">
-                          <div className="flex justify-between text-[10px] text-slate-400">
+                          <div className="flex justify-between text-[10px] text-slate-500 font-semibold">
                             <span>Complete</span>
-                            <span className="font-medium text-slate-200">
+                            <span className="font-bold text-slate-800">
                               {project.percent_complete || 0}%
                             </span>
                           </div>
-                          <div className="h-1.5 w-full bg-slate-800 rounded-full overflow-hidden">
+                          <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
                             <div
-                              className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-300"
+                              className="h-full bg-gradient-to-r from-sky-500 to-blue-600 rounded-full transition-all duration-300"
                               style={{ width: `${Math.min(project.percent_complete || 0, 100)}%` }}
                             />
                           </div>
                         </div>
                       </td>
 
-                      <td className="py-3.5 px-4 text-slate-400">
+                      <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">
                         {project.expected_end_date ? (
                           <div className="flex items-center gap-1.5">
-                            <Calendar className="h-3.5 w-3.5 text-slate-500" />
+                            <Calendar className="h-3.5 w-3.5 text-slate-400" />
                             <span>{project.expected_end_date}</span>
                           </div>
                         ) : (
-                          <span className="text-slate-600">Unspecified</span>
+                          <span className="text-slate-400">Unspecified</span>
                         )}
                       </td>
 
@@ -388,21 +366,21 @@ export default function ProjectsPage() {
                         <div className="flex items-center justify-end gap-1">
                           <Link
                             href={`/projects/${encodeURIComponent(project.name)}`}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-cyan-400 hover:bg-slate-800/60 transition"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition"
                             title="View Project Charter"
                           >
                             <Eye className="h-4 w-4" />
                           </Link>
                           <button
                             onClick={() => setEditingProject(project)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800/60 transition"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition"
                             title="Edit Project"
                           >
                             <Edit2 className="h-4 w-4" />
                           </button>
                           <button
                             onClick={() => setDeletingProject(project)}
-                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 transition"
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
                             title="Delete Project"
                           >
                             <Trash2 className="h-4 w-4" />
@@ -417,28 +395,27 @@ export default function ProjectsPage() {
           </div>
 
           {/* Pagination Controls */}
-          <div className="flex items-center justify-between px-2 text-xs text-slate-400">
+          <div className="flex items-center justify-between px-2 text-xs text-slate-500 font-medium">
             <div>
-              Showing <span className="font-semibold text-slate-200">{projects.length}</span> projects
+              Showing {projects.length > 0 ? (page - 1) * pageSize + 1 : 0} to{' '}
+              {Math.min(page * pageSize, totalCount)} of {totalCount} projects
             </div>
 
             <div className="flex items-center gap-2">
               <button
-                onClick={() => setPage((p) => Math.max(1, p - 1))}
+                onClick={() => setPage((p) => Math.max(p - 1, 1))}
                 disabled={page === 1}
-                className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 disabled:opacity-40 transition"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition"
               >
                 <ChevronLeft className="h-4 w-4" />
               </button>
-
-              <span className="px-3 py-1.5 rounded-xl bg-slate-900 border border-slate-800 font-medium text-slate-200">
+              <span className="font-bold text-slate-800">
                 Page {page} of {totalPages}
               </span>
-
               <button
-                onClick={() => setPage((p) => Math.min(totalPages, p + 1))}
+                onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
                 disabled={page >= totalPages}
-                className="p-2 rounded-xl bg-slate-900 border border-slate-800 text-slate-300 hover:bg-slate-800 disabled:opacity-40 transition"
+                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition"
               >
                 <ChevronRight className="h-4 w-4" />
               </button>
@@ -447,7 +424,7 @@ export default function ProjectsPage() {
         </div>
       )}
 
-      {/* Create Dialog */}
+      {/* Dialog Modals */}
       <ProjectFormDialog
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}
@@ -455,7 +432,6 @@ export default function ProjectsPage() {
         isLoading={createProjectMutation.isPending}
       />
 
-      {/* Edit Dialog */}
       <ProjectFormDialog
         isOpen={!!editingProject}
         onClose={() => setEditingProject(null)}
@@ -464,12 +440,11 @@ export default function ProjectsPage() {
         isLoading={updateProjectMutation.isPending}
       />
 
-      {/* Delete Confirmation Dialog */}
       <ProjectDeleteDialog
         isOpen={!!deletingProject}
         onClose={() => setDeletingProject(null)}
         onConfirm={handleDeleteConfirm}
-        projectName={deletingProject?.project_name || deletingProject?.name}
+        projectName={deletingProject?.project_name || deletingProject?.name || ''}
         isLoading={deleteProjectMutation.isPending}
       />
     </div>

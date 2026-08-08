@@ -79,26 +79,26 @@ export default function ProjectDetailPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4">
-        <Loader2 className="h-8 w-8 text-cyan-400 animate-spin" />
-        <p className="text-xs text-slate-400">Loading Project Workspace from ERPNext...</p>
+      <div className="min-h-[60vh] flex flex-col items-center justify-center space-y-4 font-sans">
+        <Loader2 className="h-8 w-8 text-sky-600 animate-spin" />
+        <p className="text-xs font-semibold text-slate-500">Loading Project Workspace from ERPNext...</p>
       </div>
     );
   }
 
   if (isError || !project) {
     return (
-      <div className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800 text-center space-y-4 max-w-lg mx-auto my-12">
-        <AlertCircle className="h-10 w-10 text-rose-400 mx-auto" />
-        <h2 className="text-lg font-semibold text-slate-100">Project Not Found</h2>
-        <p className="text-xs text-slate-400">
+      <div className="p-8 rounded-2xl bg-white border border-rose-200 text-center space-y-4 max-w-lg mx-auto my-12 shadow-xs font-sans">
+        <AlertCircle className="h-10 w-10 text-rose-500 mx-auto" />
+        <h2 className="text-lg font-bold text-slate-900">Project Not Found</h2>
+        <p className="text-xs text-slate-500">
           {error instanceof Error
             ? error.message
             : `Could not retrieve details for project "${projectId}".`}
         </p>
         <Link
           href="/projects"
-          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition"
+          className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs"
         >
           <ArrowLeft className="h-4 w-4" />
           Back to Projects Directory
@@ -108,14 +108,14 @@ export default function ProjectDetailPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans text-slate-800">
       {/* Top Breadcrumbs & Action Bar */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <Link
           href="/projects"
-          className="inline-flex items-center gap-2 text-xs text-slate-400 hover:text-cyan-400 transition"
+          className="inline-flex items-center gap-2 text-xs font-semibold text-slate-600 hover:text-sky-600 transition"
         >
-          <ArrowLeft className="h-4 w-4" />
+          <ArrowLeft className="h-4 w-4 text-slate-500" />
           <span>Back to Projects Directory</span>
         </Link>
 
@@ -124,7 +124,7 @@ export default function ProjectDetailPage() {
           {/* Create Team / Add Team Member Button */}
           <button
             onClick={handleCreateTeamClick}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-semibold shadow-lg shadow-cyan-500/20 transition"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition"
           >
             <UserPlus className="h-3.5 w-3.5" />
             <span>Create Team</span>
@@ -132,15 +132,15 @@ export default function ProjectDetailPage() {
 
           <button
             onClick={() => setIsEditOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-slate-800 text-slate-200 text-xs font-medium transition"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-2xs"
           >
-            <Edit2 className="h-3.5 w-3.5 text-blue-400" />
+            <Edit2 className="h-3.5 w-3.5 text-sky-600" />
             <span>Edit Charter</span>
           </button>
 
           <button
             onClick={() => setIsDeleteOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 border border-slate-800 hover:bg-rose-500/10 text-rose-400 border-rose-500/20 text-xs font-medium transition"
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-rose-50 text-rose-600 border-rose-200 text-xs font-bold transition shadow-2xs"
           >
             <Trash2 className="h-3.5 w-3.5" />
             <span>Delete</span>
@@ -148,41 +148,41 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      {/* Project Header Banner */}
-      <div className="p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800/80 shadow-xl space-y-4">
+      {/* Project Header Banner - Screenshot Styled Ice Blue Container */}
+      <div className="p-6 rounded-2xl bg-[#EBF5FF] border border-sky-200/90 shadow-xs space-y-4">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
           <div className="space-y-2">
-            <div className="flex items-center gap-3">
-              <span className="px-2.5 py-1 rounded-lg bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 text-xs font-mono font-medium">
+            <div className="flex flex-wrap items-center gap-2.5">
+              <span className="px-2.5 py-1 rounded-lg bg-sky-50 text-sky-700 border border-sky-200 text-xs font-mono font-bold">
                 {project.name}
               </span>
               <ProjectStatusBadge status={project.status} />
               <ProjectPriorityBadge priority={project.priority} />
             </div>
 
-            <h1 className="text-2xl sm:text-3xl font-bold tracking-tight text-slate-100">
+            <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900">
               {project.project_name || project.name}
             </h1>
 
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               Program Type:{' '}
-              <span className="text-slate-200 font-medium">
+              <span className="text-slate-800 font-bold">
                 {project.project_type || 'Internal Automotive Program'}
               </span>
             </p>
           </div>
 
           {/* Completion Progress Bar */}
-          <div className="p-4 rounded-xl bg-slate-950/60 border border-slate-800/80 min-w-[240px] space-y-2">
+          <div className="p-4 rounded-xl bg-white border border-sky-200/80 min-w-[240px] space-y-2 shadow-2xs">
             <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-400 font-medium">Charter Completion</span>
-              <span className="text-sm font-bold text-cyan-400">
+              <span className="text-slate-500 font-bold">Charter Completion</span>
+              <span className="text-sm font-black text-sky-600">
                 {project.percent_complete || 0}%
               </span>
             </div>
-            <div className="h-2.5 w-full bg-slate-800 rounded-full overflow-hidden">
+            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
               <div
-                className="h-full bg-gradient-to-r from-cyan-500 to-blue-500 rounded-full transition-all duration-500"
+                className="h-full bg-gradient-to-r from-sky-500 to-blue-600 rounded-full transition-all duration-500"
                 style={{ width: `${Math.min(project.percent_complete || 0, 100)}%` }}
               />
             </div>
@@ -191,14 +191,14 @@ export default function ProjectDetailPage() {
       </div>
 
       {/* 7 Workspace Tabs Bar */}
-      <div className="border-b border-slate-800 flex items-center gap-2 overflow-x-auto text-xs font-medium scrollbar-none">
+      <div className="border-b border-slate-200 flex items-center gap-2 overflow-x-auto text-xs font-semibold scrollbar-none bg-white p-1 rounded-xl shadow-2xs">
         {/* Tab 1: Overview */}
         <button
           onClick={() => setActiveTab('overview')}
-          className={`px-3.5 pb-3 border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
             activeTab === 'overview'
-              ? 'border-cyan-500 text-cyan-400 font-semibold'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'bg-sky-600 text-white font-bold shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
           <FileText className="h-4 w-4" />
@@ -208,10 +208,10 @@ export default function ProjectDetailPage() {
         {/* Tab 2: Team */}
         <button
           onClick={() => setActiveTab('team')}
-          className={`px-3.5 pb-3 border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
             activeTab === 'team'
-              ? 'border-cyan-500 text-cyan-400 font-semibold'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'bg-sky-600 text-white font-bold shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
           <Users className="h-4 w-4" />
@@ -221,10 +221,10 @@ export default function ProjectDetailPage() {
         {/* Tab 3: Tasks */}
         <button
           onClick={() => setActiveTab('tasks')}
-          className={`px-3.5 pb-3 border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
             activeTab === 'tasks'
-              ? 'border-cyan-500 text-cyan-400 font-semibold'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'bg-sky-600 text-white font-bold shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
           <Layers className="h-4 w-4" />
@@ -234,10 +234,10 @@ export default function ProjectDetailPage() {
         {/* Tab 4: Planning */}
         <button
           onClick={() => setActiveTab('planning')}
-          className={`px-3.5 pb-3 border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
             activeTab === 'planning'
-              ? 'border-cyan-500 text-cyan-400 font-semibold'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'bg-sky-600 text-white font-bold shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
           <CalendarDays className="h-4 w-4" />
@@ -247,10 +247,10 @@ export default function ProjectDetailPage() {
         {/* Tab 5: Documents */}
         <button
           onClick={() => setActiveTab('documents')}
-          className={`px-3.5 pb-3 border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
             activeTab === 'documents'
-              ? 'border-cyan-500 text-cyan-400 font-semibold'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'bg-sky-600 text-white font-bold shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
           <Folder className="h-4 w-4" />
@@ -260,27 +260,27 @@ export default function ProjectDetailPage() {
         {/* Tab 6: Issues */}
         <button
           onClick={() => setActiveTab('issues')}
-          className={`px-3.5 pb-3 border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
             activeTab === 'issues'
-              ? 'border-cyan-500 text-cyan-400 font-semibold'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'bg-sky-600 text-white font-bold shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
-          <AlertCircle className="h-4 w-4" />
+          <ShieldAlert className="h-4 w-4" />
           <span>Issues</span>
         </button>
 
         {/* Tab 7: Activity */}
         <button
           onClick={() => setActiveTab('activity')}
-          className={`px-3.5 pb-3 border-b-2 flex items-center gap-2 transition whitespace-nowrap ${
+          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
             activeTab === 'activity'
-              ? 'border-cyan-500 text-cyan-400 font-semibold'
-              : 'border-transparent text-slate-400 hover:text-slate-200'
+              ? 'bg-sky-600 text-white font-bold shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
           }`}
         >
           <Activity className="h-4 w-4" />
-          <span>Activity</span>
+          <span>Activity Log</span>
         </button>
       </div>
 

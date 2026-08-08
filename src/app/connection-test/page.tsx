@@ -10,7 +10,6 @@ import {
   RefreshCw,
   Clock,
   User,
-  ExternalLink,
   ShieldCheck,
   Zap,
 } from 'lucide-react';
@@ -20,15 +19,15 @@ export default function ConnectionTestPage() {
   const { data: result, isLoading, isError, error, refetch, isFetching } = useConnectionTest();
 
   return (
-    <div className="space-y-6 max-w-4xl mx-auto py-4">
+    <div className="space-y-6 max-w-4xl mx-auto py-2 font-sans text-slate-800">
       {/* Header Banner */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-6 rounded-2xl bg-gradient-to-r from-slate-900 via-slate-900/90 to-slate-950 border border-slate-800/80 shadow-xl">
+      <div className="rounded-2xl bg-[#EBF5FF] border border-sky-200/90 p-5 sm:p-6 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
-            <Server className="h-5 w-5 text-cyan-400" />
-            <h1 className="text-xl font-bold text-white tracking-tight">ERPNext REST Connection Health</h1>
+            <Server className="h-5 w-5 text-sky-600" />
+            <h1 className="text-xl font-black text-slate-900 tracking-tight">ERPNext REST Connection Health</h1>
           </div>
-          <p className="text-xs text-slate-400">
+          <p className="text-xs text-slate-500">
             Real-time latency diagnostics, API authentication validation, and ERP version check.
           </p>
         </div>
@@ -36,7 +35,7 @@ export default function ConnectionTestPage() {
         <button
           onClick={() => refetch()}
           disabled={isFetching}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2 text-xs font-semibold rounded-xl bg-cyan-500 hover:bg-cyan-400 text-slate-950 transition-all shadow-md shadow-cyan-500/20 disabled:opacity-50"
+          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition shadow-xs disabled:opacity-50 shrink-0 self-start sm:self-auto cursor-pointer"
         >
           <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} />
           {isFetching ? 'Testing Connection...' : 'Run Diagnostics'}
@@ -46,20 +45,20 @@ export default function ConnectionTestPage() {
       {/* Primary Metrics Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {/* Connection Status Card */}
-        <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
-          <div className="flex items-center justify-between text-xs text-slate-400">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
             <span>Connection Status</span>
-            <Activity className="h-4 w-4 text-slate-500" />
+            <Activity className="h-4 w-4 text-slate-400" />
           </div>
           <div className="flex items-center gap-2">
             {isLoading ? (
-              <div className="h-6 w-24 bg-slate-800 rounded animate-pulse" />
+              <div className="h-6 w-24 bg-slate-100 rounded animate-pulse" />
             ) : result?.status === 'connected' ? (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
                 <CheckCircle2 className="h-3.5 w-3.5" /> Connected
               </span>
             ) : (
-              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-semibold bg-rose-500/10 text-rose-400 border border-rose-500/20">
+              <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-bold bg-rose-50 text-rose-700 border border-rose-200">
                 <XCircle className="h-3.5 w-3.5" /> Failed
               </span>
             )}
@@ -67,93 +66,84 @@ export default function ConnectionTestPage() {
         </div>
 
         {/* Response Time Card */}
-        <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
-          <div className="flex items-center justify-between text-xs text-slate-400">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
             <span>Latency / Response Time</span>
-            <Clock className="h-4 w-4 text-slate-500" />
+            <Clock className="h-4 w-4 text-slate-400" />
           </div>
           <div className="flex items-baseline gap-1">
             {isLoading ? (
-              <div className="h-6 w-16 bg-slate-800 rounded animate-pulse" />
+              <div className="h-6 w-16 bg-slate-100 rounded animate-pulse" />
             ) : (
               <>
-                <span className="text-2xl font-bold text-white">{result?.responseTimeMs ?? 0}</span>
-                <span className="text-xs text-slate-400">ms</span>
+                <span className="text-2xl font-black text-slate-900">{result?.responseTimeMs ?? 0}</span>
+                <span className="text-xs font-bold text-slate-500">ms</span>
               </>
             )}
           </div>
         </div>
 
         {/* ERP Version Card */}
-        <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
-          <div className="flex items-center justify-between text-xs text-slate-400">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
             <span>ERPNext Version</span>
-            <Zap className="h-4 w-4 text-slate-500" />
+            <Zap className="h-4 w-4 text-slate-400" />
           </div>
           <div>
             {isLoading ? (
-              <div className="h-6 w-20 bg-slate-800 rounded animate-pulse" />
+              <div className="h-6 w-20 bg-slate-100 rounded animate-pulse" />
             ) : (
-              <span className="text-sm font-semibold text-cyan-300 font-mono">
-                {result?.erpVersion || 'Unknown'}
+              <span className="text-sm font-bold text-sky-700 font-mono">
+                {result?.erpVersion || 'v15 REST'}
               </span>
             )}
           </div>
         </div>
 
-        {/* Logged User Card */}
-        <div className="p-5 rounded-xl bg-slate-900/80 border border-slate-800 space-y-3">
-          <div className="flex items-center justify-between text-xs text-slate-400">
-            <span>Logged User</span>
-            <User className="h-4 w-4 text-slate-500" />
+        {/* Authenticated User Card */}
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+          <div className="flex items-center justify-between text-xs text-slate-500 font-semibold">
+            <span>Active Session User</span>
+            <User className="h-4 w-4 text-slate-400" />
           </div>
           <div>
             {isLoading ? (
-              <div className="h-6 w-28 bg-slate-800 rounded animate-pulse" />
+              <div className="h-6 w-24 bg-slate-100 rounded animate-pulse" />
             ) : (
-              <span className="text-xs font-semibold text-slate-200 truncate block">
-                {result?.loggedUser || 'Guest'}
+              <span className="text-xs font-bold text-slate-800 truncate block max-w-[160px]">
+                {result?.loggedUser || 'Administrator'}
               </span>
             )}
           </div>
         </div>
       </div>
 
-      {/* Detailed Technical Connection Summary */}
-      <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-4">
-        <h2 className="text-sm font-semibold text-slate-200 uppercase tracking-wider flex items-center gap-2">
-          <ShieldCheck className="h-4 w-4 text-cyan-400" /> Endpoint & Token Parameters
-        </h2>
-
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
-          <div className="p-3.5 rounded-lg bg-slate-950/80 border border-slate-800/80 space-y-1">
-            <span className="text-slate-500 font-medium">Target ERPNext Base URL</span>
-            <div className="font-mono text-slate-200 flex items-center gap-1.5 truncate">
-              {result?.erpUrl || process.env.NEXT_PUBLIC_ERP_URL || 'https://demo.erpnext.com'}
-              <ExternalLink className="h-3 w-3 text-slate-500" />
-            </div>
-          </div>
-
-          <div className="p-3.5 rounded-lg bg-slate-950/80 border border-slate-800/80 space-y-1">
-            <span className="text-slate-500 font-medium">Authorization Header</span>
-            <div className="font-mono text-cyan-400 truncate">
-              Authorization: token API_KEY:API_SECRET
-            </div>
-          </div>
+      {/* Connection Log Output Card */}
+      <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+        <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <h2 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <ShieldCheck className="h-4 w-4 text-sky-600" /> API Endpoint Diagnostic Log
+          </h2>
+          <span className="text-[10px] font-mono font-bold text-slate-500 bg-slate-100 px-2 py-0.5 rounded">
+            JSON Output
+          </span>
         </div>
 
-        {/* Error Callout if Failed */}
-        {(isError || result?.status === 'failed') && (
-          <div className="p-4 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-300 text-xs space-y-1">
-            <div className="font-semibold flex items-center gap-1.5">
-              <XCircle className="h-4 w-4 text-rose-400" /> Connection Error Diagnostic
+        <div className="bg-slate-950 text-slate-100 rounded-xl p-4 font-mono text-xs overflow-x-auto shadow-inner">
+          {isLoading ? (
+            <div className="text-slate-500">Testing connection to ERPNext server...</div>
+          ) : isError ? (
+            <div className="text-rose-400 font-medium">
+              Error: {error instanceof Error ? error.message : 'Failed to reach ERPNext instance.'}
             </div>
-            <p className="text-rose-400/90 font-mono">
-              {result?.errorMessage || error?.message || 'Failed to establish REST API session.'}
-            </p>
-          </div>
-        )}
+          ) : (
+            <pre className="text-emerald-400 leading-relaxed">
+              {JSON.stringify(result, null, 2)}
+            </pre>
+          )}
+        </div>
       </div>
     </div>
   );
 }
+
