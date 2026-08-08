@@ -39,9 +39,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   
   // Track open accordion state for items with children
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({
-    'Sourcing (RFx)': true,
-    'Material Requests': true,
-    'Product & APQP': false,
+    Projects: true,
+    'Gate Management': false,
   });
 
   const menuRef = useRef<HTMLDivElement>(null);

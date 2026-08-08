@@ -19,12 +19,7 @@ import {
   PieChart,
   Settings,
   HelpCircle,
-  ShoppingBag,
-  DollarSign,
-  Package,
-  Layers,
-  Inbox,
-  FileSpreadsheet,
+  Activity,
 } from 'lucide-react';
 
 export interface NavChildItem {
@@ -50,53 +45,62 @@ export interface NavSection {
 
 export const NAVIGATION_SECTIONS: NavSection[] = [
   {
+    title: 'PHASE 1: PRODUCT EXECUTION',
     items: [
       { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
       {
-        title: 'Sourcing (RFx)',
-        href: '/sourcing',
-        icon: Inbox,
-        defaultOpen: true,
-        children: [
-          { title: 'All RFIs', href: '/sourcing/rfis' },
-          { title: 'All RFPs', href: '/sourcing/rfps' },
-          { title: 'All RFQs', href: '/dashboard' }, // Links to RFQs dashboard
-          { title: 'Upload BOM', href: '/sourcing/upload-bom' },
-          { title: 'RFQ Template Library', href: '/sourcing/templates' },
-          { title: 'Reverse Bidding', href: '/sourcing/bidding' },
-        ],
-      },
-      {
-        title: 'Material Requests',
-        href: '/material-requests',
-        icon: FileText,
-        defaultOpen: true,
-        children: [
-          { title: 'Forwarded Material Requests', href: '/material-requests/forwarded' },
-          { title: 'Forwarded History', href: '/material-requests/history' },
-        ],
-      },
-      {
-        title: 'Product & APQP',
+        title: 'Projects',
         href: '/projects',
         icon: FolderKanban,
+        defaultOpen: true,
         children: [
           { title: 'All Projects', href: '/projects' },
-          { title: 'APQP Gate Review', href: '/gates/review' },
-          { title: 'Design Review', href: '/design-review' },
-          { title: 'Risk Register', href: '/risks' },
-          { title: 'Task Management', href: '/tasks' },
+          { title: 'Project Details', href: '/projects/detail' },
+          { title: 'Project Charter', href: '/projects/charter' },
+          { title: 'Team Allocation', href: '/projects/team' },
         ],
       },
-      { title: 'Suppliers', href: '/suppliers', icon: Users },
-      { title: 'Budget', href: '/budget', icon: DollarSign },
+      { title: 'Task Management', href: '/tasks', icon: CheckSquare },
+      { title: 'Planning & Gantt', href: '/planning', icon: CalendarDays },
+      { title: 'Open Issues', href: '/issues', icon: AlertTriangle },
+      { title: 'Documents', href: '/documents', icon: FileText },
+    ],
+  },
+  {
+    title: 'PHASE 2: GOVERNANCE & QUALITY',
+    items: [
+      { title: 'Design Review', href: '/design-review', icon: ClipboardList },
+      {
+        title: 'Gate Management',
+        href: '/gates',
+        icon: Lock,
+        children: [
+          { title: 'Gate Criteria', href: '/gates' },
+          { title: 'Gate Review', href: '/gates/review' },
+        ],
+      },
+      { title: 'Risk Register & FMEA', href: '/risks', icon: ShieldAlert },
+      { title: 'Notifications', href: '/notifications', icon: Bell },
+      { title: 'Workflow Status', href: '/workflows', icon: Workflow },
+    ],
+  },
+  {
+    title: 'PHASE 3: LAUNCH & INTELLIGENCE',
+    items: [
+      { title: 'Flawless Launch', href: '/launch', icon: Rocket },
+      { title: 'Imperative Scorecard', href: '/scorecard', icon: Target },
+      { title: 'Reports & Analytics', href: '/reports', icon: BarChart3 },
+      { title: 'Executive Dashboard', href: '/executive', icon: PieChart },
+      { title: 'Connection Test', href: '/connection-test', icon: Activity },
+      { title: 'Settings', href: '/settings', icon: Settings },
     ],
   },
   {
     title: 'SUPPORT',
     items: [
-      { title: 'Help', href: '/help', icon: HelpCircle },
+      { title: 'Help & Docs', href: '/help', icon: HelpCircle },
     ],
   },
 ];
+
 
