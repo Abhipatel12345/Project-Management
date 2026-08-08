@@ -125,90 +125,88 @@ export function ProjectTeamTab({
   const activeMembersCount = members.filter((m: ProjectTeamMember) => m.status === 'Active').length;
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 font-sans text-slate-800">
       {/* Top Metrics Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-        <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3.5">
+          <div className="p-3 rounded-xl bg-sky-50 text-sky-600 border border-sky-200 shrink-0">
             <Users className="h-5 w-5" />
           </div>
           <div>
-            <div className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
               Total Team Size
             </div>
-            <div className="text-xl font-bold text-slate-100">{totalMembers} Engineers</div>
+            <div className="text-xl font-black text-slate-900">{totalMembers} Engineers</div>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-amber-500/10 text-amber-400 border border-amber-500/20">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3.5">
+          <div className="p-3 rounded-xl bg-amber-50 text-amber-600 border border-amber-200 shrink-0">
             <ShieldCheck className="h-5 w-5" />
           </div>
           <div>
-            <div className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
               Steering Board
             </div>
-            <div className="text-xl font-bold text-slate-100">{boardMembersCount} Members</div>
+            <div className="text-xl font-black text-slate-900">{boardMembersCount} Members</div>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3.5">
+          <div className="p-3 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
             <CheckCircle2 className="h-5 w-5" />
           </div>
           <div>
-            <div className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
               Active Resource Rate
             </div>
-            <div className="text-xl font-bold text-slate-100">
+            <div className="text-xl font-black text-slate-900">
               {totalMembers > 0 ? Math.round((activeMembersCount / totalMembers) * 100) : 0}%
             </div>
           </div>
         </div>
 
-        <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex items-center gap-3">
-          <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+        <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3.5">
+          <div className="p-3 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 shrink-0">
             <Building className="h-5 w-5" />
           </div>
           <div>
-            <div className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
+            <div className="text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
               Cross-Departments
             </div>
-            <div className="text-xl font-bold text-slate-100">{departments.length} Units</div>
+            <div className="text-xl font-black text-slate-900">{departments.length} Units</div>
           </div>
         </div>
       </div>
 
       {/* Toolbar: Search, Filters, Add Button */}
-      <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
+      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
         {/* Search */}
         <div className="relative flex-1">
-          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-500" />
+          <Search className="absolute left-3.5 top-3 h-4 w-4 text-slate-400" />
           <input
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search team by employee name or email..."
-            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-xs placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition"
+            className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition"
           />
         </div>
 
         {/* Filter Controls */}
         <div className="flex flex-wrap items-center gap-2">
           {/* Department Filter */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
-            <Filter className="h-3.5 w-3.5 text-slate-500" />
-            <span className="text-slate-400">Department:</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+            <Filter className="h-3.5 w-3.5 text-slate-400" />
+            <span className="text-slate-500 font-medium">Department:</span>
             <select
               value={departmentFilter}
               onChange={(e) => setDepartmentFilter(e.target.value)}
-              className="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer"
+              className="bg-transparent text-slate-800 font-bold focus:outline-none cursor-pointer"
             >
-              <option value="ALL" className="bg-slate-900 text-slate-200">
-                All Departments
-              </option>
+              <option value="ALL">All Departments</option>
               {departments.map((d: string) => (
-                <option key={d} value={d} className="bg-slate-900 text-slate-200">
+                <option key={d} value={d}>
                   {d}
                 </option>
               ))}
@@ -216,18 +214,16 @@ export function ProjectTeamTab({
           </div>
 
           {/* Role Filter */}
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
-            <span className="text-slate-400">Role:</span>
+          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
+            <span className="text-slate-500 font-medium">Role:</span>
             <select
               value={roleFilter}
               onChange={(e) => setRoleFilter(e.target.value)}
-              className="bg-transparent text-slate-200 font-medium focus:outline-none cursor-pointer"
+              className="bg-transparent text-slate-800 font-bold focus:outline-none cursor-pointer"
             >
-              <option value="ALL" className="bg-slate-900 text-slate-200">
-                All Roles
-              </option>
+              <option value="ALL">All Roles</option>
               {roles.map((r: string) => (
-                <option key={r} value={r} className="bg-slate-900 text-slate-200">
+                <option key={r} value={r}>
                   {r}
                 </option>
               ))}
@@ -235,33 +231,33 @@ export function ProjectTeamTab({
           </div>
 
           {/* Board Member Segmented Filter */}
-          <div className="flex items-center p-0.5 rounded-xl bg-slate-950/60 border border-slate-800 text-xs">
+          <div className="flex items-center p-0.5 rounded-xl bg-slate-50 border border-slate-200 text-xs">
             <button
               onClick={() => setBoardFilter('ALL')}
-              className={`px-2.5 py-1 rounded-lg transition ${
+              className={`px-2.5 py-1 rounded-lg transition font-semibold ${
                 boardFilter === 'ALL'
-                  ? 'bg-slate-800 text-cyan-400 font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-white text-sky-700 shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               All
             </button>
             <button
               onClick={() => setBoardFilter('BOARD')}
-              className={`px-2.5 py-1 rounded-lg transition ${
+              className={`px-2.5 py-1 rounded-lg transition font-semibold ${
                 boardFilter === 'BOARD'
-                  ? 'bg-amber-500/20 text-amber-300 font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-amber-50 text-amber-700 border border-amber-200 shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               Board
             </button>
             <button
               onClick={() => setBoardFilter('CORE')}
-              className={`px-2.5 py-1 rounded-lg transition ${
+              className={`px-2.5 py-1 rounded-lg transition font-semibold ${
                 boardFilter === 'CORE'
-                  ? 'bg-slate-800 text-slate-200 font-semibold shadow-sm'
-                  : 'text-slate-400 hover:text-slate-200'
+                  ? 'bg-white text-slate-800 shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-800'
               }`}
             >
               Core
@@ -270,7 +266,7 @@ export function ProjectTeamTab({
 
           <button
             onClick={() => setIsAddOpen(true)}
-            className="flex items-center gap-2 px-3.5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-xs font-semibold shadow-lg shadow-cyan-500/20 transition"
+            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition"
           >
             <UserPlus className="h-3.5 w-3.5" />
             <span>Add Member</span>
@@ -281,41 +277,41 @@ export function ProjectTeamTab({
       {/* Team Table View */}
       {isLoading ? (
         <div className="p-8 text-center space-y-3">
-          <Loader2 className="h-8 w-8 text-cyan-400 animate-spin mx-auto" />
-          <p className="text-xs text-slate-400">Loading project team members...</p>
+          <Loader2 className="h-8 w-8 text-sky-600 animate-spin mx-auto" />
+          <p className="text-xs text-slate-500 font-medium">Loading project team members...</p>
         </div>
       ) : isError ? (
-        <div className="p-8 rounded-2xl bg-slate-900/60 border border-slate-800 text-center space-y-3">
-          <AlertCircle className="h-8 w-8 text-rose-400 mx-auto" />
-          <h3 className="text-sm font-semibold text-slate-200">Failed to load Team Members</h3>
+        <div className="p-8 rounded-2xl bg-white border border-rose-200 text-center space-y-3 shadow-xs">
+          <AlertCircle className="h-8 w-8 text-rose-500 mx-auto" />
+          <h3 className="text-sm font-bold text-slate-900">Failed to load Team Members</h3>
           <button
             onClick={() => refetch()}
-            className="px-3 py-1.5 rounded-lg bg-slate-800 text-xs text-slate-200 hover:bg-slate-700"
+            className="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold hover:bg-sky-500 transition shadow-xs"
           >
             Retry
           </button>
         </div>
       ) : filteredMembers.length === 0 ? (
-        <div className="p-12 rounded-2xl bg-slate-900/60 border border-slate-800 text-center space-y-3">
-          <Users className="h-10 w-10 text-slate-500 mx-auto" />
-          <h3 className="text-base font-semibold text-slate-200">No Team Members Found</h3>
-          <p className="text-xs text-slate-400 max-w-sm mx-auto">
+        <div className="p-12 rounded-2xl bg-white border border-slate-200 text-center space-y-3 shadow-xs">
+          <Users className="h-10 w-10 text-slate-400 mx-auto" />
+          <h3 className="text-base font-bold text-slate-900">No Team Members Found</h3>
+          <p className="text-xs text-slate-500 max-w-sm mx-auto">
             No engineering team members match your current filter criteria.
           </p>
           <button
             onClick={() => setIsAddOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs font-medium hover:bg-cyan-500/30 transition"
+            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs"
           >
             <UserPlus className="h-4 w-4" />
             Add First Team Member
           </button>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-2xl border border-slate-800/80 bg-slate-900/40">
+        <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
           <div className="overflow-x-auto">
             <table className="w-full text-left border-collapse">
               <thead>
-                <tr className="border-b border-slate-800/80 bg-slate-950/60 text-[11px] font-semibold text-slate-400 uppercase tracking-wider">
+                <tr className="border-b border-slate-200 bg-slate-50/80 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
                   <th className="py-3.5 px-4">Employee & Contact</th>
                   <th className="py-3.5 px-4">Department</th>
                   <th className="py-3.5 px-4">Function</th>
@@ -325,25 +321,25 @@ export function ProjectTeamTab({
                   <th className="py-3.5 px-4 text-right">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-800/50 text-xs">
+              <tbody className="divide-y divide-slate-200/80 text-xs">
                 {filteredMembers.map((member: ProjectTeamMember) => (
                   <motion.tr
                     key={member.id}
                     initial={{ opacity: 0 }}
                     animate={{ opacity: 1 }}
-                    className="hover:bg-slate-800/40 transition group"
+                    className="hover:bg-slate-50/60 transition group"
                   >
                     {/* Avatar & Employee Info */}
                     <td className="py-3.5 px-4">
                       <div className="flex items-center gap-3">
-                        <div className="h-9 w-9 rounded-xl bg-gradient-to-br from-cyan-500/20 to-blue-600/20 border border-cyan-500/30 flex items-center justify-center font-bold text-cyan-300 text-xs shrink-0 shadow-sm">
+                        <div className="h-9 w-9 rounded-xl bg-sky-50 text-sky-700 border border-sky-200 flex items-center justify-center font-bold text-xs shrink-0 shadow-2xs">
                           {member.employee_name.charAt(0).toUpperCase()}
                         </div>
                         <div>
-                          <div className="font-semibold text-slate-200 text-sm">
+                          <div className="font-bold text-slate-900 text-sm">
                             {member.employee_name}
                           </div>
-                          <div className="text-[11px] text-slate-400">{member.user_email}</div>
+                          <div className="text-[11px] text-slate-400 font-mono">{member.user_email}</div>
                         </div>
                       </div>
                     </td>

@@ -289,57 +289,57 @@ export default function ProjectDetailPage() {
         <div className="space-y-6">
           {/* Metrics Grid */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20">
+            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3.5">
+              <div className="p-3 rounded-xl bg-sky-50 text-sky-600 border border-sky-200 shrink-0">
                 <Calendar className="h-5 w-5" />
               </div>
               <div>
-                <div className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
                   Expected Timeline
                 </div>
-                <div className="text-xs font-semibold text-slate-200 mt-0.5">
+                <div className="text-xs font-bold text-slate-900 mt-0.5 font-mono">
                   {project.expected_start_date || 'N/A'} — {project.expected_end_date || 'N/A'}
                 </div>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-emerald-500/10 text-emerald-400 border border-emerald-500/20">
+            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3.5">
+              <div className="p-3 rounded-xl bg-emerald-50 text-emerald-600 border border-emerald-200 shrink-0">
                 <DollarSign className="h-5 w-5" />
               </div>
               <div>
-                <div className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
                   Estimated Budget
                 </div>
-                <div className="text-sm font-bold text-slate-200 mt-0.5">
+                <div className="text-sm font-black text-slate-900 mt-0.5 font-mono">
                   ${(project.estimated_cost || 0).toLocaleString()}
                 </div>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-blue-500/10 text-blue-400 border border-blue-500/20">
+            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3.5">
+              <div className="p-3 rounded-xl bg-blue-50 text-blue-600 border border-blue-200 shrink-0">
                 <Building className="h-5 w-5" />
               </div>
               <div>
-                <div className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
                   Company & Unit
                 </div>
-                <div className="text-xs font-semibold text-slate-200 mt-0.5">
+                <div className="text-xs font-bold text-slate-900 mt-0.5">
                   {project.company || 'Global Automotive Group'}
                 </div>
               </div>
             </div>
 
-            <div className="p-4 rounded-2xl bg-slate-900/60 border border-slate-800/80 flex items-center gap-3">
-              <div className="p-3 rounded-xl bg-purple-500/10 text-purple-400 border border-purple-500/20">
+            <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs flex items-center gap-3.5">
+              <div className="p-3 rounded-xl bg-purple-50 text-purple-600 border border-purple-200 shrink-0">
                 <User className="h-5 w-5" />
               </div>
               <div>
-                <div className="text-[11px] text-slate-400 uppercase tracking-wider font-semibold">
+                <div className="text-[10px] text-slate-500 uppercase tracking-wider font-extrabold">
                   Program Owner
                 </div>
-                <div className="text-xs font-semibold text-slate-200 mt-0.5 truncate max-w-[140px]">
+                <div className="text-xs font-bold text-slate-900 mt-0.5 truncate max-w-[140px]">
                   {project.owner || 'Administrator'}
                 </div>
               </div>
@@ -348,41 +348,41 @@ export default function ProjectDetailPage() {
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
             <div className="lg:col-span-2 space-y-6">
-              <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-3">
-                <h3 className="text-sm font-semibold text-slate-200 flex items-center gap-2">
-                  <FileText className="h-4 w-4 text-cyan-400" />
+              <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+                <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+                  <FileText className="h-4 w-4 text-sky-600" />
                   <span>Charter Scope & Objectives</span>
                 </h3>
-                <p className="text-xs text-slate-300 leading-relaxed whitespace-pre-wrap">
+                <p className="text-xs text-slate-600 leading-relaxed whitespace-pre-wrap font-medium">
                   {project.notes ||
                     'No charter description or engineering scope notes specified for this program record.'}
                 </p>
               </div>
 
-              <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-4">
-                <h3 className="text-sm font-semibold text-slate-200">Execution Parameters</h3>
+              <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+                <h3 className="text-sm font-bold text-slate-900">Execution Parameters</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
                   <div>
-                    <span className="text-slate-400">Actual Start Date:</span>
-                    <div className="font-semibold text-slate-200 mt-1">
+                    <span className="text-slate-500 font-medium">Actual Start Date:</span>
+                    <div className="font-bold text-slate-900 mt-1 font-mono">
                       {project.actual_start_date || 'Pending commencement'}
                     </div>
                   </div>
                   <div>
-                    <span className="text-slate-400">Actual End Date:</span>
-                    <div className="font-semibold text-slate-200 mt-1">
+                    <span className="text-slate-500 font-medium">Actual End Date:</span>
+                    <div className="font-bold text-slate-900 mt-1 font-mono">
                       {project.actual_end_date || 'In Progress'}
                     </div>
                   </div>
                   <div>
-                    <span className="text-slate-400">Total Costing Amount:</span>
-                    <div className="font-semibold text-slate-200 mt-1">
+                    <span className="text-slate-500 font-medium">Total Costing Amount:</span>
+                    <div className="font-bold text-slate-900 mt-1 font-mono">
                       ${(project.total_costing_amount || 0).toLocaleString()}
                     </div>
                   </div>
                   <div>
-                    <span className="text-slate-400">Department:</span>
-                    <div className="font-semibold text-slate-200 mt-1">
+                    <span className="text-slate-500 font-medium">Department:</span>
+                    <div className="font-bold text-slate-900 mt-1">
                       {project.department || 'Vehicle Development'}
                     </div>
                   </div>
@@ -391,28 +391,28 @@ export default function ProjectDetailPage() {
             </div>
 
             <div className="space-y-6">
-              <div className="p-6 rounded-2xl bg-slate-900/60 border border-slate-800/80 space-y-4">
-                <h3 className="text-sm font-semibold text-slate-200">System Metadata</h3>
+              <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
+                <h3 className="text-sm font-bold text-slate-900">System Metadata</h3>
                 <div className="space-y-3 text-xs">
-                  <div className="flex justify-between py-1.5 border-b border-slate-800/50">
-                    <span className="text-slate-400">ERPNext DocType:</span>
-                    <span className="font-mono text-cyan-400">Project</span>
+                  <div className="flex justify-between py-1.5 border-b border-slate-100">
+                    <span className="text-slate-500 font-medium">ERPNext DocType:</span>
+                    <span className="font-mono font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded border border-sky-100">Project</span>
                   </div>
-                  <div className="flex justify-between py-1.5 border-b border-slate-800/50">
-                    <span className="text-slate-400">Created:</span>
-                    <span className="text-slate-300">
+                  <div className="flex justify-between py-1.5 border-b border-slate-100">
+                    <span className="text-slate-500 font-medium">Created:</span>
+                    <span className="text-slate-800 font-bold font-mono">
                       {project.creation ? new Date(project.creation).toLocaleDateString() : 'N/A'}
                     </span>
                   </div>
-                  <div className="flex justify-between py-1.5 border-b border-slate-800/50">
-                    <span className="text-slate-400">Last Modified:</span>
-                    <span className="text-slate-300">
+                  <div className="flex justify-between py-1.5 border-b border-slate-100">
+                    <span className="text-slate-500 font-medium">Last Modified:</span>
+                    <span className="text-slate-800 font-bold font-mono">
                       {project.modified ? new Date(project.modified).toLocaleDateString() : 'N/A'}
                     </span>
                   </div>
                   <div className="flex justify-between py-1.5">
-                    <span className="text-slate-400">Modified By:</span>
-                    <span className="text-slate-300">{project.modified_by || 'Administrator'}</span>
+                    <span className="text-slate-500 font-medium">Modified By:</span>
+                    <span className="text-slate-800 font-bold">{project.modified_by || 'Administrator'}</span>
                   </div>
                 </div>
               </div>
@@ -432,21 +432,21 @@ export default function ProjectDetailPage() {
 
       {/* Tab 3: TASKS */}
       {activeTab === 'tasks' && (
-        <div className="p-12 rounded-2xl bg-slate-900/60 border border-slate-800/80 text-center space-y-4">
-          <div className="h-12 w-12 rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center mx-auto">
-            <Layers className="h-6 w-6" />
+        <div className="p-12 rounded-2xl bg-white border border-slate-200 shadow-xs text-center space-y-4">
+          <div className="h-14 w-14 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center mx-auto shadow-xs">
+            <Layers className="h-7 w-7" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-slate-200">
+            <h3 className="text-lg font-extrabold text-slate-900">
               Project Milestone Tasks ({project.project_name})
             </h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
               Work package breakdown structure and deliverable tracking for this project.
             </p>
           </div>
           <Link
             href="/tasks"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-cyan-500/20 text-cyan-400 border border-cyan-500/30 text-xs font-medium hover:bg-cyan-500/30 transition"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs"
           >
             Open Task Management
           </Link>
@@ -455,21 +455,21 @@ export default function ProjectDetailPage() {
 
       {/* Tab 4: PLANNING */}
       {activeTab === 'planning' && (
-        <div className="p-12 rounded-2xl bg-slate-900/60 border border-slate-800/80 text-center space-y-4">
-          <div className="h-12 w-12 rounded-2xl bg-cyan-500/10 text-cyan-400 border border-cyan-500/20 flex items-center justify-center mx-auto">
-            <CalendarDays className="h-6 w-6" />
+        <div className="p-12 rounded-2xl bg-white border border-slate-200 shadow-xs text-center space-y-4">
+          <div className="h-14 w-14 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center mx-auto shadow-xs">
+            <CalendarDays className="h-7 w-7" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-slate-200">
+            <h3 className="text-lg font-extrabold text-slate-900">
               Planning & Gantt Timeline ({project.project_name})
             </h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
               Interactive program schedules, APQP gate milestones, and critical path analysis.
             </p>
           </div>
           <Link
             href="/planning"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs"
           >
             Open Gantt Planning
           </Link>
@@ -478,21 +478,21 @@ export default function ProjectDetailPage() {
 
       {/* Tab 5: DOCUMENTS */}
       {activeTab === 'documents' && (
-        <div className="p-12 rounded-2xl bg-slate-900/60 border border-slate-800/80 text-center space-y-4">
-          <div className="h-12 w-12 rounded-2xl bg-blue-500/10 text-blue-400 border border-blue-500/20 flex items-center justify-center mx-auto">
-            <Folder className="h-6 w-6" />
+        <div className="p-12 rounded-2xl bg-white border border-slate-200 shadow-xs text-center space-y-4">
+          <div className="h-14 w-14 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center mx-auto shadow-xs">
+            <Folder className="h-7 w-7" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-slate-200">
+            <h3 className="text-lg font-extrabold text-slate-900">
               Engineering Documents & CAD Vault ({project.project_name})
             </h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
               Store DHF attachments, BOM specifications, CAD drawings, and compliance sign-offs.
             </p>
           </div>
           <Link
             href="/documents"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-medium transition"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs"
           >
             Open Document Vault
           </Link>
@@ -501,21 +501,21 @@ export default function ProjectDetailPage() {
 
       {/* Tab 6: ISSUES */}
       {activeTab === 'issues' && (
-        <div className="p-12 rounded-2xl bg-slate-900/60 border border-slate-800/80 text-center space-y-4">
-          <div className="h-12 w-12 rounded-2xl bg-rose-500/10 text-rose-400 border border-rose-500/20 flex items-center justify-center mx-auto">
-            <AlertCircle className="h-6 w-6" />
+        <div className="p-12 rounded-2xl bg-white border border-slate-200 shadow-xs text-center space-y-4">
+          <div className="h-14 w-14 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center mx-auto shadow-xs">
+            <AlertCircle className="h-7 w-7" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-slate-200">
+            <h3 className="text-lg font-extrabold text-slate-900">
               Open Defects & Problem Reports ({project.project_name})
             </h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
               Engineering issue triage, non-conformance reports, and 8D problem solving.
             </p>
           </div>
           <Link
             href="/issues"
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-rose-500/20 text-rose-400 border border-rose-500/30 text-xs font-medium hover:bg-rose-500/30 transition"
+            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition shadow-xs"
           >
             Open Issue Tracker
           </Link>
@@ -524,15 +524,15 @@ export default function ProjectDetailPage() {
 
       {/* Tab 7: ACTIVITY */}
       {activeTab === 'activity' && (
-        <div className="p-12 rounded-2xl bg-slate-900/60 border border-slate-800/80 text-center space-y-4">
-          <div className="h-12 w-12 rounded-2xl bg-purple-500/10 text-purple-400 border border-purple-500/20 flex items-center justify-center mx-auto">
-            <Activity className="h-6 w-6" />
+        <div className="p-12 rounded-2xl bg-white border border-slate-200 shadow-xs text-center space-y-4">
+          <div className="h-14 w-14 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center mx-auto shadow-xs">
+            <Activity className="h-7 w-7" />
           </div>
           <div>
-            <h3 className="text-base font-semibold text-slate-200">
+            <h3 className="text-lg font-extrabold text-slate-900">
               System Audit Trail & Version Logs ({project.project_name})
             </h3>
-            <p className="text-xs text-slate-400 max-w-md mx-auto mt-1">
+            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
               Real-time audit log of team member additions, charter modifications, and gate sign-offs.
             </p>
           </div>
