@@ -345,23 +345,23 @@ export function ProjectTeamTab({
                     </td>
 
                     {/* Department */}
-                    <td className="py-3.5 px-4 text-slate-300">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px]">
+                    <td className="py-3.5 px-4">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-100 border border-slate-200 text-slate-800 font-bold text-[11px]">
                         <Building className="h-3 w-3 text-slate-500" />
                         {member.department}
                       </span>
                     </td>
 
                     {/* Function */}
-                    <td className="py-3.5 px-4 text-slate-300">
-                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-slate-950/60 border border-slate-800 text-[11px]">
-                        <Briefcase className="h-3 w-3 text-slate-500" />
+                    <td className="py-3.5 px-4">
+                      <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-sky-50 border border-sky-200 text-sky-800 font-bold text-[11px]">
+                        <Briefcase className="h-3 w-3 text-sky-600" />
                         {member.function_name}
                       </span>
                     </td>
 
                     {/* Program Role */}
-                    <td className="py-3.5 px-4 font-semibold text-slate-200">
+                    <td className="py-3.5 px-4 font-bold text-slate-900 text-xs">
                       {member.role}
                     </td>
 
@@ -369,10 +369,10 @@ export function ProjectTeamTab({
                     <td className="py-3.5 px-4">
                       <button
                         onClick={() => handleToggleBoard(member.id)}
-                        className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium border transition cursor-pointer ${
+                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer ${
                           member.is_board_member
-                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/30 shadow-sm shadow-amber-500/10'
-                            : 'bg-slate-800/40 text-slate-400 border-slate-800 hover:border-slate-700'
+                            ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-2xs'
+                            : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
                         }`}
                         title="Click to toggle Steering Board Member status"
                       >
@@ -384,12 +384,12 @@ export function ProjectTeamTab({
                     {/* Status */}
                     <td className="py-3.5 px-4">
                       <span
-                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[10px] font-medium border ${
+                        className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-md text-[11px] font-bold border ${
                           member.status === 'Active'
-                            ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20'
+                            ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
                             : member.status === 'On Leave'
-                            ? 'bg-amber-500/10 text-amber-400 border-amber-500/20'
-                            : 'bg-slate-500/10 text-slate-400 border-slate-500/20'
+                            ? 'bg-amber-50 text-amber-700 border-amber-200'
+                            : 'bg-slate-100 text-slate-600 border-slate-200'
                         }`}
                       >
                         <span className="w-1.5 h-1.5 rounded-full bg-current" />
@@ -402,7 +402,7 @@ export function ProjectTeamTab({
                       <div className="flex items-center justify-end gap-1">
                         <button
                           onClick={() => setEditingMember(member)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-400 hover:bg-slate-800/60 transition"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition cursor-pointer"
                           title="Edit Member Details"
                         >
                           <Edit2 className="h-4 w-4" />
@@ -410,7 +410,7 @@ export function ProjectTeamTab({
 
                         <button
                           onClick={() => setDeletingMemberId(member.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-400 hover:bg-slate-800/60 transition"
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
                           title="Remove Member"
                         >
                           <Trash2 className="h-4 w-4" />
@@ -444,23 +444,23 @@ export function ProjectTeamTab({
 
       {/* Remove Confirmation Dialog */}
       {deletingMemberId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm">
-          <div className="relative w-full max-w-sm bg-slate-900 border border-slate-800 rounded-2xl p-6 space-y-4 shadow-2xl">
-            <h3 className="text-base font-semibold text-slate-100">Remove Team Member?</h3>
-            <p className="text-xs text-slate-400">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs font-sans">
+          <div className="relative w-full max-w-sm bg-white border border-slate-200 rounded-2xl p-6 space-y-4 shadow-xl">
+            <h3 className="text-base font-bold text-slate-900">Remove Team Member?</h3>
+            <p className="text-xs text-slate-500 font-medium">
               Are you sure you want to remove this employee from the project team?
             </p>
             <div className="flex justify-end gap-3 pt-2">
               <button
                 onClick={() => setDeletingMemberId(null)}
-                className="px-3.5 py-1.5 rounded-xl text-xs text-slate-300 hover:bg-slate-800"
+                className="px-3.5 py-2 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={handleConfirmRemove}
                 disabled={removeMutation.isPending}
-                className="px-4 py-1.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-medium shadow-md shadow-rose-600/20"
+                className="px-4 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
               >
                 {removeMutation.isPending ? 'Removing...' : 'Confirm Remove'}
               </button>
