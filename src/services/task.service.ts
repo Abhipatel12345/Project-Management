@@ -16,8 +16,8 @@ const TASK_FIELDS = [
   'priority',
   'exp_start_date',
   'exp_end_date',
-  'actual_start_date',
-  'actual_end_date',
+  'act_start_date',
+  'act_end_date',
   'expected_time',
   'progress',
   'description',
@@ -65,6 +65,8 @@ const normalizeTask = (t: any): Task => {
 
   return {
     ...t,
+    actual_start_date: t.act_start_date || t.exp_start_date || '',
+    actual_end_date: t.act_end_date || t.exp_end_date || '',
     status: t.status || 'Open',
     priority: t.priority || 'Medium',
     progress: typeof t.progress === 'number' ? t.progress : t.status === 'Completed' ? 100 : 0,
