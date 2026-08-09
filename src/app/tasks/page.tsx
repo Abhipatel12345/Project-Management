@@ -1,7 +1,6 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
-import { DashboardLayout } from '@/layouts/dashboard-layout';
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/use-tasks';
 import { useProjects } from '@/hooks/use-projects';
 import { Task, MemberWorkload, TaskStatus } from '@/types/task.types';
@@ -189,9 +188,8 @@ export default function GlobalTaskManagementPage() {
   };
 
   return (
-    <DashboardLayout>
-      <div className="space-y-6 font-sans pb-12">
-        {/* Page Header */}
+    <div className="space-y-6 font-sans pb-12">
+      {/* Page Header */}
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
@@ -416,6 +414,5 @@ export default function GlobalTaskManagementPage() {
           onViewTask={(t) => setViewingTask(t)}
         />
       </div>
-    </DashboardLayout>
   );
 }

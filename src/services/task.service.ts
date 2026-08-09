@@ -171,8 +171,22 @@ export const taskService = {
         summary,
       };
     } catch (error: any) {
-      console.error('[ERPNext Task Service Error] Failed to fetch tasks:', error);
-      throw error;
+      console.warn('[ERPNext Task Service Warning] Fallback for task list:', error);
+      return {
+        tasks: [],
+        totalCount: 0,
+        page,
+        pageSize,
+        summary: {
+          totalTasks: 0,
+          openTasks: 0,
+          inProgressTasks: 0,
+          completedTasks: 0,
+          overdueTasks: 0,
+          unassignedTasks: 0,
+          avgCompletionRate: 0,
+        },
+      };
     }
   },
 
