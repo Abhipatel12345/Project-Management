@@ -1,0 +1,283 @@
+import api from './api';
+import {
+  Task,
+  TaskListQueryParams,
+  TaskListResponse,
+  TaskSummary,
+  TaskComment,
+  TaskAttachment,
+} from '@/types/task.types';
+
+const TASK_FIELDS = [
+  'name',
+  'subject',
+  'project',
+  'status',
+  'priority',
+  'exp_start_date',
+  'exp_end_date',
+  'actual_start_date',
+  'actual_end_date',
+  'expected_time',
+  'progress',
+  'description',
+  'parent_task',
+  'depends_on',
+  'company',
+  'department',
+  'creation',
+  'modified',
+  'modified_by',
+  'owner',
+];
+
+const todayStr = new Date().toISOString().split('T')[0];
+
+const calculateOverdue = (expEndDate?: string, status?: string): { is_overdue: boolean; overdue_days: number } => {
+  if (!expEndDate || status === 'Completed' || status === 'Cancelled') {
+    return { is_overdue: false, overdue_days: 0 };
+  }
+  const due = new Date(expEndDate);
+  const now = new Date(todayStr);
+  if (due < now) {
+    const diffTime = Math.abs(now.getTime() - due.getTime());
+    const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+    return { is_overdue: true, overdue_days: diffDays };
+  }
+  return { is_overdue: false, overdue_days: 0 };
+};
+
+const normalizeTask = (t: any): Task => {
+  const { is_overdue, overdue_days } = calculateOverdue(t.exp_end_date, t.status);
+  
+  // Extract assigned user from _assign if present
+  let assignedTo = t.assigned_to || t.owner || 'Unassigned';
+  if (t._assign) {
+    try {
+      const arr = typeof t._assign === 'string' ? JSON.parse(t._assign) : t._assign;
+      if (Array.isArray(arr) && arr.length > 0) {
+        assignedTo = arr[0];
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  return {
+    ...t,
+    status: t.status || 'Open',
+    priority: t.priority || 'Medium',
+    progress: typeof t.progress === 'number' ? t.progress : t.status === 'Completed' ? 100 : 0,
+    assigned_to: assignedTo,
+    is_overdue,
+    overdue_days,
+  };
+};
+
+const cleanPayload = (data: Partial<Task>): Record<string, any> => {
+  const payload: Record<string, any> = {};
+  for (const [key, value] of Object.entries(data)) {
+    if (value !== '' && value !== null && value !== undefined && !Number.isNaN(value)) {
+      payload[key] = value;
+    }
+  }
+  return payload;
+};
+
+export const taskService = {
+  /**
+   * Get paginated, filtered list of tasks from ERPNext
+   */
+  async getTasks(params: TaskListQueryParams = {}): Promise<TaskListResponse> {
+    const page = params.page || 1;
+    const pageSize = params.pageSize || 15;
+    const limitStart = (page - 1) * pageSize;
+    const sortBy = params.sortBy || 'modified';
+    const sortOrder = params.sortOrder || 'desc';
+
+    const filters: (string | number)[][] = [];
+
+    if (params.project && params.project !== 'ALL') {
+      filters.push(['project', '=', params.project]);
+    }
+
+    if (params.search && params.search.trim() !== '') {
+      filters.push(['subject', 'like', `%${params.search.trim()}%`]);
+    }
+
+    if (params.status && params.status !== 'ALL') {
+      filters.push(['status', '=', params.status]);
+    }
+
+    if (params.priority && params.priority !== 'ALL') {
+      filters.push(['priority', '=', params.priority]);
+    }
+
+    const queryParts: string[] = [
+      `fields=${encodeURIComponent(JSON.stringify(TASK_FIELDS))}`,
+      `limit_start=${limitStart}`,
+      `limit_page_length=${pageSize}`,
+      `order_by=${encodeURIComponent(`${sortBy} ${sortOrder}`)}`,
+    ];
+
+    if (filters.length > 0) {
+      queryParts.push(`filters=${encodeURIComponent(JSON.stringify(filters))}`);
+    }
+
+    const url = `/api/resource/Task?${queryParts.join('&')}`;
+
+    try {
+      const response = await api.get<{ data: any[] }>(url);
+      const rawTasks = response.data || [];
+      let tasks = rawTasks.map(normalizeTask);
+
+      // Client-side additional filters if assigned_to or is_overdue specified
+      if (params.assigned_to && params.assigned_to !== 'ALL') {
+        tasks = tasks.filter(
+          (t) =>
+            t.assigned_to?.toLowerCase().includes(params.assigned_to!.toLowerCase()) ||
+            t.assigned_employee_name?.toLowerCase().includes(params.assigned_to!.toLowerCase())
+        );
+      }
+
+      if (params.is_overdue) {
+        tasks = tasks.filter((t) => t.is_overdue);
+      }
+
+      // Calculate summary statistics dynamically
+      const summary: TaskSummary = {
+        totalTasks: tasks.length,
+        openTasks: tasks.filter((t) => t.status === 'Open').length,
+        inProgressTasks: tasks.filter((t) => t.status === 'Working' || t.status === 'In Progress').length,
+        completedTasks: tasks.filter((t) => t.status === 'Completed').length,
+        overdueTasks: tasks.filter((t) => t.is_overdue).length,
+        unassignedTasks: tasks.filter((t) => !t.assigned_to || t.assigned_to === 'Unassigned').length,
+        avgCompletionRate:
+          tasks.length > 0
+            ? Math.round(tasks.reduce((acc, t) => acc + (t.progress || 0), 0) / tasks.length)
+            : 0,
+      };
+
+      let totalCount = tasks.length;
+      if (tasks.length === pageSize || page > 1) {
+        totalCount = Math.max(page * pageSize, tasks.length + limitStart);
+      }
+
+      return {
+        tasks,
+        totalCount,
+        page,
+        pageSize,
+        summary,
+      };
+    } catch (error: any) {
+      console.error('[ERPNext Task Service Error] Failed to fetch tasks:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get single task details by Name / ID
+   */
+  async getTaskByName(name: string): Promise<Task> {
+    try {
+      const response = await api.get<{ data: any }>(
+        `/api/resource/Task/${encodeURIComponent(name)}`
+      );
+      return normalizeTask(response.data);
+    } catch (error: any) {
+      console.error(`[ERPNext Task Service Error] Failed to fetch task ${name}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Create task in ERPNext
+   */
+  async createTask(data: Partial<Task>): Promise<Task> {
+    try {
+      const payload = cleanPayload(data);
+      const response = await api.post<{ data: any }>('/api/resource/Task', payload);
+      return normalizeTask(response.data);
+    } catch (error: any) {
+      console.error('[ERPNext Task Service Error] Failed to create task:', error);
+      throw error;
+    }
+  },
+
+  /**
+   * Update task in ERPNext
+   */
+  async updateTask(name: string, data: Partial<Task>): Promise<Task> {
+    try {
+      const payload = cleanPayload(data);
+      const response = await api.put<{ data: any }>(
+        `/api/resource/Task/${encodeURIComponent(name)}`,
+        payload
+      );
+      return normalizeTask(response.data);
+    } catch (error: any) {
+      console.error(`[ERPNext Task Service Error] Failed to update task ${name}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Delete task in ERPNext
+   */
+  async deleteTask(name: string): Promise<void> {
+    try {
+      await api.delete(`/api/resource/Task/${encodeURIComponent(name)}`);
+    } catch (error: any) {
+      console.error(`[ERPNext Task Service Error] Failed to delete task ${name}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Fetch comments/communications for task
+   */
+  async getTaskComments(taskName: string): Promise<TaskComment[]> {
+    try {
+      const filters = JSON.stringify([['reference_doctype', '=', 'Task'], ['reference_name', '=', taskName]]);
+      const response = await api.get<{ data: any[] }>(
+        `/api/resource/Comment?filters=${encodeURIComponent(filters)}&fields=${encodeURIComponent(
+          JSON.stringify(['name', 'comment', 'comment_by', 'creation'])
+        )}`
+      );
+      return (response.data || []).map((c) => ({
+        name: c.name,
+        comment: c.comment,
+        comment_by: c.comment_by || 'System',
+        creation: c.creation,
+      }));
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Fetch file attachments for task
+   */
+  async getTaskAttachments(taskName: string): Promise<TaskAttachment[]> {
+    try {
+      const filters = JSON.stringify([['attached_to_doctype', '=', 'Task'], ['attached_to_name', '=', taskName]]);
+      const response = await api.get<{ data: any[] }>(
+        `/api/resource/File?filters=${encodeURIComponent(filters)}&fields=${encodeURIComponent(
+          JSON.stringify(['name', 'file_name', 'file_url', 'file_size', 'creation'])
+        )}`
+      );
+      return (response.data || []).map((f) => ({
+        name: f.name,
+        file_name: f.file_name,
+        file_url: f.file_url,
+        file_size: f.file_size,
+        creation: f.creation,
+      }));
+    } catch {
+      return [];
+    }
+  },
+};
+
+export default taskService;

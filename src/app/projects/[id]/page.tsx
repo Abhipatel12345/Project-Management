@@ -9,6 +9,7 @@ import { ProjectPriorityBadge } from '@/components/projects/project-priority-bad
 import { ProjectFormDialog } from '@/components/projects/project-form-dialog';
 import { ProjectDeleteDialog } from '@/components/projects/project-delete-dialog';
 import { ProjectTeamTab } from '@/components/projects/team/project-team-tab';
+import { ProjectTasksTab } from '@/components/projects/tasks/project-tasks-tab';
 import {
   ArrowLeft,
   Calendar,
@@ -432,25 +433,10 @@ export default function ProjectDetailPage() {
 
       {/* Tab 3: TASKS */}
       {activeTab === 'tasks' && (
-        <div className="p-12 rounded-2xl bg-white border border-slate-200 shadow-xs text-center space-y-4">
-          <div className="h-14 w-14 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center mx-auto shadow-xs">
-            <Layers className="h-7 w-7" />
-          </div>
-          <div>
-            <h3 className="text-lg font-extrabold text-slate-900">
-              Project Milestone Tasks ({project.project_name})
-            </h3>
-            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-              Work package breakdown structure and deliverable tracking for this project.
-            </p>
-          </div>
-          <Link
-            href="/tasks"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs"
-          >
-            Open Task Management
-          </Link>
-        </div>
+        <ProjectTasksTab
+          projectId={projectId}
+          projectName={project.project_name || project.name}
+        />
       )}
 
       {/* Tab 4: PLANNING */}
