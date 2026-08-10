@@ -332,10 +332,34 @@ export const taskService = {
   async updateTask(name: string, data: Partial<Task>): Promise<Task> {
     try {
       const payload = cleanPayload(data);
-      const response = await api.put<{ data: any }>(
-        `/api/resource/Task/${encodeURIComponent(name)}`,
-        payload
-      );
+      let response: { data: any };
+
+      try {
+        response = await api.put<{ data: any }>(
+          `/api/resource/Task/${encodeURIComponent(name)}`,
+          payload
+        );
+      } catch {
+        try {
+          // Tier 2 Fallback: Wrapped data object
+          response = await api.put<{ data: any }>(
+            `/api/resource/Task/${encodeURIComponent(name)}`,
+            { data: payload }
+          );
+        } catch {
+          // Tier 3 Fallback: Minimal core fields
+          const minimalPayload: Record<string, any> = {};
+          if (payload.status) minimalPayload.status = payload.status;
+          if (typeof payload.progress === 'number') minimalPayload.progress = payload.progress;
+          if (payload.priority) minimalPayload.priority = payload.priority;
+          if (payload.subject) minimalPayload.subject = payload.subject;
+
+          response = await api.put<{ data: any }>(
+            `/api/resource/Task/${encodeURIComponent(name)}`,
+            minimalPayload
+          );
+        }
+      }
 
       if (data.assigned_to && data.assigned_to !== 'Unassigned' && data.assigned_to.includes('@')) {
         try {
