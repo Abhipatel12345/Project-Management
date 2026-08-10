@@ -134,10 +134,6 @@ const cleanPayload = (data: Partial<Task>): Record<string, any> => {
     payload.description = description;
   }
 
-  if (data.assigned_to && data.assigned_to !== 'Unassigned') {
-    payload._assign = JSON.stringify([data.assigned_to]);
-  }
-
   return payload;
 };
 
@@ -269,7 +265,21 @@ export const taskService = {
     try {
       const payload = cleanPayload(data);
       const response = await api.post<{ data: any }>('/api/resource/Task', payload);
-      return normalizeTask(response.data);
+      const task = normalizeTask(response.data);
+
+      if (data.assigned_to && data.assigned_to !== 'Unassigned' && data.assigned_to.includes('@')) {
+        try {
+          await api.post('/api/method/frappe.desk.form.assign_to.add', {
+            doctype: 'Task',
+            name: task.name,
+            assign_to: JSON.stringify([data.assigned_to]),
+          });
+        } catch {
+          // Non-blocking fallback
+        }
+      }
+
+      return task;
     } catch (error: any) {
       console.error('[ERPNext Task Service Error] Failed to create task:', error);
       throw error;
@@ -286,6 +296,19 @@ export const taskService = {
         `/api/resource/Task/${encodeURIComponent(name)}`,
         payload
       );
+
+      if (data.assigned_to && data.assigned_to !== 'Unassigned' && data.assigned_to.includes('@')) {
+        try {
+          await api.post('/api/method/frappe.desk.form.assign_to.add', {
+            doctype: 'Task',
+            name: name,
+            assign_to: JSON.stringify([data.assigned_to]),
+          });
+        } catch {
+          // Non-blocking fallback
+        }
+      }
+
       return normalizeTask(response.data);
     } catch (error: any) {
       console.error(`[ERPNext Task Service Error] Failed to update task ${name}:`, error);
