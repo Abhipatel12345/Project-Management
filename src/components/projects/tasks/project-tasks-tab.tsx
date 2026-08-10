@@ -24,12 +24,15 @@ import {
   CheckSquare,
 } from 'lucide-react';
 
+import { useToast } from '@/providers/toast-context';
+
 interface ProjectTasksTabProps {
   projectId: string;
   projectName: string;
 }
 
 export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps) {
+  const { showToast } = useToast();
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
@@ -119,36 +122,10 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
 
   // Handlers
   const handleCreateSubmit = async (values: TaskFormValues) => {
-    await createTaskMutation.mutateAsync({
-      subject: values.subject,
-      project: projectId, // Strictly auto-associate with current Project ID!
-      status: values.status,
-      priority: values.priority,
-      exp_start_date: values.exp_start_date,
-      exp_end_date: values.exp_end_date,
-      expected_time: values.expected_time,
-      progress: values.progress,
-      description: values.description,
-      assigned_to: values.assigned_to,
-      parent_task: values.parent_task,
-      depends_on: values.depends_on,
-      rasic: {
-        responsible: values.rasic_responsible,
-        accountable: values.rasic_accountable,
-        support: values.rasic_support,
-        consulted: values.rasic_consulted,
-        informed: values.rasic_informed,
-      },
-    });
-  };
-
-  const handleEditSubmit = async (values: TaskFormValues) => {
-    if (!editingTask) return;
-    await updateTaskMutation.mutateAsync({
-      name: editingTask.name,
-      data: {
+    try {
+      await createTaskMutation.mutateAsync({
         subject: values.subject,
-        project: projectId,
+        project: projectId, // Strictly auto-associate with current Project ID!
         status: values.status,
         priority: values.priority,
         exp_start_date: values.exp_start_date,
@@ -166,22 +143,73 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
           consulted: values.rasic_consulted,
           informed: values.rasic_informed,
         },
-      },
-    });
+      });
+      showToast('Task created successfully in ERPNext!', 'success');
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create task in ERPNext', 'error');
+    }
+  };
+
+  const handleEditSubmit = async (values: TaskFormValues) => {
+    if (!editingTask) return;
+    try {
+      await updateTaskMutation.mutateAsync({
+        name: editingTask.name,
+        data: {
+          subject: values.subject,
+          project: projectId,
+          status: values.status,
+          priority: values.priority,
+          exp_start_date: values.exp_start_date,
+          exp_end_date: values.exp_end_date,
+          expected_time: values.expected_time,
+          progress: values.progress,
+          description: values.description,
+          assigned_to: values.assigned_to,
+          parent_task: values.parent_task,
+          depends_on: values.depends_on,
+          rasic: {
+            responsible: values.rasic_responsible,
+            accountable: values.rasic_accountable,
+            support: values.rasic_support,
+            consulted: values.rasic_consulted,
+            informed: values.rasic_informed,
+          },
+        },
+      });
+      showToast(`Task ${editingTask.name} updated successfully in ERPNext!`, 'success');
+      setEditingTask(null);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update task in ERPNext', 'error');
+    }
   };
 
   const handleDeleteConfirm = async () => {
     if (!deletingTask) return;
-    await deleteTaskMutation.mutateAsync(deletingTask.name);
-    setDeletingTask(null);
+    try {
+      await deleteTaskMutation.mutateAsync(deletingTask.name);
+      showToast(`Task ${deletingTask.name} deleted from ERPNext!`, 'success');
+      setDeletingTask(null);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete task', 'error');
+    }
   };
 
   const handleStatusChange = async (taskName: string, newStatus: TaskStatus) => {
     const progress = newStatus === 'Completed' ? 100 : newStatus === 'Open' ? 0 : 50;
-    await updateTaskMutation.mutateAsync({
-      name: taskName,
-      data: { status: newStatus, progress },
-    });
+    try {
+      await updateTaskMutation.mutateAsync({
+        name: taskName,
+        data: { status: newStatus, progress },
+      });
+      showToast(`Task ${taskName} moved to ${newStatus}!`, 'success');
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update task status', 'error');
+    }
   };
 
   return (

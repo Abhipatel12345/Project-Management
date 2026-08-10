@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { ThemeProvider as NextThemesProvider } from 'next-themes';
 import { AuthProvider } from './auth-context';
+import { ToastProvider } from './toast-context';
 
 interface AppProviderProps {
   children: React.ReactNode;
@@ -31,7 +32,9 @@ export function AppProvider({ children }: AppProviderProps) {
         enableSystem
         disableTransitionOnChange
       >
-        <AuthProvider>{children}</AuthProvider>
+        <AuthProvider>
+          <ToastProvider>{children}</ToastProvider>
+        </AuthProvider>
       </NextThemesProvider>
     </QueryClientProvider>
   );

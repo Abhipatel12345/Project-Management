@@ -47,6 +47,25 @@ const calculateOverdue = (expEndDate?: string, status?: string): { is_overdue: b
   return { is_overdue: false, overdue_days: 0 };
 };
 
+const ERPNEXT_ALLOWED_TASK_FIELDS = [
+  'subject',
+  'project',
+  'status',
+  'priority',
+  'exp_start_date',
+  'exp_end_date',
+  'act_start_date',
+  'act_end_date',
+  'expected_time',
+  'progress',
+  'description',
+  'parent_task',
+  'depends_on',
+  'company',
+  'department',
+  'type',
+];
+
 const normalizeTask = (t: any): Task => {
   const { is_overdue, overdue_days } = calculateOverdue(t.exp_end_date, t.status);
   
@@ -63,14 +82,31 @@ const normalizeTask = (t: any): Task => {
     }
   }
 
+  // Parse RASIC from description metadata block if present
+  let rasic = t.rasic;
+  let cleanDescription = t.description || '';
+  if (t.description && t.description.includes('<!-- RASIC:')) {
+    try {
+      const match = t.description.match(/<!-- RASIC: (.*?) -->/);
+      if (match && match[1]) {
+        rasic = JSON.parse(match[1]);
+        cleanDescription = t.description.replace(/<!-- RASIC: .*? -->/, '').trim();
+      }
+    } catch {
+      // fallback
+    }
+  }
+
   return {
     ...t,
+    description: cleanDescription,
     actual_start_date: t.act_start_date || t.exp_start_date || '',
     actual_end_date: t.act_end_date || t.exp_end_date || '',
     status: t.status || 'Open',
     priority: t.priority || 'Medium',
     progress: typeof t.progress === 'number' ? t.progress : t.status === 'Completed' ? 100 : 0,
     assigned_to: assignedTo,
+    rasic,
     is_overdue,
     overdue_days,
   };
@@ -78,11 +114,30 @@ const normalizeTask = (t: any): Task => {
 
 const cleanPayload = (data: Partial<Task>): Record<string, any> => {
   const payload: Record<string, any> = {};
+
+  // Build description with embedded RASIC block if rasic provided
+  let description = data.description || '';
+  if (data.rasic && Object.values(data.rasic).some(Boolean)) {
+    const cleanDesc = description.replace(/<!-- RASIC: .*? -->/, '').trim();
+    description = `${cleanDesc}\n\n<!-- RASIC: ${JSON.stringify(data.rasic)} -->`.trim();
+  }
+
   for (const [key, value] of Object.entries(data)) {
-    if (value !== '' && value !== null && value !== undefined && !Number.isNaN(value)) {
-      payload[key] = value;
+    if (ERPNEXT_ALLOWED_TASK_FIELDS.includes(key)) {
+      if (value !== '' && value !== null && value !== undefined && !Number.isNaN(value)) {
+        payload[key] = value;
+      }
     }
   }
+
+  if (description) {
+    payload.description = description;
+  }
+
+  if (data.assigned_to && data.assigned_to !== 'Unassigned') {
+    payload._assign = JSON.stringify([data.assigned_to]);
+  }
+
   return payload;
 };
 
