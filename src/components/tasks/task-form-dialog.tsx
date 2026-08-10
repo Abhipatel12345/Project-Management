@@ -66,13 +66,20 @@ export function TaskFormDialog({
 
   useEffect(() => {
     if (initialData) {
+      const cleanStartDate = initialData.exp_start_date
+        ? initialData.exp_start_date.split(' ')[0].split('T')[0]
+        : '';
+      const cleanEndDate = initialData.exp_end_date
+        ? initialData.exp_end_date.split(' ')[0].split('T')[0]
+        : '';
+
       reset({
         subject: initialData.subject || '',
         project: initialData.project || defaultProjectId || '',
         status: (initialData.status as any) || 'Open',
         priority: (initialData.priority as any) || 'Medium',
-        exp_start_date: initialData.exp_start_date || '',
-        exp_end_date: initialData.exp_end_date || '',
+        exp_start_date: cleanStartDate,
+        exp_end_date: cleanEndDate,
         expected_time: initialData.expected_time || 0,
         progress: initialData.progress || 0,
         description: initialData.description || '',
@@ -109,8 +116,12 @@ export function TaskFormDialog({
   }, [initialData, reset, isOpen, defaultProjectId, projects]);
 
   const onFormSubmit = async (values: TaskFormValues) => {
-    await onSubmit(values);
-    onClose();
+    try {
+      await onSubmit(values);
+      onClose();
+    } catch {
+      // Keep modal open if API save fails so user can adjust form values
+    }
   };
 
   if (!isOpen) return null;
