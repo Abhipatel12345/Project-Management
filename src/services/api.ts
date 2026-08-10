@@ -55,7 +55,7 @@ axiosClient.interceptors.response.use(
 
     if (error.response) {
       const resData = error.response.data;
-      console.error('[ERPNext API Error Interceptor]', {
+      console.warn('[ERPNext API Warning Interceptor]', {
         status,
         url: error.config?.url,
         method: error.config?.method,

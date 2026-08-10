@@ -54,8 +54,6 @@ const ERPNEXT_ALLOWED_TASK_FIELDS = [
   'priority',
   'exp_start_date',
   'exp_end_date',
-  'act_start_date',
-  'act_end_date',
   'expected_time',
   'progress',
   'description',
