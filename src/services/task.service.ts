@@ -330,36 +330,14 @@ export const taskService = {
    * Update task in ERPNext
    */
   async updateTask(name: string, data: Partial<Task>): Promise<Task> {
+    const payload = cleanPayload(data);
+
     try {
-      const payload = cleanPayload(data);
-      let response: { data: any };
-
-      try {
-        response = await api.put<{ data: any }>(
-          `/api/resource/Task/${encodeURIComponent(name)}`,
-          payload
-        );
-      } catch {
-        try {
-          // Tier 2 Fallback: Wrapped data object
-          response = await api.put<{ data: any }>(
-            `/api/resource/Task/${encodeURIComponent(name)}`,
-            { data: payload }
-          );
-        } catch {
-          // Tier 3 Fallback: Minimal core fields
-          const minimalPayload: Record<string, any> = {};
-          if (payload.status) minimalPayload.status = payload.status;
-          if (typeof payload.progress === 'number') minimalPayload.progress = payload.progress;
-          if (payload.priority) minimalPayload.priority = payload.priority;
-          if (payload.subject) minimalPayload.subject = payload.subject;
-
-          response = await api.put<{ data: any }>(
-            `/api/resource/Task/${encodeURIComponent(name)}`,
-            minimalPayload
-          );
-        }
-      }
+      // Primary Attempt: Standard ERPNext REST Resource PUT
+      const response = await api.put<{ data: any }>(
+        `/api/resource/Task/${encodeURIComponent(name)}`,
+        payload
+      );
 
       if (data.assigned_to && data.assigned_to !== 'Unassigned' && data.assigned_to.includes('@')) {
         try {
@@ -374,9 +352,35 @@ export const taskService = {
       }
 
       return normalizeTask(response.data);
-    } catch (error: any) {
-      console.error(`[ERPNext Task Service Error] Failed to update task ${name}:`, error);
-      throw error;
+    } catch {
+      try {
+        // Secondary Attempt: ERPNext frappe.client.set_value RPC Endpoint
+        const setValRes = await api.post<{ message: any }>(
+          '/api/method/frappe.client.set_value',
+          {
+            doctype: 'Task',
+            name: name,
+            fieldname: payload,
+          }
+        );
+
+        if (data.assigned_to && data.assigned_to !== 'Unassigned' && data.assigned_to.includes('@')) {
+          try {
+            await api.post('/api/method/frappe.desk.form.assign_to.add', {
+              doctype: 'Task',
+              name: name,
+              assign_to: JSON.stringify([data.assigned_to]),
+            });
+          } catch {
+            // Non-blocking fallback
+          }
+        }
+
+        return normalizeTask(setValRes.message || { name, ...payload });
+      } catch (error: any) {
+        console.error(`[ERPNext Task Service Error] Failed to update task ${name}:`, error);
+        throw error;
+      }
     }
   },
 
