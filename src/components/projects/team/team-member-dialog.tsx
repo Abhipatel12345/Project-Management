@@ -10,8 +10,10 @@ import { motion, AnimatePresence } from 'framer-motion';
 interface TeamMemberDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (data: TeamMemberFormData) => Promise<void>;
+  onSubmit: (data: TeamMemberFormData, targetProjectId?: string) => Promise<void>;
   initialData?: ProjectTeamMember | null;
+  defaultProjectId?: string;
+  projects?: { name: string; project_name: string }[];
   isLoading?: boolean;
 }
 
@@ -52,12 +54,20 @@ export function TeamMemberDialog({
   onClose,
   onSubmit,
   initialData,
+  defaultProjectId,
+  projects = [],
   isLoading = false,
 }: TeamMemberDialogProps) {
   const isEditing = !!initialData;
   const [employeeSearch, setEmployeeSearch] = useState('');
   const { data: employees = [] } = useAvailableEmployees(employeeSearch);
   const [selectedEmpEmail, setSelectedEmpEmail] = useState('');
+  const [targetProjectId, setTargetProjectId] = useState(defaultProjectId || '');
+
+  useEffect(() => {
+    if (defaultProjectId) setTargetProjectId(defaultProjectId);
+    else if (projects.length > 0) setTargetProjectId(projects[0].name);
+  }, [defaultProjectId, projects]);
 
   const {
     register,
@@ -113,7 +123,7 @@ export function TeamMemberDialog({
 
   const onFormSubmit = async (data: TeamMemberFormData) => {
     if (!data.user_email || !data.employee_name) return;
-    await onSubmit(data);
+    await onSubmit(data, targetProjectId);
     onClose();
   };
 
