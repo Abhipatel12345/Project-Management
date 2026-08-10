@@ -55,6 +55,13 @@ axiosClient.interceptors.response.use(
 
     if (error.response) {
       const resData = error.response.data;
+      console.error('[ERPNext API Error Interceptor]', {
+        status,
+        url: error.config?.url,
+        method: error.config?.method,
+        data: resData,
+      });
+
       const serverMessages = resData?._server_messages;
       const exception = resData?.exception;
       const message = resData?.message;
@@ -85,7 +92,7 @@ axiosClient.interceptors.response.use(
       } else if (status === 500) {
         errorMessage = 'ERPNext internal server error. Please check server logs.';
       } else {
-        errorMessage = `HTTP Error ${status}: ${error.response.statusText || 'Bad Request'}`;
+        errorMessage = `ERPNext REST API Error (${status}): ${error.response.statusText || 'Bad Request'}`;
       }
     } else if (error.request) {
       errorMessage = 'No response received from ERPNext server. Please check network or target ERP URL.';

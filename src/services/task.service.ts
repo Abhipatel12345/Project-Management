@@ -59,11 +59,6 @@ const ERPNEXT_ALLOWED_TASK_FIELDS = [
   'expected_time',
   'progress',
   'description',
-  'parent_task',
-  'depends_on',
-  'company',
-  'department',
-  'type',
 ];
 
 const formatDateForERPNext = (val: any): string | undefined => {
