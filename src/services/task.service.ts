@@ -112,6 +112,25 @@ const normalizeTask = (t: any): Task => {
   };
 };
 
+const mapStatusToERPNext = (status?: string): string => {
+  if (!status) return 'Open';
+  const s = status.trim();
+  if (s.includes('Working') || s.includes('Progress')) return 'Working';
+  if (s.includes('Completed') || s.includes('Finished')) return 'Completed';
+  if (s.includes('Review')) return 'Pending Review';
+  if (s.includes('Cancelled')) return 'Cancelled';
+  return 'Open';
+};
+
+const mapPriorityToERPNext = (priority?: string): string => {
+  if (!priority) return 'Medium';
+  const p = priority.trim();
+  if (p.includes('Urgent') || p.includes('Critical')) return 'Urgent';
+  if (p.includes('High')) return 'High';
+  if (p.includes('Low')) return 'Low';
+  return 'Medium';
+};
+
 const cleanPayload = (data: Partial<Task>): Record<string, any> => {
   const payload: Record<string, any> = {};
 
@@ -125,7 +144,18 @@ const cleanPayload = (data: Partial<Task>): Record<string, any> => {
   for (const [key, value] of Object.entries(data)) {
     if (ERPNEXT_ALLOWED_TASK_FIELDS.includes(key)) {
       if (value !== '' && value !== null && value !== undefined && !Number.isNaN(value)) {
-        payload[key] = value;
+        if (key === 'status') {
+          payload.status = mapStatusToERPNext(String(value));
+        } else if (key === 'priority') {
+          payload.priority = mapPriorityToERPNext(String(value));
+        } else if ((key === 'exp_start_date' || key === 'exp_end_date') && typeof value === 'string') {
+          const dateStr = value.split('T')[0].trim();
+          if (dateStr.length === 10 && dateStr.includes('-')) {
+            payload[key] = dateStr;
+          }
+        } else {
+          payload[key] = value;
+        }
       }
     }
   }
