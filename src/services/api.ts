@@ -73,11 +73,11 @@ axiosClient.interceptors.response.use(
         } catch {
           errorMessage = typeof serverMessages === 'string' ? serverMessages.replace(/<[^>]*>?/gm, '').trim() : errorMessage;
         }
-      } else if (message && typeof message === 'string') {
-        errorMessage = message.replace(/<[^>]*>?/gm, '').trim();
       } else if (exception) {
         const lastPart = exception.split(':').pop()?.trim() || exception;
         errorMessage = lastPart.replace(/<[^>]*>?/gm, '').trim();
+      } else if (message && typeof message === 'string' && message !== 'Invalid Request' && message !== 'Bad Request') {
+        errorMessage = message.replace(/<[^>]*>?/gm, '').trim();
       } else if (status === 401) {
         errorMessage = 'Invalid username/password or session expired. Please sign in to ERPNext.';
       } else if (status === 403) {

@@ -66,8 +66,23 @@ const ERPNEXT_ALLOWED_TASK_FIELDS = [
   'type',
 ];
 
+const formatDateForERPNext = (val: any): string | undefined => {
+  if (!val || typeof val !== 'string') return undefined;
+  const str = val.trim();
+  if (!str || str === 'N/A') return undefined;
+
+  // Extract clean YYYY-MM-DD from "2026-08-09 00:00:00" or "2026-08-09T00:00:00Z"
+  const cleanDate = str.split(' ')[0].split('T')[0].trim();
+  if (/^\d{4}-\d{2}-\d{2}$/.test(cleanDate)) {
+    return cleanDate;
+  }
+  return undefined;
+};
+
 const normalizeTask = (t: any): Task => {
-  const { is_overdue, overdue_days } = calculateOverdue(t.exp_end_date, t.status);
+  const cleanExpStart = formatDateForERPNext(t.exp_start_date) || '';
+  const cleanExpEnd = formatDateForERPNext(t.exp_end_date) || '';
+  const { is_overdue, overdue_days } = calculateOverdue(cleanExpEnd, t.status);
   
   // Extract assigned user from _assign if present
   let assignedTo = t.assigned_to || t.owner || 'Unassigned';
@@ -99,9 +114,11 @@ const normalizeTask = (t: any): Task => {
 
   return {
     ...t,
+    exp_start_date: cleanExpStart,
+    exp_end_date: cleanExpEnd,
     description: cleanDescription,
-    actual_start_date: t.act_start_date || t.exp_start_date || '',
-    actual_end_date: t.act_end_date || t.exp_end_date || '',
+    actual_start_date: t.act_start_date || cleanExpStart,
+    actual_end_date: t.act_end_date || cleanExpEnd,
     status: t.status || 'Open',
     priority: t.priority || 'Medium',
     progress: typeof t.progress === 'number' ? t.progress : t.status === 'Completed' ? 100 : 0,
@@ -148,10 +165,10 @@ const cleanPayload = (data: Partial<Task>): Record<string, any> => {
           payload.status = mapStatusToERPNext(String(value));
         } else if (key === 'priority') {
           payload.priority = mapPriorityToERPNext(String(value));
-        } else if ((key === 'exp_start_date' || key === 'exp_end_date') && typeof value === 'string') {
-          const dateStr = value.split('T')[0].trim();
-          if (dateStr.length === 10 && dateStr.includes('-')) {
-            payload[key] = dateStr;
+        } else if (key === 'exp_start_date' || key === 'exp_end_date') {
+          const formattedDate = formatDateForERPNext(value);
+          if (formattedDate) {
+            payload[key] = formattedDate;
           }
         } else {
           payload[key] = value;
