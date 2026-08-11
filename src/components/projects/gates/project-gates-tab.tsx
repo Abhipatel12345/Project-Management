@@ -3,14 +3,20 @@ import {
   useGates,
   useCreateGate,
   useUpdateGate,
+  useAddGateCriterion,
+  useUpdateGateCriterion,
+  useDeleteGateCriterion,
   useAddGateDeliverable,
+  useUpdateGateDeliverable,
+  useDeleteGateDeliverable,
+  useAddGateReview,
   useDeleteGate,
 } from '@/hooks/use-gates';
 import { useToast } from '@/providers/toast-context';
 import { GateTableView } from '@/components/gates/gate-table-view';
 import { GateFormDialog, GateFormValues } from '@/components/gates/gate-form-dialog';
 import { GateDetailModal } from '@/components/gates/gate-detail-modal';
-import { Gate, GateDeliverable, GateApprovalStatus } from '@/types/gate.types';
+import { Gate, GateCriterion, GateDeliverable } from '@/types/gate.types';
 import { Plus, Loader2 } from 'lucide-react';
 
 interface ProjectGatesTabProps {
@@ -31,7 +37,13 @@ export function ProjectGatesTab({ projectId, projectName }: ProjectGatesTabProps
 
   const createGateMutation = useCreateGate();
   const updateGateMutation = useUpdateGate();
+  const addCriterionMutation = useAddGateCriterion();
+  const updateCriterionMutation = useUpdateGateCriterion();
+  const deleteCriterionMutation = useDeleteGateCriterion();
   const addDeliverableMutation = useAddGateDeliverable();
+  const updateDeliverableMutation = useUpdateGateDeliverable();
+  const deleteDeliverableMutation = useDeleteGateDeliverable();
+  const addGateReviewMutation = useAddGateReview();
   const deleteGateMutation = useDeleteGate();
 
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -50,7 +62,6 @@ export function ProjectGatesTab({ projectId, projectName }: ProjectGatesTabProps
         status: values.status,
         approval_status: values.approval_status,
         description: values.description,
-        deliverables: [],
       });
       showToast(`Stage-Gate ${newGate.name} created for ${projectId}`, 'success');
       setIsCreateOpen(false);
@@ -85,6 +96,51 @@ export function ProjectGatesTab({ projectId, projectName }: ProjectGatesTabProps
     }
   };
 
+  const handleAddCriterion = async (criterion: Partial<GateCriterion>) => {
+    if (!viewingGate) return;
+    try {
+      const updated = await addCriterionMutation.mutateAsync({
+        gateName: viewingGate.name,
+        criterion,
+      });
+      showToast('Gate criterion added!', 'success');
+      setViewingGate(updated);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to add criterion', 'error');
+    }
+  };
+
+  const handleUpdateCriterion = async (criterionId: string, data: Partial<GateCriterion>) => {
+    if (!viewingGate) return;
+    try {
+      const updated = await updateCriterionMutation.mutateAsync({
+        gateName: viewingGate.name,
+        criterionId,
+        data,
+      });
+      setViewingGate(updated);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update criterion', 'error');
+    }
+  };
+
+  const handleDeleteCriterion = async (criterionId: string) => {
+    if (!viewingGate) return;
+    try {
+      const updated = await deleteCriterionMutation.mutateAsync({
+        gateName: viewingGate.name,
+        criterionId,
+      });
+      showToast('Criterion removed', 'success');
+      setViewingGate(updated);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete criterion', 'error');
+    }
+  };
+
   const handleAddDeliverable = async (deliverable: Partial<GateDeliverable>) => {
     if (!viewingGate) return;
     try {
@@ -100,22 +156,48 @@ export function ProjectGatesTab({ projectId, projectName }: ProjectGatesTabProps
     }
   };
 
-  const handleUpdateGateStatus = async (status: string, approvalStatus: GateApprovalStatus) => {
+  const handleUpdateDeliverable = async (deliverableId: string, data: Partial<GateDeliverable>) => {
     if (!viewingGate) return;
     try {
-      const updated = await updateGateMutation.mutateAsync({
-        name: viewingGate.name,
-        data: {
-          status: status as any,
-          approval_status: approvalStatus,
-          actual_date: status === 'Approved' || status === 'Completed' ? new Date().toISOString().split('T')[0] : viewingGate.actual_date,
-        },
+      const updated = await updateDeliverableMutation.mutateAsync({
+        gateName: viewingGate.name,
+        deliverableId,
+        data,
       });
-      showToast(`Gate sign-off status updated to ${approvalStatus}`, 'success');
       setViewingGate(updated);
       refetch();
     } catch (err: any) {
-      showToast(err.message || 'Failed to update gate status', 'error');
+      showToast(err.message || 'Failed to update deliverable', 'error');
+    }
+  };
+
+  const handleDeleteDeliverable = async (deliverableId: string) => {
+    if (!viewingGate) return;
+    try {
+      const updated = await deleteDeliverableMutation.mutateAsync({
+        gateName: viewingGate.name,
+        deliverableId,
+      });
+      showToast('Deliverable removed', 'success');
+      setViewingGate(updated);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete deliverable', 'error');
+    }
+  };
+
+  const handleAddGateReview = async (review: { reviewer: string; decision: 'Approved' | 'Approved with Conditions' | 'Rejected'; comments?: string }) => {
+    if (!viewingGate) return;
+    try {
+      const updated = await addGateReviewMutation.mutateAsync({
+        gateName: viewingGate.name,
+        review,
+      });
+      showToast(`Gate review decision recorded: ${review.decision}!`, 'success');
+      setViewingGate(updated);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to record gate review', 'error');
     }
   };
 
@@ -208,8 +290,13 @@ export function ProjectGatesTab({ projectId, projectName }: ProjectGatesTabProps
             setEditingGate(g);
           }}
           onDelete={handleDeleteGate}
+          onAddCriterion={handleAddCriterion}
+          onUpdateCriterion={handleUpdateCriterion}
+          onDeleteCriterion={handleDeleteCriterion}
           onAddDeliverable={handleAddDeliverable}
-          onUpdateGateStatus={handleUpdateGateStatus}
+          onUpdateDeliverable={handleUpdateDeliverable}
+          onDeleteDeliverable={handleDeleteDeliverable}
+          onAddGateReview={handleAddGateReview}
         />
       )}
     </div>

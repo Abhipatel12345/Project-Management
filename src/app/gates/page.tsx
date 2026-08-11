@@ -6,7 +6,13 @@ import {
   useGates,
   useCreateGate,
   useUpdateGate,
+  useAddGateCriterion,
+  useUpdateGateCriterion,
+  useDeleteGateCriterion,
   useAddGateDeliverable,
+  useUpdateGateDeliverable,
+  useDeleteGateDeliverable,
+  useAddGateReview,
   useDeleteGate,
 } from '@/hooks/use-gates';
 import { useToast } from '@/providers/toast-context';
@@ -14,7 +20,7 @@ import { GateHeaderSummary } from '@/components/gates/gate-header-summary';
 import { GateTableView } from '@/components/gates/gate-table-view';
 import { GateFormDialog, GateFormValues } from '@/components/gates/gate-form-dialog';
 import { GateDetailModal } from '@/components/gates/gate-detail-modal';
-import { Gate, GateDeliverable, GateApprovalStatus } from '@/types/gate.types';
+import { Gate, GateCriterion, GateDeliverable } from '@/types/gate.types';
 import { Project } from '@/types/project.types';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 
@@ -40,18 +46,29 @@ export default function GateManagementPage() {
   const gates: Gate[] = gateListData?.gates || [];
   const summary = gateListData?.summary || {
     totalGates: 0,
-    upcomingGates: 0,
+    notStartedGates: 0,
     inProgressGates: 0,
-    completedGates: 0,
+    readyForReviewGates: 0,
+    approvedGates: 0,
     blockedGates: 0,
+    upcomingGates: 0,
+    completedGates: 0,
     requiringApprovalGates: 0,
   };
 
+  // Mutations
   const createGateMutation = useCreateGate();
   const updateGateMutation = useUpdateGate();
+  const addCriterionMutation = useAddGateCriterion();
+  const updateCriterionMutation = useUpdateGateCriterion();
+  const deleteCriterionMutation = useDeleteGateCriterion();
   const addDeliverableMutation = useAddGateDeliverable();
+  const updateDeliverableMutation = useUpdateGateDeliverable();
+  const deleteDeliverableMutation = useDeleteGateDeliverable();
+  const addGateReviewMutation = useAddGateReview();
   const deleteGateMutation = useDeleteGate();
 
+  // Modals
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingGate, setEditingGate] = useState<Gate | null>(null);
   const [viewingGate, setViewingGate] = useState<Gate | null>(null);
@@ -68,7 +85,6 @@ export default function GateManagementPage() {
         status: values.status,
         approval_status: values.approval_status,
         description: values.description,
-        deliverables: [],
       });
 
       showToast(`Stage-Gate ${newGate.name} created successfully!`, 'success');
@@ -105,6 +121,51 @@ export default function GateManagementPage() {
     }
   };
 
+  const handleAddCriterion = async (criterion: Partial<GateCriterion>) => {
+    if (!viewingGate) return;
+    try {
+      const updated = await addCriterionMutation.mutateAsync({
+        gateName: viewingGate.name,
+        criterion,
+      });
+      showToast('Gate criterion added successfully!', 'success');
+      setViewingGate(updated);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to add criterion', 'error');
+    }
+  };
+
+  const handleUpdateCriterion = async (criterionId: string, data: Partial<GateCriterion>) => {
+    if (!viewingGate) return;
+    try {
+      const updated = await updateCriterionMutation.mutateAsync({
+        gateName: viewingGate.name,
+        criterionId,
+        data,
+      });
+      setViewingGate(updated);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update criterion', 'error');
+    }
+  };
+
+  const handleDeleteCriterion = async (criterionId: string) => {
+    if (!viewingGate) return;
+    try {
+      const updated = await deleteCriterionMutation.mutateAsync({
+        gateName: viewingGate.name,
+        criterionId,
+      });
+      showToast('Criterion removed', 'success');
+      setViewingGate(updated);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete criterion', 'error');
+    }
+  };
+
   const handleAddDeliverable = async (deliverable: Partial<GateDeliverable>) => {
     if (!viewingGate) return;
     try {
@@ -112,7 +173,7 @@ export default function GateManagementPage() {
         gateName: viewingGate.name,
         deliverable,
       });
-      showToast('Gate deliverable added successfully!', 'success');
+      showToast('Gate deliverable added!', 'success');
       setViewingGate(updated);
       refetch();
     } catch (err: any) {
@@ -120,22 +181,48 @@ export default function GateManagementPage() {
     }
   };
 
-  const handleUpdateGateStatus = async (status: string, approvalStatus: GateApprovalStatus) => {
+  const handleUpdateDeliverable = async (deliverableId: string, data: Partial<GateDeliverable>) => {
     if (!viewingGate) return;
     try {
-      const updated = await updateGateMutation.mutateAsync({
-        name: viewingGate.name,
-        data: {
-          status: status as any,
-          approval_status: approvalStatus,
-          actual_date: status === 'Approved' || status === 'Completed' ? new Date().toISOString().split('T')[0] : viewingGate.actual_date,
-        },
+      const updated = await updateDeliverableMutation.mutateAsync({
+        gateName: viewingGate.name,
+        deliverableId,
+        data,
       });
-      showToast(`Stage-Gate sign-off status updated to ${approvalStatus}!`, 'success');
       setViewingGate(updated);
       refetch();
     } catch (err: any) {
-      showToast(err.message || 'Failed to update stage-gate status', 'error');
+      showToast(err.message || 'Failed to update deliverable', 'error');
+    }
+  };
+
+  const handleDeleteDeliverable = async (deliverableId: string) => {
+    if (!viewingGate) return;
+    try {
+      const updated = await deleteDeliverableMutation.mutateAsync({
+        gateName: viewingGate.name,
+        deliverableId,
+      });
+      showToast('Deliverable removed', 'success');
+      setViewingGate(updated);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete deliverable', 'error');
+    }
+  };
+
+  const handleAddGateReview = async (review: { reviewer: string; decision: 'Approved' | 'Approved with Conditions' | 'Rejected'; comments?: string }) => {
+    if (!viewingGate) return;
+    try {
+      const updated = await addGateReviewMutation.mutateAsync({
+        gateName: viewingGate.name,
+        review,
+      });
+      showToast(`Gate sign-off decision recorded: ${review.decision}!`, 'success');
+      setViewingGate(updated);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to record gate review', 'error');
     }
   };
 
@@ -228,7 +315,7 @@ export default function GateManagementPage() {
         />
       )}
 
-      {/* Detail & Deliverables Modal */}
+      {/* Detail & Criteria/Deliverables/Reviews Modal */}
       {viewingGate && (
         <GateDetailModal
           gate={viewingGate}
@@ -238,8 +325,13 @@ export default function GateManagementPage() {
             setEditingGate(gate);
           }}
           onDelete={handleDeleteGate}
+          onAddCriterion={handleAddCriterion}
+          onUpdateCriterion={handleUpdateCriterion}
+          onDeleteCriterion={handleDeleteCriterion}
           onAddDeliverable={handleAddDeliverable}
-          onUpdateGateStatus={handleUpdateGateStatus}
+          onUpdateDeliverable={handleUpdateDeliverable}
+          onDeleteDeliverable={handleDeleteDeliverable}
+          onAddGateReview={handleAddGateReview}
         />
       )}
     </div>

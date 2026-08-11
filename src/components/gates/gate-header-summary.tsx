@@ -11,6 +11,7 @@ import {
   AlertTriangle,
   FileCheck,
   ShieldAlert,
+  PlayCircle,
 } from 'lucide-react';
 
 interface GateHeaderSummaryProps {
@@ -44,10 +45,10 @@ export function GateHeaderSummary({
             <span className="text-[10px] font-bold text-slate-400">• Product Lifecycle Sign-off</span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">
-            Gate Management & Stage-Gate Governance
+            Gate Management & APQP Stage-Gates
           </h1>
           <p className="text-xs text-slate-500 font-medium">
-            Enforce APQP stage-gates, required deliverable sign-offs, readiness criteria, and launch governance.
+            Enforce APQP stage-gate criteria, sign-off checklists, and progression governance across active projects.
           </p>
         </div>
 
@@ -79,12 +80,12 @@ export function GateHeaderSummary({
             className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition cursor-pointer shadow-xs active:scale-95"
           >
             <Plus className="h-4 w-4" />
-            <span>Create Stage-Gate</span>
+            <span>Create Gate</span>
           </button>
         </div>
       </div>
 
-      {/* Metric Cards */}
+      {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-6 gap-3 text-center">
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
           <div className="text-[10px] text-slate-500 font-bold uppercase flex items-center justify-center gap-1">
@@ -95,11 +96,11 @@ export function GateHeaderSummary({
         </div>
 
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
-          <div className="text-[10px] text-blue-700 font-bold uppercase flex items-center justify-center gap-1">
-            <Clock className="h-3.5 w-3.5 text-blue-500" />
-            Upcoming
+          <div className="text-[10px] text-slate-500 font-bold uppercase flex items-center justify-center gap-1">
+            <PlayCircle className="h-3.5 w-3.5 text-slate-400" />
+            Not Started
           </div>
-          <div className="text-2xl font-black text-blue-600">{summary.upcomingGates}</div>
+          <div className="text-2xl font-black text-slate-600">{summary.notStartedGates}</div>
         </div>
 
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
@@ -111,27 +112,27 @@ export function GateHeaderSummary({
         </div>
 
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
+          <div className="text-[10px] text-purple-700 font-bold uppercase flex items-center justify-center gap-1">
+            <FileCheck className="h-3.5 w-3.5 text-purple-500" />
+            Ready for Review
+          </div>
+          <div className="text-2xl font-black text-purple-600">{summary.readyForReviewGates}</div>
+        </div>
+
+        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
           <div className="text-[10px] text-emerald-700 font-bold uppercase flex items-center justify-center gap-1">
             <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
-            Completed
+            Approved
           </div>
-          <div className="text-2xl font-black text-emerald-600">{summary.completedGates}</div>
+          <div className="text-2xl font-black text-emerald-600">{summary.approvedGates}</div>
         </div>
 
         <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
           <div className="text-[10px] text-rose-700 font-bold uppercase flex items-center justify-center gap-1">
             <ShieldAlert className="h-3.5 w-3.5 text-rose-500" />
-            Blocked / Failed
+            Blocked
           </div>
           <div className="text-2xl font-black text-rose-600">{summary.blockedGates}</div>
-        </div>
-
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
-          <div className="text-[10px] text-purple-700 font-bold uppercase flex items-center justify-center gap-1">
-            <FileCheck className="h-3.5 w-3.5 text-purple-500" />
-            Review Needed
-          </div>
-          <div className="text-2xl font-black text-purple-600">{summary.requiringApprovalGates}</div>
         </div>
       </div>
     </div>
