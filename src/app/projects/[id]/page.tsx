@@ -10,6 +10,10 @@ import { ProjectFormDialog } from '@/components/projects/project-form-dialog';
 import { ProjectDeleteDialog } from '@/components/projects/project-delete-dialog';
 import { ProjectTeamTab } from '@/components/projects/team/project-team-tab';
 import { ProjectTasksTab } from '@/components/projects/tasks/project-tasks-tab';
+import { ProjectIssuesTab } from '@/components/projects/issues/project-issues-tab';
+import { ProjectDocumentsTab } from '@/components/projects/documents/project-documents-tab';
+import { ProjectDesignReviewsTab } from '@/components/projects/design-review/project-design-reviews-tab';
+import { ProjectGatesTab } from '@/components/projects/gates/project-gates-tab';
 import {
   ArrowLeft,
   Calendar,
@@ -43,9 +47,9 @@ export default function ProjectDetailPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isAddTeamModalOpen, setIsAddTeamModalOpen] = useState(false);
 
-  // 7 Workspace Tabs
+  // Workspace Tabs
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'team' | 'tasks' | 'planning' | 'documents' | 'issues' | 'activity'
+    'overview' | 'team' | 'tasks' | 'planning' | 'documents' | 'reviews' | 'gates' | 'issues' | 'activity'
   >('overview');
 
   const { data: project, isLoading, isError, error, refetch } = useProject(projectId);
@@ -258,7 +262,33 @@ export default function ProjectDetailPage() {
           <span>Documents</span>
         </button>
 
-        {/* Tab 6: Issues */}
+        {/* Tab 6: Design Reviews */}
+        <button
+          onClick={() => setActiveTab('reviews')}
+          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
+            activeTab === 'reviews'
+              ? 'bg-indigo-600 text-white font-bold shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+        >
+          <FileText className="h-4 w-4" />
+          <span>Design Reviews</span>
+        </button>
+
+        {/* Tab 7: Stage Gates */}
+        <button
+          onClick={() => setActiveTab('gates')}
+          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
+            activeTab === 'gates'
+              ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+        >
+          <FolderKanban className="h-4 w-4" />
+          <span>Stage Gates</span>
+        </button>
+
+        {/* Tab 8: Issues */}
         <button
           onClick={() => setActiveTab('issues')}
           className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
@@ -271,7 +301,7 @@ export default function ProjectDetailPage() {
           <span>Issues</span>
         </button>
 
-        {/* Tab 7: Activity */}
+        {/* Tab 9: Activity */}
         <button
           onClick={() => setActiveTab('activity')}
           className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
@@ -487,25 +517,10 @@ export default function ProjectDetailPage() {
 
       {/* Tab 6: ISSUES */}
       {activeTab === 'issues' && (
-        <div className="p-12 rounded-2xl bg-white border border-slate-200 shadow-xs text-center space-y-4">
-          <div className="h-14 w-14 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200 flex items-center justify-center mx-auto shadow-xs">
-            <AlertCircle className="h-7 w-7" />
-          </div>
-          <div>
-            <h3 className="text-lg font-extrabold text-slate-900">
-              Open Defects & Problem Reports ({project.project_name})
-            </h3>
-            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-              Engineering issue triage, non-conformance reports, and 8D problem solving.
-            </p>
-          </div>
-          <Link
-            href="/issues"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold transition shadow-xs"
-          >
-            Open Issue Tracker
-          </Link>
-        </div>
+        <ProjectIssuesTab
+          projectId={projectId}
+          projectName={project.project_name || project.name}
+        />
       )}
 
       {/* Tab 7: ACTIVITY */}

@@ -1,4 +1,8 @@
 import api from './api';
+import issueService from './issue.service';
+import documentService from './document.service';
+import designReviewService from './design-review.service';
+import gateService from './gate.service';
 
 export interface DashboardProjectItem {
   name: string;
@@ -25,6 +29,7 @@ export interface DashboardIssueItem {
   priority: string;
   raised_by?: string;
   creation?: string;
+  project?: string;
 }
 
 export interface DashboardActivityItem {
@@ -42,6 +47,9 @@ export interface DashboardSummaryData {
   pendingTasks: number;
   openIssues: number;
   criticalIssues: number;
+  upcomingGates: number;
+  pendingDesignReviews: number;
+  documentsUnderReview: number;
   projects: DashboardProjectItem[];
   tasks: DashboardTaskItem[];
   issues: DashboardIssueItem[];
@@ -80,14 +88,12 @@ export const dashboardService = {
   },
 
   /**
-   * Fetch Issues from ERPNext REST API (/api/resource/Issue)
+   * Fetch Issues via issueService (Single Source of Truth)
    */
   async getIssues(): Promise<DashboardIssueItem[]> {
     try {
-      const response = await api.get<{ data: DashboardIssueItem[] }>(
-        '/api/resource/Issue?fields=["name","subject","status","priority","raised_by","creation"]&limit_page_length=20&order_by=modified desc'
-      );
-      return response.data || [];
+      const res = await issueService.getIssues({ pageSize: 100 });
+      return res.issues;
     } catch (error) {
       console.error('[ERPNext API Error] Failed to fetch Issues:', error);
       return [];
@@ -119,13 +125,16 @@ export const dashboardService = {
   },
 
   /**
-   * Aggregate Real ERPNext Metrics
+   * Aggregate Real ERPNext & Module Metrics using Services as Single Source of Truth
    */
   async getDashboardSummary(): Promise<DashboardSummaryData> {
-    const [projects, tasks, issues, recentActivities] = await Promise.all([
+    const [projects, tasks, issueRes, docRes, reviewRes, gateRes, recentActivities] = await Promise.all([
       this.getProjects(),
       this.getTasks(),
-      this.getIssues(),
+      issueService.getIssues({ pageSize: 100 }),
+      documentService.getDocuments({ pageSize: 100 }),
+      designReviewService.getDesignReviews({ pageSize: 100 }),
+      gateService.getGates({ pageSize: 100 }),
       this.getRecentActivities(),
     ]);
 
@@ -137,17 +146,19 @@ export const dashboardService = {
       (t) => t.status && t.status !== 'Completed' && t.status !== 'Closed'
     ).length;
 
-    const criticalIssues = issues.filter(
-      (i) => i.priority === 'Critical' || i.priority === 'High' || i.priority === 'Urgent'
-    ).length;
+    const issues = issueRes.issues;
+    const summary = issueRes.summary;
 
     return {
       totalProjects: projects.length,
       activeProjects,
       totalTasks: tasks.length,
       pendingTasks,
-      openIssues: issues.length,
-      criticalIssues,
+      openIssues: summary.openIssues,
+      criticalIssues: summary.highPriorityIssues + summary.urgentIssues,
+      upcomingGates: gateRes.summary.upcomingGates,
+      pendingDesignReviews: reviewRes.summary.plannedReviews + reviewRes.summary.inProgressReviews,
+      documentsUnderReview: docRes.summary.requiringReview,
       projects,
       tasks,
       issues,

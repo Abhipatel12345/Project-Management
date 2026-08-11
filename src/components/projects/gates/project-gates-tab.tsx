@@ -1,7 +1,4 @@
-'use client';
-
 import React, { useState } from 'react';
-import { useProjects } from '@/hooks/use-projects';
 import {
   useGates,
   useCreateGate,
@@ -10,42 +7,27 @@ import {
   useDeleteGate,
 } from '@/hooks/use-gates';
 import { useToast } from '@/providers/toast-context';
-import { GateHeaderSummary } from '@/components/gates/gate-header-summary';
 import { GateTableView } from '@/components/gates/gate-table-view';
 import { GateFormDialog, GateFormValues } from '@/components/gates/gate-form-dialog';
 import { GateDetailModal } from '@/components/gates/gate-detail-modal';
 import { Gate, GateDeliverable, GateApprovalStatus } from '@/types/gate.types';
-import { Project } from '@/types/project.types';
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 
-export default function GateManagementPage() {
+interface ProjectGatesTabProps {
+  projectId: string;
+  projectName: string;
+}
+
+export function ProjectGatesTab({ projectId, projectName }: ProjectGatesTabProps) {
   const { showToast } = useToast();
-  const { data: projectsData, isLoading: isLoadingProjects } = useProjects({ page: 1, pageSize: 50 });
-  const projects: Project[] = projectsData?.projects || [];
-
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
-
   const {
     data: gateListData,
-    isLoading: isLoadingGates,
-    isError: isErrorGates,
-    error: gateError,
+    isLoading,
+    isError,
     refetch,
-    isFetching,
-  } = useGates({
-    project: selectedProjectId === 'ALL' ? undefined : selectedProjectId,
-    pageSize: 100,
-  });
+  } = useGates({ project: projectId, pageSize: 100 });
 
-  const gates: Gate[] = gateListData?.gates || [];
-  const summary = gateListData?.summary || {
-    totalGates: 0,
-    upcomingGates: 0,
-    inProgressGates: 0,
-    completedGates: 0,
-    blockedGates: 0,
-    requiringApprovalGates: 0,
-  };
+  const gates = gateListData?.gates || [];
 
   const createGateMutation = useCreateGate();
   const updateGateMutation = useUpdateGate();
@@ -60,7 +42,7 @@ export default function GateManagementPage() {
     try {
       const newGate = await createGateMutation.mutateAsync({
         gate_name: values.gate_name,
-        project: values.project || undefined,
+        project: projectId,
         gate_type: values.gate_type,
         planned_date: values.planned_date,
         actual_date: values.actual_date,
@@ -70,8 +52,7 @@ export default function GateManagementPage() {
         description: values.description,
         deliverables: [],
       });
-
-      showToast(`Stage-Gate ${newGate.name} created successfully!`, 'success');
+      showToast(`Stage-Gate ${newGate.name} created for ${projectId}`, 'success');
       setIsCreateOpen(false);
       refetch();
     } catch (err: any) {
@@ -86,7 +67,7 @@ export default function GateManagementPage() {
         name: editingGate.name,
         data: {
           gate_name: values.gate_name,
-          project: values.project || undefined,
+          project: projectId,
           gate_type: values.gate_type,
           planned_date: values.planned_date,
           actual_date: values.actual_date,
@@ -96,8 +77,7 @@ export default function GateManagementPage() {
           description: values.description,
         },
       });
-
-      showToast(`Stage-Gate ${editingGate.name} updated successfully!`, 'success');
+      showToast(`Stage-Gate ${editingGate.name} updated`, 'success');
       setEditingGate(null);
       refetch();
     } catch (err: any) {
@@ -112,7 +92,7 @@ export default function GateManagementPage() {
         gateName: viewingGate.name,
         deliverable,
       });
-      showToast('Gate deliverable added successfully!', 'success');
+      showToast('Gate deliverable added!', 'success');
       setViewingGate(updated);
       refetch();
     } catch (err: any) {
@@ -131,19 +111,19 @@ export default function GateManagementPage() {
           actual_date: status === 'Approved' || status === 'Completed' ? new Date().toISOString().split('T')[0] : viewingGate.actual_date,
         },
       });
-      showToast(`Stage-Gate sign-off status updated to ${approvalStatus}!`, 'success');
+      showToast(`Gate sign-off status updated to ${approvalStatus}`, 'success');
       setViewingGate(updated);
       refetch();
     } catch (err: any) {
-      showToast(err.message || 'Failed to update stage-gate status', 'error');
+      showToast(err.message || 'Failed to update gate status', 'error');
     }
   };
 
   const handleDeleteGate = async (gateName: string) => {
-    if (!confirm(`Are you sure you want to delete stage-gate ${gateName}?`)) return;
+    if (!confirm(`Delete stage-gate ${gateName}?`)) return;
     try {
       await deleteGateMutation.mutateAsync(gateName);
-      showToast(`Stage-Gate ${gateName} removed successfully`, 'success');
+      showToast(`Stage-Gate ${gateName} deleted`, 'success');
       setViewingGate(null);
       setEditingGate(null);
       refetch();
@@ -152,90 +132,80 @@ export default function GateManagementPage() {
     }
   };
 
-  if (isLoadingProjects) {
-    return (
-      <div className="flex items-center justify-center py-32 space-x-3 text-slate-500 font-sans">
-        <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
-        <span className="text-sm font-bold">Loading Gate Management Module...</span>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6 pb-12 font-sans">
-      {/* Header & Summary */}
-      <GateHeaderSummary
-        projects={projects}
-        selectedProjectId={selectedProjectId}
-        onSelectProject={(id: string) => setSelectedProjectId(id)}
-        summary={summary}
-        onCreateClick={() => setIsCreateOpen(true)}
-        onRefreshClick={() => refetch()}
-        isFetching={isFetching}
-      />
-
-      {/* Main Table View */}
-      {isLoadingGates ? (
-        <div className="p-16 text-center bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
-          <Loader2 className="h-8 w-8 animate-spin text-emerald-600 mx-auto" />
-          <p className="text-xs font-bold text-slate-600">Fetching stage-gate records from ERPNext...</p>
+    <div className="space-y-6 font-sans">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+        <div>
+          <h3 className="text-base font-black text-slate-900">
+            APQP Stage-Gates & Governance ({projectName})
+          </h3>
+          <p className="text-xs text-slate-500 font-medium">
+            Enforce gate entry/exit criteria, deliverable readiness, and sign-offs for {projectId}.
+          </p>
         </div>
-      ) : isErrorGates ? (
-        <div className="p-8 rounded-2xl bg-white border border-rose-200 text-center space-y-4 max-w-xl mx-auto my-6 shadow-xs font-sans">
-          <div className="h-12 w-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
-            <AlertCircle className="h-6 w-6" />
-          </div>
-          <div className="space-y-1">
-            <h2 className="text-lg font-bold text-slate-900">Failed to Load Stage-Gates</h2>
-            <p className="text-xs text-slate-500">
-              {(gateError as any)?.message || 'Unable to retrieve stage-gate records.'}
-            </p>
-          </div>
+
+        <button
+          onClick={() => setIsCreateOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-xs cursor-pointer self-start sm:self-auto"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Create Stage-Gate</span>
+        </button>
+      </div>
+
+      {/* Main Table */}
+      {isLoading ? (
+        <div className="p-12 text-center bg-white rounded-2xl border border-slate-200">
+          <Loader2 className="h-6 w-6 animate-spin text-emerald-600 mx-auto mb-2" />
+          <p className="text-xs font-bold text-slate-600">Loading stage-gates for {projectId}...</p>
+        </div>
+      ) : isError ? (
+        <div className="p-6 rounded-2xl bg-white border border-rose-200 text-center space-y-2">
+          <p className="text-xs font-bold text-rose-600">Failed to load stage-gates.</p>
           <button
             onClick={() => refetch()}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl bg-emerald-600 text-white hover:bg-emerald-500 transition shadow-xs cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold"
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Retry Connection
+            Retry
           </button>
         </div>
       ) : (
         <GateTableView
           gates={gates}
-          onViewGate={(gate) => setViewingGate(gate)}
-          onEditGate={(gate) => setEditingGate(gate)}
+          onViewGate={(g) => setViewingGate(g)}
+          onEditGate={(g) => setEditingGate(g)}
           onDeleteGate={handleDeleteGate}
         />
       )}
 
-      {/* Create Dialog */}
+      {/* Form & Modals */}
       {isCreateOpen && (
         <GateFormDialog
           isOpen={isCreateOpen}
           onClose={() => setIsCreateOpen(false)}
           onSubmit={handleCreateSubmit}
-          defaultProjectId={selectedProjectId !== 'ALL' ? selectedProjectId : undefined}
+          defaultProjectId={projectId}
         />
       )}
 
-      {/* Edit Dialog */}
       {editingGate && (
         <GateFormDialog
           isOpen={!!editingGate}
           onClose={() => setEditingGate(null)}
           onSubmit={handleEditSubmit}
           initialData={editingGate}
-          defaultProjectId={selectedProjectId !== 'ALL' ? selectedProjectId : undefined}
+          defaultProjectId={projectId}
         />
       )}
 
-      {/* Detail & Deliverables Modal */}
       {viewingGate && (
         <GateDetailModal
           gate={viewingGate}
           onClose={() => setViewingGate(null)}
-          onEdit={(gate) => {
+          onEdit={(g) => {
             setViewingGate(null);
-            setEditingGate(gate);
+            setEditingGate(g);
           }}
           onDelete={handleDeleteGate}
           onAddDeliverable={handleAddDeliverable}

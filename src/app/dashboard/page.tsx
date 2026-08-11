@@ -226,7 +226,7 @@ export default function DashboardPage() {
           </div>
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-rose-600 font-bold">
-              {data?.criticalIssues ?? 0} Critical Priority
+              {data?.criticalIssues ?? 0} High / Critical
             </span>
             <Link href="/issues" className="text-slate-400 group-hover:text-sky-600 flex items-center gap-0.5 font-semibold transition">
               Issues Log <ArrowUpRight className="h-3 w-3" />
@@ -248,6 +248,66 @@ export default function DashboardPage() {
           <div className="flex items-center justify-between text-[11px]">
             <span className="text-slate-500">{user?.roles.length || 1} Roles Assigned</span>
             <span className="text-emerald-600 font-bold">Verified</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Governance & Quality Executive Cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+        {/* Stage Gates Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-2 group hover:border-emerald-300 transition">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="text-[10px] font-bold uppercase tracking-wider">UPCOMING STAGE-GATES</span>
+            <div className="h-8 w-8 rounded-xl bg-emerald-50 text-emerald-600 flex items-center justify-center">
+              <Layers className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-slate-900 tracking-tight">
+            {data?.upcomingGates ?? 0}
+          </div>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-emerald-600 font-bold">APQP Governance</span>
+            <Link href="/gates" className="text-slate-400 group-hover:text-emerald-600 flex items-center gap-0.5 font-semibold transition">
+              Gate Board <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Design Reviews Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-2 group hover:border-indigo-300 transition">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="text-[10px] font-bold uppercase tracking-wider">PENDING DESIGN REVIEWS</span>
+            <div className="h-8 w-8 rounded-xl bg-indigo-50 text-indigo-600 flex items-center justify-center">
+              <FileText className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-slate-900 tracking-tight">
+            {data?.pendingDesignReviews ?? 0}
+          </div>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-indigo-600 font-bold">Milestone Sign-off</span>
+            <Link href="/design-review" className="text-slate-400 group-hover:text-indigo-600 flex items-center gap-0.5 font-semibold transition">
+              Review Board <ArrowUpRight className="h-3 w-3" />
+            </Link>
+          </div>
+        </div>
+
+        {/* Documents Card */}
+        <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-2 group hover:border-sky-300 transition">
+          <div className="flex items-center justify-between text-xs text-slate-500">
+            <span className="text-[10px] font-bold uppercase tracking-wider">DOCUMENTS UNDER REVIEW</span>
+            <div className="h-8 w-8 rounded-xl bg-sky-50 text-sky-600 flex items-center justify-center">
+              <Package className="h-4 w-4" />
+            </div>
+          </div>
+          <div className="text-2xl font-black text-slate-900 tracking-tight">
+            {data?.documentsUnderReview ?? 0}
+          </div>
+          <div className="flex items-center justify-between text-[11px]">
+            <span className="text-sky-600 font-bold">CAD & Quality Vault</span>
+            <Link href="/documents" className="text-slate-400 group-hover:text-sky-600 flex items-center gap-0.5 font-semibold transition">
+              Doc Vault <ArrowUpRight className="h-3 w-3" />
+            </Link>
           </div>
         </div>
       </div>

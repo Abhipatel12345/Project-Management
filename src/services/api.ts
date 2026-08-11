@@ -5,7 +5,7 @@ const getErpUrl = (): string => {
     // In browser: use relative path to route through Next.js proxy rewrites, avoiding CORS
     return '';
   }
-  return process.env.NEXT_PUBLIC_ERP_URL || 'https://demo.erpnext.com';
+  return process.env.NEXT_PUBLIC_ERP_URL || 'http://localhost:8080';
 };
 
 const getApiKey = (): string => {

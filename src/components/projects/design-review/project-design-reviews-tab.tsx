@@ -1,7 +1,4 @@
-'use client';
-
 import React, { useState } from 'react';
-import { useProjects } from '@/hooks/use-projects';
 import {
   useDesignReviews,
   useCreateDesignReview,
@@ -10,42 +7,27 @@ import {
   useDeleteDesignReview,
 } from '@/hooks/use-design-reviews';
 import { useToast } from '@/providers/toast-context';
-import { DesignReviewHeaderSummary } from '@/components/design-review/design-review-header-summary';
 import { DesignReviewTableView } from '@/components/design-review/design-review-table-view';
 import { DesignReviewFormDialog, DesignReviewFormValues } from '@/components/design-review/design-review-form-dialog';
 import { DesignReviewDetailModal } from '@/components/design-review/design-review-detail-modal';
 import { DesignReview, ReviewFinding } from '@/types/design-review.types';
-import { Project } from '@/types/project.types';
-import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
+import { Plus, Loader2 } from 'lucide-react';
 
-export default function DesignReviewPage() {
+interface ProjectDesignReviewsTabProps {
+  projectId: string;
+  projectName: string;
+}
+
+export function ProjectDesignReviewsTab({ projectId, projectName }: ProjectDesignReviewsTabProps) {
   const { showToast } = useToast();
-  const { data: projectsData, isLoading: isLoadingProjects } = useProjects({ page: 1, pageSize: 50 });
-  const projects: Project[] = projectsData?.projects || [];
-
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
-
   const {
     data: reviewListData,
-    isLoading: isLoadingReviews,
-    isError: isErrorReviews,
-    error: reviewError,
+    isLoading,
+    isError,
     refetch,
-    isFetching,
-  } = useDesignReviews({
-    project: selectedProjectId === 'ALL' ? undefined : selectedProjectId,
-    pageSize: 100,
-  });
+  } = useDesignReviews({ project: projectId, pageSize: 100 });
 
-  const reviews: DesignReview[] = reviewListData?.reviews || [];
-  const summary = reviewListData?.summary || {
-    totalReviews: 0,
-    plannedReviews: 0,
-    inProgressReviews: 0,
-    approvedReviews: 0,
-    rejectedReviews: 0,
-    openFindings: 0,
-  };
+  const reviews = reviewListData?.reviews || [];
 
   const createReviewMutation = useCreateDesignReview();
   const updateReviewMutation = useUpdateDesignReview();
@@ -64,7 +46,7 @@ export default function DesignReviewPage() {
 
       const newReview = await createReviewMutation.mutateAsync({
         title: values.title,
-        project: values.project || undefined,
+        project: projectId,
         review_type: values.review_type,
         reviewer: values.reviewer,
         review_date: values.review_date,
@@ -75,8 +57,7 @@ export default function DesignReviewPage() {
         notes: values.notes,
         findings: [],
       });
-
-      showToast(`Design Review ${newReview.name} scheduled successfully!`, 'success');
+      showToast(`Design Review ${newReview.name} scheduled for ${projectId}`, 'success');
       setIsCreateOpen(false);
       refetch();
     } catch (err: any) {
@@ -95,7 +76,7 @@ export default function DesignReviewPage() {
         name: editingReview.name,
         data: {
           title: values.title,
-          project: values.project || undefined,
+          project: projectId,
           review_type: values.review_type,
           reviewer: values.reviewer,
           review_date: values.review_date,
@@ -106,8 +87,7 @@ export default function DesignReviewPage() {
           notes: values.notes,
         },
       });
-
-      showToast(`Design Review ${editingReview.name} updated successfully!`, 'success');
+      showToast(`Design Review ${editingReview.name} updated`, 'success');
       setEditingReview(null);
       refetch();
     } catch (err: any) {
@@ -122,7 +102,7 @@ export default function DesignReviewPage() {
         reviewName: viewingReview.name,
         finding,
       });
-      showToast('Review finding added successfully!', 'success');
+      showToast('Finding added to review!', 'success');
       setViewingReview(updated);
       refetch();
     } catch (err: any) {
@@ -131,10 +111,10 @@ export default function DesignReviewPage() {
   };
 
   const handleDeleteReview = async (reviewName: string) => {
-    if (!confirm(`Are you sure you want to delete design review ${reviewName}?`)) return;
+    if (!confirm(`Delete design review ${reviewName}?`)) return;
     try {
       await deleteReviewMutation.mutateAsync(reviewName);
-      showToast(`Design Review ${reviewName} removed successfully`, 'success');
+      showToast(`Design review ${reviewName} deleted`, 'success');
       setViewingReview(null);
       setEditingReview(null);
       refetch();
@@ -143,90 +123,80 @@ export default function DesignReviewPage() {
     }
   };
 
-  if (isLoadingProjects) {
-    return (
-      <div className="flex items-center justify-center py-32 space-x-3 text-slate-500 font-sans">
-        <Loader2 className="h-6 w-6 animate-spin text-indigo-600" />
-        <span className="text-sm font-bold">Loading Design Review Module...</span>
-      </div>
-    );
-  }
-
   return (
-    <div className="space-y-6 pb-12 font-sans">
-      {/* Header & Summary */}
-      <DesignReviewHeaderSummary
-        projects={projects}
-        selectedProjectId={selectedProjectId}
-        onSelectProject={(id: string) => setSelectedProjectId(id)}
-        summary={summary}
-        onCreateClick={() => setIsCreateOpen(true)}
-        onRefreshClick={() => refetch()}
-        isFetching={isFetching}
-      />
-
-      {/* Main Table View */}
-      {isLoadingReviews ? (
-        <div className="p-16 text-center bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
-          <Loader2 className="h-8 w-8 animate-spin text-indigo-600 mx-auto" />
-          <p className="text-xs font-bold text-slate-600">Fetching design review records from ERPNext...</p>
+    <div className="space-y-6 font-sans">
+      {/* Header Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+        <div>
+          <h3 className="text-base font-black text-slate-900">
+            Design Reviews & Milestone Approvals ({projectName})
+          </h3>
+          <p className="text-xs text-slate-500 font-medium">
+            Conduct peer reviews, sign off on APQP design gates, and track findings for {projectId}.
+          </p>
         </div>
-      ) : isErrorReviews ? (
-        <div className="p-8 rounded-2xl bg-white border border-rose-200 text-center space-y-4 max-w-xl mx-auto my-6 shadow-xs font-sans">
-          <div className="h-12 w-12 rounded-full bg-rose-50 text-rose-600 flex items-center justify-center mx-auto">
-            <AlertCircle className="h-6 w-6" />
-          </div>
-          <div className="space-y-1">
-            <h2 className="text-lg font-bold text-slate-900">Failed to Load Design Reviews</h2>
-            <p className="text-xs text-slate-500">
-              {(reviewError as any)?.message || 'Unable to retrieve design review records.'}
-            </p>
-          </div>
+
+        <button
+          onClick={() => setIsCreateOpen(true)}
+          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs transition shadow-xs cursor-pointer self-start sm:self-auto"
+        >
+          <Plus className="h-4 w-4" />
+          <span>Schedule Design Review</span>
+        </button>
+      </div>
+
+      {/* Main Table */}
+      {isLoading ? (
+        <div className="p-12 text-center bg-white rounded-2xl border border-slate-200">
+          <Loader2 className="h-6 w-6 animate-spin text-indigo-600 mx-auto mb-2" />
+          <p className="text-xs font-bold text-slate-600">Loading design reviews for {projectId}...</p>
+        </div>
+      ) : isError ? (
+        <div className="p-6 rounded-2xl bg-white border border-rose-200 text-center space-y-2">
+          <p className="text-xs font-bold text-rose-600">Failed to load design reviews.</p>
           <button
             onClick={() => refetch()}
-            className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl bg-indigo-600 text-white hover:bg-indigo-500 transition shadow-xs cursor-pointer"
+            className="px-3 py-1.5 rounded-xl bg-indigo-600 text-white text-xs font-bold"
           >
-            <RefreshCw className="h-3.5 w-3.5" /> Retry Connection
+            Retry
           </button>
         </div>
       ) : (
         <DesignReviewTableView
           reviews={reviews}
-          onViewReview={(review) => setViewingReview(review)}
-          onEditReview={(review) => setEditingReview(review)}
+          onViewReview={(r) => setViewingReview(r)}
+          onEditReview={(r) => setEditingReview(r)}
           onDeleteReview={handleDeleteReview}
         />
       )}
 
-      {/* Schedule/Create Dialog */}
+      {/* Form & Modals */}
       {isCreateOpen && (
         <DesignReviewFormDialog
           isOpen={isCreateOpen}
           onClose={() => setIsCreateOpen(false)}
           onSubmit={handleCreateSubmit}
-          defaultProjectId={selectedProjectId !== 'ALL' ? selectedProjectId : undefined}
+          defaultProjectId={projectId}
         />
       )}
 
-      {/* Edit Dialog */}
       {editingReview && (
         <DesignReviewFormDialog
           isOpen={!!editingReview}
           onClose={() => setEditingReview(null)}
           onSubmit={handleEditSubmit}
           initialData={editingReview}
-          defaultProjectId={selectedProjectId !== 'ALL' ? selectedProjectId : undefined}
+          defaultProjectId={projectId}
         />
       )}
 
-      {/* Detail & Action Items Modal */}
       {viewingReview && (
         <DesignReviewDetailModal
           review={viewingReview}
           onClose={() => setViewingReview(null)}
-          onEdit={(review) => {
+          onEdit={(r) => {
             setViewingReview(null);
-            setEditingReview(review);
+            setEditingReview(r);
           }}
           onDelete={handleDeleteReview}
           onAddFinding={handleAddFinding}
