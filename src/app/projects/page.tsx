@@ -316,8 +316,20 @@ export default function ProjectsPage() {
                           <div className="font-bold text-slate-900 text-sm">
                             {project.project_name || project.name}
                           </div>
-                          <div className="text-[11px] text-slate-400 font-mono mt-0.5">
-                            {project.name}
+                          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+                            <span className="text-[11px] text-slate-400 font-mono">
+                              {project.name}
+                            </span>
+                            {project.custom_project_category && (
+                              <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-sky-50 text-sky-700 border border-sky-200">
+                                {project.custom_project_category}
+                              </span>
+                            )}
+                            {project.custom_product_group && (
+                              <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-indigo-50 text-indigo-700 border border-indigo-200">
+                                {project.custom_product_group}
+                              </span>
+                            )}
                           </div>
                         </Link>
                       </td>

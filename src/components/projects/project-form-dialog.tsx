@@ -4,8 +4,8 @@ import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { projectFormSchema, ProjectFormValues } from '@/lib/validations/project.schema';
-import { Project } from '@/types/project.types';
-import { X, Loader2, FolderPlus, Edit3, Calendar, DollarSign, Tag, Building, Percent } from 'lucide-react';
+import { Project, PROJECT_CATEGORIES, PRODUCT_GROUPS } from '@/types/project.types';
+import { X, Loader2, FolderPlus, Edit3, Calendar, DollarSign, Tag, Percent, Layers, Sliders } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface ProjectFormDialogProps {
@@ -37,6 +37,9 @@ export function ProjectFormDialog({
       status: 'Open',
       priority: 'Medium',
       project_type: 'Internal',
+      custom_project_category: '',
+      custom_product_group: '',
+      custom_product_line: '',
       percent_complete: 0,
       expected_start_date: '',
       expected_end_date: '',
@@ -55,6 +58,9 @@ export function ProjectFormDialog({
         status: (initialData.status as any) || 'Open',
         priority: (initialData.priority as any) || 'Medium',
         project_type: initialData.project_type || 'Internal',
+        custom_project_category: initialData.custom_project_category || '',
+        custom_product_group: initialData.custom_product_group || '',
+        custom_product_line: initialData.custom_product_line || '',
         percent_complete: initialData.percent_complete || 0,
         expected_start_date: initialData.expected_start_date || '',
         expected_end_date: initialData.expected_end_date || '',
@@ -69,6 +75,9 @@ export function ProjectFormDialog({
         status: 'Open',
         priority: 'Medium',
         project_type: 'Internal',
+        custom_project_category: '',
+        custom_product_group: '',
+        custom_product_line: '',
         percent_complete: 0,
         expected_start_date: '',
         expected_end_date: '',
@@ -94,12 +103,12 @@ export function ProjectFormDialog({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm overflow-y-auto font-sans">
         <motion.div
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden"
+          className="relative w-full max-w-2xl bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl overflow-hidden my-8"
         >
           {/* Dialog Header */}
           <div className="flex items-center justify-between px-6 py-4 border-b border-slate-800/80 bg-slate-950/50">
@@ -121,7 +130,7 @@ export function ProjectFormDialog({
 
             <button
               onClick={onClose}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-200 hover:bg-slate-800/60 transition cursor-pointer"
             >
               <X className="h-5 w-5" />
             </button>
@@ -132,7 +141,7 @@ export function ProjectFormDialog({
             {formError && (
               <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center justify-between">
                 <span>{formError}</span>
-                <button type="button" onClick={() => setFormError(null)} className="text-[11px] underline">
+                <button type="button" onClick={() => setFormError(null)} className="text-[11px] underline cursor-pointer">
                   Dismiss
                 </button>
               </div>
@@ -154,6 +163,49 @@ export function ProjectFormDialog({
               )}
             </div>
 
+            {/* Project Category & Product Group Row (Custom ERPNext Fields) */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  Project Category
+                </label>
+                <div className="relative">
+                  <Sliders className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                  <select
+                    {...register('custom_project_category')}
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition cursor-pointer"
+                  >
+                    <option value="">Select Category...</option>
+                    {PROJECT_CATEGORIES.map((cat) => (
+                      <option key={cat} value={cat}>
+                        {cat}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-xs font-medium text-slate-300 mb-1.5">
+                  Product Group
+                </label>
+                <div className="relative">
+                  <Layers className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
+                  <select
+                    {...register('custom_product_group')}
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition cursor-pointer"
+                  >
+                    <option value="">Select Product Group...</option>
+                    {PRODUCT_GROUPS.map((grp) => (
+                      <option key={grp} value={grp}>
+                        {grp}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
             {/* Status & Priority Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
@@ -162,7 +214,7 @@ export function ProjectFormDialog({
                 </label>
                 <select
                   {...register('status')}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition cursor-pointer"
                 >
                   <option value="Open">Open</option>
                   <option value="In Progress">In Progress</option>
@@ -179,7 +231,7 @@ export function ProjectFormDialog({
                 </label>
                 <select
                   {...register('priority')}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition"
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition cursor-pointer"
                 >
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
@@ -238,7 +290,7 @@ export function ProjectFormDialog({
                   <input
                     {...register('expected_start_date')}
                     type="date"
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition"
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition cursor-pointer"
                   />
                 </div>
               </div>
@@ -252,7 +304,7 @@ export function ProjectFormDialog({
                   <input
                     {...register('expected_end_date')}
                     type="date"
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition"
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition cursor-pointer"
                   />
                 </div>
               </div>
@@ -295,14 +347,14 @@ export function ProjectFormDialog({
                 type="button"
                 onClick={onClose}
                 disabled={isLoading}
-                className="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-slate-100 hover:bg-slate-800/60 transition disabled:opacity-50"
+                className="px-4 py-2 rounded-xl text-sm font-medium text-slate-300 hover:text-slate-100 hover:bg-slate-800/60 transition disabled:opacity-50 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
                 disabled={isLoading}
-                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-sm font-medium shadow-lg shadow-cyan-500/25 transition disabled:opacity-50"
+                className="flex items-center gap-2 px-5 py-2 rounded-xl bg-gradient-to-r from-cyan-500 to-blue-600 hover:from-cyan-400 hover:to-blue-500 text-white text-sm font-medium shadow-lg shadow-cyan-500/25 transition disabled:opacity-50 cursor-pointer"
               >
                 {isLoading && <Loader2 className="h-4 w-4 animate-spin" />}
                 {isEditing ? 'Save Changes' : 'Create Project'}

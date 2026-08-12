@@ -391,8 +391,24 @@ export default function ProjectDetailPage() {
               </div>
 
               <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-4">
-                <h3 className="text-sm font-bold text-slate-900">Execution Parameters</h3>
+                <h3 className="text-sm font-bold text-slate-900">Execution & Product Classification</h3>
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                  <div>
+                    <span className="text-slate-500 font-medium">Project Category:</span>
+                    <div className="font-bold text-sky-700 mt-1 flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded bg-sky-50 border border-sky-200 text-sky-800 text-[11px] font-bold">
+                        {project.custom_project_category || 'Unassigned'}
+                      </span>
+                    </div>
+                  </div>
+                  <div>
+                    <span className="text-slate-500 font-medium">Product Group:</span>
+                    <div className="font-bold text-indigo-700 mt-1 flex items-center gap-1.5">
+                      <span className="px-2 py-0.5 rounded bg-indigo-50 border border-indigo-200 text-indigo-800 text-[11px] font-bold">
+                        {project.custom_product_group || 'Unassigned'}
+                      </span>
+                    </div>
+                  </div>
                   <div>
                     <span className="text-slate-500 font-medium">Actual Start Date:</span>
                     <div className="font-bold text-slate-900 mt-1 font-mono">
