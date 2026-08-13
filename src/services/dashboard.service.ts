@@ -139,11 +139,11 @@ export const dashboardService = {
     ]);
 
     const activeProjects = projects.filter(
-      (p) => p.status && p.status !== 'Completed' && p.status !== 'Cancelled'
+      (p: any) => p.status && p.status !== 'Completed' && p.status !== 'Cancelled'
     ).length;
 
     const pendingTasks = tasks.filter(
-      (t) => t.status && t.status !== 'Completed' && t.status !== 'Closed'
+      (t: any) => t.status && t.status !== 'Completed' && t.status !== 'Closed'
     ).length;
 
     const issues = issueRes.issues;

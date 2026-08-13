@@ -163,9 +163,9 @@ export const designReviewService = {
       totalReviews: reviews.length,
       plannedReviews: reviews.filter((r) => r.status === 'Planned').length,
       inProgressReviews: reviews.filter((r) => r.status === 'In Progress').length,
-      completedReviews: reviews.filter((r) => r.status === 'Completed').length,
       approvedReviews: reviews.filter((r) => r.approval_status === 'Approved').length,
-      openFindingsCount,
+      rejectedReviews: reviews.filter((r) => r.approval_status === 'Rejected').length,
+      openFindings: openFindingsCount,
     };
 
     const page = params.page || 1;
@@ -241,6 +241,10 @@ export const designReviewService = {
 
     saveStoredReviews(reviews);
     return review;
+  },
+
+  async addReviewFinding(reviewName: string, finding: Partial<ReviewFinding>): Promise<DesignReview> {
+    return this.addFinding(reviewName, finding);
   },
 
   async updateFinding(reviewName: string, findingId: string, data: Partial<ReviewFinding>): Promise<DesignReview> {

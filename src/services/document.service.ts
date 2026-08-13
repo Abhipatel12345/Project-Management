@@ -524,16 +524,12 @@ export const documentService = {
       filtered = filtered.filter((d) => d.project === params.project);
     }
 
-    // Compute Base Project Scope Summary (metrics before document_type / status / search filters)
+    // Compute Base Project Scope Summary
     const summary: DocumentSummary = {
       totalDocuments: filtered.length,
-      engineeringDocs: filtered.filter((d) => d.document_type === 'Engineering').length,
-      apqpDocs: filtered.filter((d) => d.document_type === 'APQP').length,
-      qualityDocs: filtered.filter((d) => d.document_type === 'Quality').length,
-      testingDocs: filtered.filter((d) => d.document_type === 'Testing').length,
-      designDocs: filtered.filter((d) => d.document_type === 'Design').length,
-      approvedDocs: filtered.filter((d) => d.status === 'Approved' || d.review_status === 'Approved').length,
-      underReviewDocs: filtered.filter((d) => d.status === 'Under Review' || d.review_status === 'In Review' || d.review_status === 'Pending Review').length,
+      projectDocuments: filtered.filter((d) => d.project && d.project !== 'Global Vault').length,
+      recentlyAdded: filtered.filter((d) => d.upload_date && d.upload_date >= '2026-08-01').length,
+      requiringReview: filtered.filter((d) => d.status === 'Under Review' || d.review_status === 'In Review' || d.review_status === 'Pending Review').length,
     };
 
     // Filter by type
@@ -559,7 +555,7 @@ export const documentService = {
         (d) =>
           d.name.toLowerCase().includes(q) ||
           d.title.toLowerCase().includes(q) ||
-          d.file_name.toLowerCase().includes(q) ||
+          (d.file_name && d.file_name.toLowerCase().includes(q)) ||
           (d.description && d.description.toLowerCase().includes(q))
       );
     }
@@ -601,6 +597,24 @@ export const documentService = {
     const updated = [newDoc, ...docs];
     saveLocalDocuments(updated);
     return newDoc;
+  },
+
+  async createDocument(doc: Partial<DocumentItem>): Promise<DocumentItem> {
+    return this.uploadDocument(doc);
+  },
+
+  async updateDocument(name: string, data: Partial<DocumentItem>): Promise<DocumentItem> {
+    const docs = getLocalDocuments();
+    const doc = docs.find((d) => d.name === name);
+    if (!doc) throw new Error('Document not found');
+    Object.assign(doc, data);
+    saveLocalDocuments(docs);
+    return doc;
+  },
+
+  async deleteDocument(name: string): Promise<void> {
+    const docs = getLocalDocuments().filter((d) => d.name !== name);
+    saveLocalDocuments(docs);
   },
 };
 

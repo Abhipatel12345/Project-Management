@@ -68,7 +68,7 @@ const getInitialGates = (): Gate[] => {
     const isApproved = num % 3 === 0 || num % 5 === 0;
     const isReady = num % 2 === 0 && !isApproved;
     const status: Gate['status'] = isApproved ? 'Approved' : isReady ? 'Ready for Review' : 'In Progress';
-    const approvalStatus: Gate['approval_status'] = isApproved ? 'Approved' : isReady ? 'Pending' : 'Under Review';
+    const approvalStatus: Gate['approval_status'] = isApproved ? 'Approved' : isReady ? 'Pending' : 'Pending';
     const comp = isApproved ? 100 : isReady ? 90 : 50 + (num % 4) * 10;
     const read = isApproved ? 100 : isReady ? 90 : 45 + (num % 4) * 10;
 
@@ -241,14 +241,14 @@ export const gateService = {
 
     const summary: GateSummary = {
       totalGates: gates.length,
-      approvedGates: gates.filter((g) => g.status === 'Approved').length,
-      readyForReviewGates: gates.filter((g) => g.status === 'Ready for Review').length,
+      notStartedGates: gates.filter((g) => g.status === 'Not Started').length,
       inProgressGates: gates.filter((g) => g.status === 'In Progress').length,
-      rejectedGates: gates.filter((g) => g.status === 'Rejected').length,
-      averageReadiness:
-        gates.length > 0
-          ? Math.round(gates.reduce((acc, g) => acc + (g.readiness_percentage || 0), 0) / gates.length)
-          : 0,
+      readyForReviewGates: gates.filter((g) => g.status === 'Ready for Review').length,
+      approvedGates: gates.filter((g) => g.status === 'Approved').length,
+      blockedGates: gates.filter((g) => g.status === 'Blocked').length,
+      upcomingGates: gates.filter((g) => g.planned_date && g.planned_date >= '2026-08-15').length,
+      completedGates: gates.filter((g) => g.status === 'Approved' || g.status === 'Completed').length,
+      requiringApprovalGates: gates.filter((g) => g.approval_status === 'Pending').length,
     };
 
     return {
@@ -258,6 +258,10 @@ export const gateService = {
       pageSize,
       summary,
     };
+  },
+
+  async getGates(params: GateListQueryParams = {}): Promise<GateListResponse> {
+    return this.getGateReviews(params);
   },
 
   async getGateByName(name: string): Promise<Gate> {
@@ -277,7 +281,7 @@ export const gateService = {
       planned_date: data.planned_date || new Date().toISOString().split('T')[0],
       status: 'In Progress',
       gate_owner: data.gate_owner || 'Program Director',
-      approval_status: 'Under Review',
+      approval_status: 'Pending',
       completion_percentage: 0,
       readiness_percentage: 0,
       description: data.description || '',
