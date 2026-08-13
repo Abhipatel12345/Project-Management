@@ -11,6 +11,8 @@ import {
   Activity,
   User,
   ChevronDown,
+  BookmarkPlus,
+  Bookmark,
 } from 'lucide-react';
 
 interface GanttHeaderSummaryProps {
@@ -24,6 +26,10 @@ interface GanttHeaderSummaryProps {
   overdueTasks: number;
   upcomingTasks: number;
   overallProgress: number;
+
+  // Baseline props
+  onOpenManageBaselines?: () => void;
+  activeBaselineName?: string;
 }
 
 export function GanttHeaderSummary({
@@ -37,6 +43,8 @@ export function GanttHeaderSummary({
   overdueTasks,
   upcomingTasks,
   overallProgress,
+  onOpenManageBaselines,
+  activeBaselineName,
 }: GanttHeaderSummaryProps) {
   return (
     <div className="space-y-4 font-sans">
@@ -47,19 +55,19 @@ export function GanttHeaderSummary({
             <span className="px-2.5 py-0.5 rounded-md bg-sky-50 text-sky-700 text-[10px] font-black uppercase tracking-wider border border-sky-200">
               ENGINEERING TIMELINE ENGINE
             </span>
-            <span className="text-[10px] font-bold text-slate-400">• Interactive Gantt & Critical Path</span>
+            <span className="text-[10px] font-bold text-slate-400">• Interactive Gantt & Multiple Baselines</span>
           </div>
           <h1 className="text-2xl font-black text-slate-900 tracking-tight">
             Planning & Gantt Schedule
           </h1>
           <p className="text-xs text-slate-500 font-medium">
-            Visualize project work packages, milestone dependencies, critical path items, and team deliverable timelines.
+            Visualize project work packages, freeze schedule baselines (Baseline 1, 2, 3...), track planned vs actual dates, and analyze critical path items.
           </p>
         </div>
 
-        {/* Project Selector Dropdown */}
-        <div className="flex items-center gap-3 self-start lg:self-auto min-w-[280px]">
-          <div className="relative w-full">
+        {/* Action Controls: Project Selector Dropdown & Manage Baselines */}
+        <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto min-w-[280px]">
+          <div className="relative flex-1 min-w-[220px]">
             <div className="absolute left-3.5 top-3 text-sky-600">
               <FolderKanban className="h-4 w-4" />
             </div>
@@ -76,13 +84,23 @@ export function GanttHeaderSummary({
             </select>
             <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
           </div>
+
+          {onOpenManageBaselines && (
+            <button
+              onClick={onOpenManageBaselines}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer shadow-2xs shrink-0"
+            >
+              <BookmarkPlus className="h-4 w-4 text-amber-400" />
+              <span>Manage Baselines</span>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Selected Project Summary Banner & Metrics */}
       <div className="p-5 rounded-2xl bg-slate-50/80 border border-slate-200 space-y-4 shadow-2xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 border-b border-slate-200/80 pb-3">
-          <div className="flex items-center gap-3">
+          <div className="flex flex-wrap items-center gap-3">
             <span className="text-xs font-mono font-bold text-sky-800 bg-white px-3 py-1 rounded-lg border border-sky-200 shadow-2xs">
               {selectedProject?.name || selectedProjectId}
             </span>
@@ -90,6 +108,11 @@ export function GanttHeaderSummary({
               {selectedProject?.project_name || selectedProjectId}
             </h2>
             {selectedProject && <ProjectStatusBadge status={selectedProject.status} />}
+            {activeBaselineName && (
+              <span className="inline-flex items-center gap-1 text-[11px] font-bold text-amber-900 bg-amber-100 px-2.5 py-0.5 rounded-md border border-amber-300">
+                <Bookmark className="h-3 w-3 text-amber-600" /> Active Baseline: {activeBaselineName}
+              </span>
+            )}
           </div>
 
           <div className="flex items-center gap-4 text-xs font-medium text-slate-500">

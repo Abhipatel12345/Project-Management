@@ -1,22 +1,18 @@
 import React, { useState, useMemo } from 'react';
-import { Task, TaskStatus } from '@/types/task.types';
+import { Task } from '@/types/task.types';
 import { ProjectTeamMember } from '@/types/team.types';
+import { ProjectBaseline } from '@/types/baseline.types';
 import { TaskStatusBadge } from '@/components/tasks/task-status-badge';
-import { TaskPriorityBadge } from '@/components/tasks/task-priority-badge';
 import {
-  Calendar,
-  Clock,
-  User,
-  AlertTriangle,
   ChevronLeft,
   ChevronRight,
   Eye,
   Edit2,
-  Zap,
-  ArrowRight,
-  CheckCircle2,
-  SlidersHorizontal,
   Flame,
+  BookmarkPlus,
+  SlidersHorizontal,
+  Bookmark,
+  Layers,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -32,6 +28,14 @@ interface GanttChartViewProps {
   setViewMode: (mode: GanttViewMode) => void;
   showCriticalPathOnly: boolean;
   setShowCriticalPathOnly: (val: boolean) => void;
+
+  // Baseline Props
+  baselines?: ProjectBaseline[];
+  selectedBaselineId?: string;
+  onSelectBaselineId?: (id: string) => void;
+  onOpenManageBaselines?: () => void;
+  isCompareMode?: boolean;
+  onToggleCompareMode?: (val?: boolean) => void;
 }
 
 export function GanttChartView({
@@ -44,6 +48,12 @@ export function GanttChartView({
   setViewMode,
   showCriticalPathOnly,
   setShowCriticalPathOnly,
+  baselines = [],
+  selectedBaselineId = 'CURRENT',
+  onSelectBaselineId,
+  onOpenManageBaselines,
+  isCompareMode = false,
+  onToggleCompareMode,
 }: GanttChartViewProps) {
   const [currentBaseDate, setCurrentBaseDate] = useState<Date>(new Date());
   const [searchQuery, setSearchQuery] = useState('');
@@ -58,9 +68,14 @@ export function GanttChartView({
     return isNaN(d.getTime()) ? new Date() : d;
   };
 
-  const formatDateStr = (d: Date): string => {
-    return d.toISOString().split('T')[0];
-  };
+  // Active or selected baseline for visual overlay
+  const activeBaseline = useMemo(() => {
+    if (!selectedBaselineId || selectedBaselineId === 'CURRENT') return null;
+    if (selectedBaselineId === 'ACTIVE') {
+      return baselines.find((b) => b.status === 'Active') || (baselines.length > 0 ? baselines[0] : null);
+    }
+    return baselines.find((b) => b.baseline_id === selectedBaselineId) || null;
+  }, [baselines, selectedBaselineId]);
 
   // Generate Timeline Header Columns based on ViewMode
   const timelineColumns = useMemo(() => {
@@ -106,7 +121,7 @@ export function GanttChartView({
     return cols;
   }, [currentBaseDate, viewMode]);
 
-  // Identify Critical Path tasks (tasks with High/Urgent priority or overdue status that impact completion)
+  // Identify Critical Path tasks
   const criticalPathTaskIds = useMemo(() => {
     const set = new Set<string>();
     tasks.forEach((t) => {
@@ -165,15 +180,15 @@ export function GanttChartView({
   };
 
   // Compute Task Bar position %
-  const getTaskBarSpan = (t: Task) => {
+  const getTaskBarSpan = (startStr?: string, endStr?: string) => {
     if (timelineColumns.length === 0) return { left: '0%', width: '100%' };
 
     const firstColDate = timelineColumns[0].date.getTime();
     const lastColDate = timelineColumns[timelineColumns.length - 1].date.getTime();
     const totalTimeSpan = Math.max(lastColDate - firstColDate, 86400000);
 
-    const startDate = parseDate(t.exp_start_date).getTime();
-    const endDate = parseDate(t.exp_end_date).getTime();
+    const startDate = parseDate(startStr).getTime();
+    const endDate = parseDate(endStr).getTime();
 
     const clampedStart = Math.max(startDate, firstColDate);
     const clampedEnd = Math.min(Math.max(endDate, clampedStart + 86400000), lastColDate + 86400000);
@@ -192,8 +207,8 @@ export function GanttChartView({
       {/* Controls Toolbar */}
       <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-          {/* View Mode Controls */}
-          <div className="flex items-center gap-2">
+          {/* View Mode Controls & Critical Path */}
+          <div className="flex flex-wrap items-center gap-2">
             <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
               <button
                 onClick={() => setViewMode('day')}
@@ -235,28 +250,102 @@ export function GanttChartView({
             </button>
           </div>
 
-          {/* Timeline Navigation */}
-          <div className="flex items-center gap-2">
+          {/* Baseline Selector & Manage Baselines Button */}
+          <div className="flex flex-wrap items-center gap-2">
+            {/* Baseline Selector Dropdown */}
+            <div className="relative">
+              <select
+                value={isCompareMode ? 'COMPARE' : selectedBaselineId}
+                onChange={(e) => {
+                  const val = e.target.value;
+                  if (val === 'COMPARE') {
+                    if (onToggleCompareMode) onToggleCompareMode(true);
+                  } else {
+                    if (onToggleCompareMode) onToggleCompareMode(false);
+                    if (onSelectBaselineId) onSelectBaselineId(val);
+                  }
+                }}
+                className="pl-3 pr-8 py-2 rounded-xl bg-amber-50/80 border border-amber-200 text-amber-900 text-xs font-black focus:outline-none focus:ring-2 focus:ring-amber-500 transition cursor-pointer shadow-2xs"
+              >
+                <option value="CURRENT">Current Schedule (Live)</option>
+                {baselines.map((b) => (
+                  <option key={b.baseline_id} value={b.baseline_id}>
+                    {b.baseline_name} ({b.status === 'Active' ? 'Active' : 'Baseline'})
+                  </option>
+                ))}
+                <option value="COMPARE">📊 Compare Baselines Mode</option>
+              </select>
+            </div>
+
+            {/* Manage Baselines Modal Trigger */}
             <button
-              onClick={handlePrev}
-              className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
+              onClick={onOpenManageBaselines}
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer shadow-2xs"
             >
-              <ChevronLeft className="h-4 w-4" />
+              <BookmarkPlus className="h-3.5 w-3.5 text-amber-400" />
+              <span>Manage Baselines</span>
             </button>
+
+            {/* Compare Toggle Button */}
             <button
-              onClick={handleToday}
-              className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-800 text-xs font-bold hover:bg-slate-50 transition cursor-pointer shadow-2xs"
+              onClick={() => onToggleCompareMode && onToggleCompareMode(!isCompareMode)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                isCompareMode
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                  : 'bg-white text-slate-700 border-slate-200 hover:bg-slate-50'
+              }`}
             >
-              Today
+              <SlidersHorizontal className="h-3.5 w-3.5" />
+              <span>{isCompareMode ? 'Exit Compare' : 'Compare'}</span>
             </button>
-            <button
-              onClick={handleNext}
-              className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
-            >
-              <ChevronRight className="h-4 w-4" />
-            </button>
+
+            {/* Timeline Navigation */}
+            <div className="flex items-center gap-1">
+              <button
+                onClick={handlePrev}
+                className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
+              >
+                <ChevronLeft className="h-4 w-4" />
+              </button>
+              <button
+                onClick={handleToday}
+                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-800 text-xs font-bold hover:bg-slate-50 transition cursor-pointer shadow-2xs"
+              >
+                Today
+              </button>
+              <button
+                onClick={handleNext}
+                className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </button>
+            </div>
           </div>
         </div>
+
+        {/* Legend Banner when Baseline is Active */}
+        {(activeBaseline || isCompareMode) && (
+          <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200/90 flex flex-wrap items-center justify-between text-xs text-amber-900 gap-2 font-medium">
+            <div className="flex items-center gap-3">
+              <span className="font-bold flex items-center gap-1">
+                <Bookmark className="h-3.5 w-3.5 text-amber-600" />
+                Active Baseline Reference: <strong className="font-black text-amber-950">{activeBaseline?.baseline_name || 'Baseline 1'}</strong>
+              </span>
+              <span className="hidden sm:inline">•</span>
+              <div className="flex items-center gap-2 text-[11px]">
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-4 rounded-sm bg-sky-500 border border-sky-600 inline-block" /> Current Schedule
+                </span>
+                <span className="inline-flex items-center gap-1">
+                  <span className="h-2.5 w-4 rounded-sm bg-amber-400 border border-amber-500 border-dashed inline-block" /> Baseline Snapshot
+                </span>
+              </div>
+            </div>
+            <span className="text-[11px] text-amber-700 font-mono">
+              Captured: {activeBaseline?.snapshot_date || 'Active'}
+            </span>
+          </div>
+        )}
 
         {/* Filters Row */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 border-t border-slate-100 pt-3">
@@ -320,7 +409,7 @@ export function GanttChartView({
                   filteredTasks.map((t) => {
                     const isCritical = criticalPathTaskIds.has(t.name);
                     return (
-                      <tr key={t.name} className="hover:bg-slate-50/70 transition h-14">
+                      <tr key={t.name} className="hover:bg-slate-50/70 transition h-16">
                         <td className="py-2 px-3">
                           <div className="flex items-center gap-1.5">
                             {isCritical && (
@@ -392,11 +481,17 @@ export function GanttChartView({
             {/* Timeline Rows */}
             <div className="divide-y divide-slate-100">
               {filteredTasks.map((t) => {
-                const barSpan = getTaskBarSpan(t);
+                const barSpan = getTaskBarSpan(t.exp_start_date, t.exp_end_date);
                 const isCritical = criticalPathTaskIds.has(t.name);
 
+                // Baseline Reference Bar positioning
+                const btSnapshot = activeBaseline?.tasks.find((bt) => bt.task_id === t.name);
+                const baselineBarSpan = btSnapshot
+                  ? getTaskBarSpan(btSnapshot.planned_start_date, btSnapshot.planned_end_date)
+                  : null;
+
                 return (
-                  <div key={t.name} className="relative h-14 flex items-center px-2">
+                  <div key={t.name} className="relative h-16 flex flex-col justify-center px-2 py-1 space-y-1">
                     {/* Background Date Grid Lines */}
                     <div className="absolute inset-0 grid grid-flow-col auto-cols-fr divide-x divide-slate-200/40 pointer-events-none">
                       {timelineColumns.map((_, idx) => (
@@ -404,11 +499,11 @@ export function GanttChartView({
                       ))}
                     </div>
 
-                    {/* Task Bar */}
+                    {/* Primary Current Task Bar */}
                     <motion.div
                       initial={{ scaleX: 0.8, opacity: 0 }}
                       animate={{ scaleX: 1, opacity: 1 }}
-                      className={`relative h-7 rounded-xl border flex items-center justify-between px-2 text-[10px] font-extrabold shadow-2xs transition-all ${
+                      className={`relative h-6 rounded-xl border flex items-center justify-between px-2 text-[10px] font-extrabold shadow-2xs transition-all z-10 ${
                         isCritical
                           ? 'bg-rose-50 border-rose-300 text-rose-900 ring-2 ring-rose-500/20'
                           : t.status === 'Completed'
@@ -435,6 +530,18 @@ export function GanttChartView({
                       </span>
                       <span className="font-mono z-10 shrink-0 font-black">{t.progress || 0}%</span>
                     </motion.div>
+
+                    {/* Baseline Snapshot Ghost Reference Bar */}
+                    {baselineBarSpan && (
+                      <div
+                        className="relative h-3 rounded-md bg-amber-200/90 border border-amber-500 border-dashed z-0 opacity-80 transition-all"
+                        style={{
+                          left: baselineBarSpan.left,
+                          width: baselineBarSpan.width,
+                        }}
+                        title={`Baseline Snapshot: ${btSnapshot?.planned_start_date} to ${btSnapshot?.planned_end_date} (${btSnapshot?.duration}d)`}
+                      />
+                    )}
                   </div>
                 );
               })}
