@@ -1,6 +1,6 @@
 export type IssueStatus = 'Open' | 'Replied' | 'On Hold' | 'Resolved' | 'Closed';
 
-export type IssuePriority = 'Low' | 'Medium' | 'High' | 'Urgent';
+export type IssuePriority = 'Low' | 'Medium' | 'High' | 'Urgent/Critical' | 'Urgent';
 
 export type IssueType = 'Technical' | 'Defect' | 'Quality' | 'Safety' | 'General';
 

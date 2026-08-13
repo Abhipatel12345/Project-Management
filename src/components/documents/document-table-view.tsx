@@ -20,6 +20,8 @@ import { cn } from '@/utils/cn';
 
 interface DocumentTableViewProps {
   documents: DocumentItem[];
+  statusFilter?: string;
+  onStatusFilterChange?: (status: string) => void;
   onViewDocument: (doc: DocumentItem) => void;
   onEditDocument: (doc: DocumentItem) => void;
   onDeleteDocument: (docName: string) => void;
@@ -27,13 +29,21 @@ interface DocumentTableViewProps {
 
 export function DocumentTableView({
   documents,
+  statusFilter: controlledStatusFilter,
+  onStatusFilterChange,
   onViewDocument,
   onEditDocument,
   onDeleteDocument,
 }: DocumentTableViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('ALL');
-  const [statusFilter, setStatusFilter] = useState('ALL');
+  const [internalStatusFilter, setInternalStatusFilter] = useState('ALL');
+
+  const statusFilter = controlledStatusFilter !== undefined ? controlledStatusFilter : internalStatusFilter;
+  const setStatusFilter = (val: string) => {
+    setInternalStatusFilter(val);
+    if (onStatusFilterChange) onStatusFilterChange(val);
+  };
 
   const filteredDocs = useMemo(() => {
     let result = [...documents];

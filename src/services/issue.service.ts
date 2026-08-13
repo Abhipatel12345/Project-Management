@@ -49,7 +49,9 @@ const mapStatusToERPNext = (status?: string): IssueStatus => {
 const mapPriorityToERPNext = (priority?: string): IssuePriority => {
   if (!priority) return 'Medium';
   const p = priority.trim();
-  if (p.includes('Urgent') || p.includes('Critical')) return 'Urgent';
+  if (p === 'Urgent' || p === 'Critical' || p === 'Urgent/Critical' || p.includes('Urgent') || p.includes('Critical')) {
+    return 'Urgent/Critical';
+  }
   if (p.includes('High')) return 'High';
   if (p.includes('Low')) return 'Low';
   return 'Medium';
@@ -136,7 +138,8 @@ export const issueService = {
     }
 
     if (params.priority && params.priority !== 'ALL') {
-      filters.push(['priority', '=', params.priority]);
+      const mappedPriority = mapPriorityToERPNext(params.priority);
+      filters.push(['priority', '=', mappedPriority]);
     }
 
     if (params.issue_type && params.issue_type !== 'ALL') {
@@ -177,7 +180,7 @@ export const issueService = {
         totalIssues: issues.length,
         openIssues: issues.filter((i) => i.status === 'Open' || i.status === 'Replied').length,
         highPriorityIssues: issues.filter((i) => i.priority === 'High').length,
-        urgentIssues: issues.filter((i) => i.priority === 'Urgent').length,
+        urgentIssues: issues.filter((i) => i.priority === 'Urgent/Critical' || i.priority === 'Urgent').length,
         resolvedIssues: issues.filter((i) => i.status === 'Resolved' || i.status === 'Closed').length,
         onHoldIssues: issues.filter((i) => i.status === 'On Hold').length,
       };

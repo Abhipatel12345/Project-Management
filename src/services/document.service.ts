@@ -48,11 +48,95 @@ const getInitialDocuments = (): DocumentItem[] => [
     version: 'v1.0',
     uploaded_by: 'Quality Lead',
     upload_date: '2026-08-08',
-    status: 'Draft',
+    status: 'Under Review',
     review_status: 'Pending Review',
     file_name: 'PPAP_L3_Control_Plan.xlsx',
     file_size: 2100000,
     description: 'Production Part Approval Process Level 3 documentation and measurement system analysis.',
+  },
+  {
+    name: 'DOC-2026-00004',
+    title: 'Battery Enclosure Crash Safety Structural Simulation Report',
+    project: 'PROJ-0002',
+    document_type: 'Testing',
+    version: 'v1.2',
+    uploaded_by: 'CAE Specialist',
+    upload_date: '2026-08-10',
+    status: 'Under Review',
+    review_status: 'In Review',
+    file_name: 'FEA_Crash_Sim_v1.2.pdf',
+    file_size: 18500000,
+    description: 'Finite element analysis and impact energy absorption report for underbody tray.',
+  },
+  {
+    name: 'DOC-2026-00005',
+    title: 'Interior Door Panel Sub-Assembly DFM Guidelines',
+    project: 'PROJ-0001',
+    document_type: 'Design',
+    version: 'v1.1',
+    uploaded_by: 'Lead Designer',
+    upload_date: '2026-08-02',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Door_Panel_DFM_v1.1.pdf',
+    file_size: 5400000,
+    description: 'Design for Manufacturing guidelines for injection molded interior trim components.',
+  },
+  {
+    name: 'DOC-2026-00006',
+    title: 'Electric Drive Unit Inverter E/E Architecture Schematic',
+    project: 'PROJ-0003',
+    document_type: 'Specification',
+    version: 'v3.0',
+    uploaded_by: 'System Architect',
+    upload_date: '2026-08-04',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Inverter_EE_Schematic_v3.pdf',
+    file_size: 8900000,
+    description: 'High power 800V SiC inverter circuit schematics and PCB layout specifications.',
+  },
+  {
+    name: 'DOC-2026-00007',
+    title: 'High Voltage Wiring Harness Routing & Installation Guide',
+    project: 'PROJ-0002',
+    document_type: 'Process',
+    version: 'v1.0',
+    uploaded_by: 'Process Engineer',
+    upload_date: '2026-08-06',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'HV_Harness_Routing_v1.0.pdf',
+    file_size: 4200000,
+    description: 'Standard operating procedure for chassis wiring harness attachment points.',
+  },
+  {
+    name: 'DOC-2026-00008',
+    title: 'Autonomous Sensor Calibration & Alignment Test Protocol',
+    project: 'PROJ-0003',
+    document_type: 'Testing',
+    version: 'v2.0',
+    uploaded_by: 'Validation Lead',
+    upload_date: '2026-08-09',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Sensor_Calibration_Test_v2.0.pdf',
+    file_size: 6700000,
+    description: 'End of line radar and camera sensor calibration procedures.',
+  },
+  {
+    name: 'DOC-2026-00009',
+    title: 'Customer Technical Requirement Specification (CTRS) Rev 4',
+    project: 'PROJ-0001',
+    document_type: 'Customer',
+    version: 'v4.0',
+    uploaded_by: 'Program Manager',
+    upload_date: '2026-08-11',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'OEM_CTRS_Rev4.pdf',
+    file_size: 11200000,
+    description: 'OEM customer contract technical specifications and performance targets.',
   },
 ];
 
@@ -65,7 +149,13 @@ const getStoredDocuments = (): DocumentItem[] => {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
       return initial;
     }
-    return JSON.parse(raw);
+    const parsed = JSON.parse(raw);
+    if (Array.isArray(parsed) && parsed.length < 9) {
+      const initial = getInitialDocuments();
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
+      return initial;
+    }
+    return parsed;
   } catch {
     return getInitialDocuments();
   }
@@ -118,15 +208,37 @@ export const documentService = {
       if (!map.has(d.name)) map.set(d.name, d);
     });
 
-    let docs = Array.from(map.values());
+    let allDocs = Array.from(map.values());
 
-    // Apply filtering
+    // Apply project filter to derive base list for project scope
+    let baseDocs = allDocs;
     if (params.project && params.project !== 'ALL') {
-      docs = docs.filter((d) => d.project === params.project);
+      baseDocs = allDocs.filter((d) => d.project === params.project);
     }
 
+    // Calculate Summary on baseDocs (UNFILTERED by status/type/search)
+    const todayStr = new Date().toISOString().split('T')[0];
+    const currentMonth = todayStr.substring(0, 7);
+    const summary: DocumentSummary = {
+      totalDocuments: baseDocs.length,
+      projectDocuments: baseDocs.filter((d) => d.project && d.project !== '').length,
+      recentlyAdded: baseDocs.filter((d) => d.upload_date && d.upload_date >= currentMonth).length,
+      requiringReview: baseDocs.filter(
+        (d) => d.status === 'Under Review' || d.review_status === 'In Review' || d.review_status === 'Pending Review'
+      ).length,
+    };
+
+    // Apply status, type, search filters for table presentation
+    let docs = baseDocs;
+
     if (params.status && params.status !== 'ALL') {
-      docs = docs.filter((d) => d.status === params.status);
+      if (params.status === 'Under Review') {
+        docs = docs.filter(
+          (d) => d.status === 'Under Review' || d.review_status === 'In Review' || d.review_status === 'Pending Review'
+        );
+      } else {
+        docs = docs.filter((d) => d.status === params.status);
+      }
     }
 
     if (params.document_type && params.document_type !== 'ALL') {
@@ -143,16 +255,6 @@ export const documentService = {
           (d.uploaded_by && d.uploaded_by.toLowerCase().includes(q))
       );
     }
-
-    const todayStr = new Date().toISOString().split('T')[0];
-    const summary: DocumentSummary = {
-      totalDocuments: docs.length,
-      projectDocuments: docs.filter((d) => d.project && d.project !== '').length,
-      recentlyAdded: docs.filter((d) => d.upload_date && d.upload_date >= todayStr.substring(0, 7)).length,
-      requiringReview: docs.filter(
-        (d) => d.status === 'Under Review' || d.review_status === 'In Review' || d.review_status === 'Pending Review'
-      ).length,
-    };
 
     return {
       documents: docs,

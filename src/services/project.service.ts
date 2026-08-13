@@ -9,7 +9,6 @@ const PROJECT_FIELDS = [
   'project_type',
   'custom_project_category',
   'custom_product_group',
-  'custom_product_line',
   'percent_complete',
   'expected_start_date',
   'expected_end_date',
@@ -30,18 +29,82 @@ const normalizeProject = (p: Project): Project => ({
   estimated_cost: p.estimated_costing ?? p.estimated_cost ?? 0,
 });
 
+const formatErpDate = (val?: string | null): string | undefined => {
+  if (!val || typeof val !== 'string') return undefined;
+  const trimmed = val.trim();
+  if (!trimmed) return undefined;
+  // If MM/DD/YYYY or DD/MM/YYYY
+  if (/^\d{1,2}\/\d{1,2}\/\d{4}$/.test(trimmed)) {
+    const [m, d, y] = trimmed.split('/');
+    return `${y}-${m.padStart(2, '0')}-${d.padStart(2, '0')}`;
+  }
+  // If YYYY-MM-DD
+  if (/^\d{4}-\d{2}-\d{2}$/.test(trimmed)) {
+    return trimmed;
+  }
+  const parsed = new Date(trimmed);
+  if (!Number.isNaN(parsed.getTime())) {
+    return parsed.toISOString().split('T')[0];
+  }
+  return trimmed;
+};
+
 const cleanPayload = (data: Partial<Project>): Record<string, any> => {
   const payload: Record<string, any> = {};
+
+  // Copy valid non-empty fields
   for (const [key, value] of Object.entries(data)) {
-    if (value !== '' && value !== null && value !== undefined && !Number.isNaN(value)) {
+    if (value !== '' && value !== null && value !== undefined && !(typeof value === 'number' && Number.isNaN(value))) {
       payload[key] = value;
     }
   }
+
+  // Map estimated_cost -> estimated_costing (ERPNext fieldname)
   const cost = data.estimated_costing ?? data.estimated_cost;
-  if (cost !== undefined && !Number.isNaN(cost) && cost !== null) {
-    payload.estimated_costing = cost;
+  if (cost !== undefined && cost !== null && !Number.isNaN(Number(cost))) {
+    payload.estimated_costing = Number(cost);
   }
   delete payload.estimated_cost;
+
+  // Ensure percent_complete is a number
+  if (data.percent_complete !== undefined && data.percent_complete !== null && !Number.isNaN(Number(data.percent_complete))) {
+    payload.percent_complete = Number(data.percent_complete);
+  }
+
+  // ERPNext select mappings
+  if (payload.priority === 'Critical') {
+    payload.priority = 'High';
+  }
+
+  // Remove empty string or default "Select..." entries for custom fields
+  if (payload.custom_project_category === 'Select' || payload.custom_project_category === '') {
+    delete payload.custom_project_category;
+  }
+  if (payload.custom_product_group === 'Select' || payload.custom_product_group === '') {
+    delete payload.custom_product_group;
+  }
+
+  // Format date fields to YYYY-MM-DD, or remove if empty/invalid
+  const dateFields = ['expected_start_date', 'expected_end_date', 'actual_start_date', 'actual_end_date'];
+  for (const df of dateFields) {
+    if (payload[df]) {
+      const formatted = formatErpDate(payload[df]);
+      if (formatted && formatted.trim() !== '') {
+        payload[df] = formatted;
+      } else {
+        delete payload[df];
+      }
+    } else {
+      delete payload[df];
+    }
+  }
+
+  // Strip non-existent ERPNext fields
+  delete payload.custom_product_line;
+
+  // Log final payload before POST/PUT request (STEP 1)
+  console.log('[ERPNext API Request] Project Payload:', JSON.stringify(payload, null, 2));
+
   return payload;
 };
 

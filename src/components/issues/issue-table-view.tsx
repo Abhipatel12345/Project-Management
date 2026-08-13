@@ -54,7 +54,11 @@ export function IssueTableView({
     }
 
     if (priorityFilter !== 'ALL') {
-      result = result.filter((i) => i.priority === priorityFilter);
+      result = result.filter(
+        (i) =>
+          i.priority === priorityFilter ||
+          (priorityFilter === 'Urgent/Critical' && (i.priority === ('Urgent' as any) || i.priority === ('Critical' as any)))
+      );
     }
 
     if (typeFilter !== 'ALL') {
@@ -104,7 +108,7 @@ export function IssueTableView({
           <option value="Low">Low</option>
           <option value="Medium">Medium</option>
           <option value="High">High</option>
-          <option value="Urgent">Urgent / Critical</option>
+          <option value="Urgent/Critical">Urgent / Critical</option>
         </select>
 
         {/* Issue Type Filter */}

@@ -23,6 +23,7 @@ export default function DocumentsPage() {
   const projects: Project[] = projectsData?.projects || [];
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
+  const [statusFilter, setStatusFilter] = useState<string>('ALL');
 
   const {
     data: documentListData,
@@ -33,6 +34,7 @@ export default function DocumentsPage() {
     isFetching,
   } = useDocuments({
     project: selectedProjectId === 'ALL' ? undefined : selectedProjectId,
+    status: statusFilter === 'ALL' ? undefined : statusFilter,
     pageSize: 100,
   });
 
@@ -129,6 +131,8 @@ export default function DocumentsPage() {
         projects={projects}
         selectedProjectId={selectedProjectId}
         onSelectProject={(id: string) => setSelectedProjectId(id)}
+        selectedStatusFilter={statusFilter}
+        onSelectStatusFilter={(st: string) => setStatusFilter(st)}
         summary={summary}
         onCreateClick={() => setIsCreateOpen(true)}
         onRefreshClick={() => refetch()}
@@ -162,6 +166,8 @@ export default function DocumentsPage() {
       ) : (
         <DocumentTableView
           documents={documents}
+          statusFilter={statusFilter}
+          onStatusFilterChange={(st: string) => setStatusFilter(st)}
           onViewDocument={(doc) => setViewingDocument(doc)}
           onEditDocument={(doc) => setEditingDocument(doc)}
           onDeleteDocument={handleDeleteDocument}

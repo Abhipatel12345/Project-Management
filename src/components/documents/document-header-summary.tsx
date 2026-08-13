@@ -16,6 +16,8 @@ interface DocumentHeaderSummaryProps {
   projects: Project[];
   selectedProjectId: string;
   onSelectProject: (projectId: string) => void;
+  selectedStatusFilter?: string;
+  onSelectStatusFilter?: (status: string) => void;
   summary: DocumentSummary;
   onCreateClick: () => void;
   onRefreshClick: () => void;
@@ -26,6 +28,8 @@ export function DocumentHeaderSummary({
   projects,
   selectedProjectId,
   onSelectProject,
+  selectedStatusFilter = 'ALL',
+  onSelectStatusFilter,
   summary,
   onCreateClick,
   onRefreshClick,
@@ -85,37 +89,57 @@ export function DocumentHeaderSummary({
 
       {/* Summary Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
+        <button
+          type="button"
+          onClick={() => onSelectStatusFilter?.('ALL')}
+          className={`p-4 rounded-2xl bg-white border text-left transition cursor-pointer shadow-2xs hover:border-slate-300 ${
+            selectedStatusFilter === 'ALL' ? 'ring-2 ring-slate-400/50 border-slate-300' : 'border-slate-200'
+          }`}
+        >
           <div className="text-[10px] text-slate-500 font-bold uppercase flex items-center justify-center gap-1.5">
             <FileText className="h-3.5 w-3.5 text-slate-400" />
             Total Documents
           </div>
-          <div className="text-2xl font-black text-slate-900">{summary.totalDocuments}</div>
-        </div>
+          <div className="text-2xl font-black text-slate-900 text-center mt-1">{summary.totalDocuments}</div>
+        </button>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
+        <button
+          type="button"
+          onClick={() => onSelectStatusFilter?.('ALL')}
+          className="p-4 rounded-2xl bg-white border border-slate-200 text-left transition cursor-pointer shadow-2xs hover:border-sky-300"
+        >
           <div className="text-[10px] text-sky-700 font-bold uppercase flex items-center justify-center gap-1.5">
             <FolderKanban className="h-3.5 w-3.5 text-sky-500" />
             Project Documents
           </div>
-          <div className="text-2xl font-black text-sky-600">{summary.projectDocuments}</div>
-        </div>
+          <div className="text-2xl font-black text-sky-600 text-center mt-1">{summary.projectDocuments}</div>
+        </button>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
+        <button
+          type="button"
+          onClick={() => onSelectStatusFilter?.('ALL')}
+          className="p-4 rounded-2xl bg-white border border-slate-200 text-left transition cursor-pointer shadow-2xs hover:border-emerald-300"
+        >
           <div className="text-[10px] text-emerald-700 font-bold uppercase flex items-center justify-center gap-1.5">
             <Clock className="h-3.5 w-3.5 text-emerald-500" />
             Recently Added
           </div>
-          <div className="text-2xl font-black text-emerald-600">{summary.recentlyAdded}</div>
-        </div>
+          <div className="text-2xl font-black text-emerald-600 text-center mt-1">{summary.recentlyAdded}</div>
+        </button>
 
-        <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
+        <button
+          type="button"
+          onClick={() => onSelectStatusFilter?.('Under Review')}
+          className={`p-4 rounded-2xl bg-white border text-left transition cursor-pointer shadow-2xs hover:border-amber-300 ${
+            selectedStatusFilter === 'Under Review' ? 'ring-2 ring-amber-500/50 border-amber-300' : 'border-slate-200'
+          }`}
+        >
           <div className="text-[10px] text-amber-700 font-bold uppercase flex items-center justify-center gap-1.5">
             <FileCheck className="h-3.5 w-3.5 text-amber-500" />
             Requiring Review
           </div>
-          <div className="text-2xl font-black text-amber-600">{summary.requiringReview}</div>
-        </div>
+          <div className="text-2xl font-black text-amber-600 text-center mt-1">{summary.requiringReview}</div>
+        </button>
       </div>
     </div>
   );

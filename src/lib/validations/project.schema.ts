@@ -17,7 +17,7 @@ export const projectFormSchema = z.object({
   status: z.enum(['Open', 'In Progress', 'Completed', 'Cancelled', 'On Hold'], {
     required_error: 'Please select a project status',
   }),
-  priority: z.enum(['Low', 'Medium', 'High', 'Critical'], {
+  priority: z.enum(['Low', 'Medium', 'High'], {
     required_error: 'Please select a priority level',
   }),
   project_type: z.string().optional(),

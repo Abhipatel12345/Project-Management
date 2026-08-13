@@ -215,7 +215,7 @@ export function IssueFormDialog({
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
                   <option value="High">High</option>
-                  <option value="Urgent">Urgent / Critical</option>
+                  <option value="Urgent/Critical">Urgent / Critical</option>
                 </select>
               </div>
             </div>

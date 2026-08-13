@@ -4,7 +4,7 @@ import React, { useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { projectFormSchema, ProjectFormValues } from '@/lib/validations/project.schema';
-import { Project, PROJECT_CATEGORIES, PRODUCT_GROUPS } from '@/types/project.types';
+import { Project, PROJECT_CATEGORIES, PRODUCT_GROUPS, PROJECT_TYPES } from '@/types/project.types';
 import { X, Loader2, FolderPlus, Edit3, Calendar, DollarSign, Tag, Percent, Layers, Sliders } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -39,7 +39,6 @@ export function ProjectFormDialog({
       project_type: 'Internal',
       custom_project_category: '',
       custom_product_group: '',
-      custom_product_line: '',
       percent_complete: 0,
       expected_start_date: '',
       expected_end_date: '',
@@ -53,14 +52,15 @@ export function ProjectFormDialog({
   useEffect(() => {
     setFormError(null);
     if (initialData) {
+      const p = (initialData.priority as any);
+      const safePriority = p === 'Critical' ? 'High' : (p || 'Medium');
       reset({
         project_name: initialData.project_name || '',
         status: (initialData.status as any) || 'Open',
-        priority: (initialData.priority as any) || 'Medium',
+        priority: safePriority,
         project_type: initialData.project_type || 'Internal',
         custom_project_category: initialData.custom_project_category || '',
         custom_product_group: initialData.custom_product_group || '',
-        custom_product_line: initialData.custom_product_line || '',
         percent_complete: initialData.percent_complete || 0,
         expected_start_date: initialData.expected_start_date || '',
         expected_end_date: initialData.expected_end_date || '',
@@ -77,7 +77,6 @@ export function ProjectFormDialog({
         project_type: 'Internal',
         custom_project_category: '',
         custom_product_group: '',
-        custom_product_line: '',
         percent_complete: 0,
         expected_start_date: '',
         expected_end_date: '',
@@ -236,7 +235,6 @@ export function ProjectFormDialog({
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
                   <option value="High">High</option>
-                  <option value="Critical">Critical</option>
                 </select>
                 {errors.priority && <p className="mt-1 text-xs text-rose-400">{errors.priority.message}</p>}
               </div>
@@ -250,12 +248,17 @@ export function ProjectFormDialog({
                 </label>
                 <div className="relative">
                   <Tag className="absolute left-3 top-3 h-4 w-4 text-slate-500" />
-                  <input
+                  <select
                     {...register('project_type')}
-                    type="text"
-                    placeholder="e.g. Internal, EV Platform, Body In White"
-                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition"
-                  />
+                    className="w-full pl-9 pr-3.5 py-2.5 rounded-xl bg-slate-950/60 border border-slate-800 text-slate-100 text-sm focus:outline-none focus:ring-2 focus:ring-cyan-500/50 focus:border-cyan-500 transition cursor-pointer"
+                  >
+                    <option value="">Select Project Type...</option>
+                    {PROJECT_TYPES.map((pt) => (
+                      <option key={pt} value={pt}>
+                        {pt}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
 

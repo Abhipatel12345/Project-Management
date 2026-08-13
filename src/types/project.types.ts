@@ -1,6 +1,12 @@
 export type ProjectStatus = 'Open' | 'In Progress' | 'Completed' | 'Cancelled' | 'On Hold';
 export type ProjectPriority = 'Low' | 'Medium' | 'High' | 'Critical';
 
+export const PROJECT_TYPES = [
+  'Internal',
+  'External',
+  'Other',
+] as const;
+
 export const PROJECT_CATEGORIES = [
   'New Product Development',
   'Product Enhancement',

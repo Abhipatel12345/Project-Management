@@ -70,6 +70,7 @@ export default function ProjectDetailPage() {
       setIsEditOpen(false);
     } catch (err) {
       console.error('Failed to update project:', err);
+      throw err;
     }
   };
 
