@@ -8,7 +8,7 @@ import {
 
 const STORAGE_KEY = 'pdm_documents_vault_v1';
 
-// Seed initial default documents if none exist
+// Seed initial 30 default documents across automotive engineering domains
 const getInitialDocuments = (): DocumentItem[] => [
   {
     name: 'DOC-2026-00001',
@@ -84,259 +84,523 @@ const getInitialDocuments = (): DocumentItem[] => [
   },
   {
     name: 'DOC-2026-00006',
-    title: 'Electric Drive Unit Inverter E/E Architecture Schematic',
+    title: '800V SiC Inverter E/E Architecture Schematic',
     project: 'PROJ-0003',
     document_type: 'Specification',
     version: 'v3.0',
-    uploaded_by: 'System Architect',
-    upload_date: '2026-08-04',
+    uploaded_by: 'E/E Architect',
+    upload_date: '2026-08-03',
     status: 'Approved',
     review_status: 'Approved',
     file_name: 'Inverter_EE_Schematic_v3.pdf',
     file_size: 8900000,
-    description: 'High power 800V SiC inverter circuit schematics and PCB layout specifications.',
+    description: 'Electrical and electronics block diagram for traction inverter power stage.',
   },
   {
     name: 'DOC-2026-00007',
-    title: 'High Voltage Wiring Harness Routing & Installation Guide',
+    title: 'High Voltage Wiring Harness Routing Installation Guide',
     project: 'PROJ-0002',
     document_type: 'Process',
     version: 'v1.0',
-    uploaded_by: 'Process Engineer',
-    upload_date: '2026-08-06',
+    uploaded_by: 'Manufacturing Engineer',
+    upload_date: '2026-08-04',
     status: 'Approved',
     review_status: 'Approved',
     file_name: 'HV_Harness_Routing_v1.0.pdf',
-    file_size: 4200000,
-    description: 'Standard operating procedure for chassis wiring harness attachment points.',
+    file_size: 6700000,
+    description: 'Assembly station work instructions for underbody high voltage cable installation.',
   },
   {
     name: 'DOC-2026-00008',
-    title: 'Autonomous Sensor Calibration & Alignment Test Protocol',
-    project: 'PROJ-0003',
+    title: 'Autonomous Radar Sensor Calibration Protocol',
+    project: 'PROJ-0005',
     document_type: 'Testing',
     version: 'v2.0',
-    uploaded_by: 'Validation Lead',
-    upload_date: '2026-08-09',
+    uploaded_by: 'ADAS Calibration Lead',
+    upload_date: '2026-08-06',
     status: 'Approved',
     review_status: 'Approved',
     file_name: 'Sensor_Calibration_Test_v2.0.pdf',
-    file_size: 6700000,
-    description: 'End of line radar and camera sensor calibration procedures.',
+    file_size: 4200000,
+    description: 'End-of-line radar alignment and target reflectivity test procedure.',
   },
   {
     name: 'DOC-2026-00009',
-    title: 'Customer Technical Requirement Specification (CTRS) Rev 4',
+    title: 'OEM Customer Technical Requirement Specification (CTRS)',
     project: 'PROJ-0001',
     document_type: 'Customer',
-    version: 'v4.0',
+    version: 'Rev 4.0',
     uploaded_by: 'Program Manager',
-    upload_date: '2026-08-11',
+    upload_date: '2026-07-28',
     status: 'Approved',
     review_status: 'Approved',
     file_name: 'OEM_CTRS_Rev4.pdf',
+    file_size: 11500000,
+    description: 'Customer specified technical requirements and baseline target matrix.',
+  },
+  {
+    name: 'DOC-2026-00010',
+    title: 'Active Suspension ECU Software Design Spec',
+    project: 'PROJ-0006',
+    document_type: 'Engineering',
+    version: 'v2.0',
+    uploaded_by: 'Controls Engineer',
+    upload_date: '2026-08-02',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Active_Suspension_SW_Spec_v2.pdf',
+    file_size: 7800000,
+    description: 'Software architecture specification for active damper CAN-FD controller.',
+  },
+  {
+    name: 'DOC-2026-00011',
+    title: 'Brake-by-Wire Hydraulic Actuator 3D CAD Model',
+    project: 'PROJ-0007',
+    document_type: 'Design',
+    version: 'v1.0',
+    uploaded_by: 'CAD Engineer',
+    upload_date: '2026-08-04',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Brake_By_Wire_3D_CAD_v1.step',
+    file_size: 22400000,
+    description: '3D CAD step assembly model for electro-hydraulic braking module.',
+  },
+  {
+    name: 'DOC-2026-00012',
+    title: 'Steering Column Torque Sensor IMDS Material Compliance',
+    project: 'PROJ-0008',
+    document_type: 'Quality',
+    version: 'v1.0',
+    uploaded_by: 'Compliance Specialist',
+    upload_date: '2026-08-01',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Steering_Torque_IMDS_Data.xml',
+    file_size: 1200000,
+    description: 'International Material Data System chemical composition compliance filing.',
+  },
+  {
+    name: 'DOC-2026-00013',
+    title: 'Body Stamping Die Tooling Design Manual',
+    project: 'PROJ-0009',
+    document_type: 'Process',
+    version: 'v1.5',
+    uploaded_by: 'Tooling Director',
+    upload_date: '2026-08-06',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Body_Stamping_Die_Manual.pdf',
+    file_size: 15600000,
+    description: 'Tooling die maintenance and springback compensation operating manual.',
+  },
+  {
+    name: 'DOC-2026-00014',
+    title: 'Instrument Cluster Anti-Reflective Optical Test Report',
+    project: 'PROJ-0010',
+    document_type: 'Testing',
+    version: 'v1.0',
+    uploaded_by: 'Optics Engineer',
+    upload_date: '2026-08-08',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Cluster_Glass_Optics_Report.pdf',
+    file_size: 3400000,
+    description: 'Spectrophotometer glare and light transmission test results.',
+  },
+  {
+    name: 'DOC-2026-00015',
+    title: 'Cabin HEPA Filter Efficiency Validation Protocol',
+    project: 'PROJ-0011',
+    document_type: 'Testing',
+    version: 'v1.1',
+    uploaded_by: 'HVAC Specialist',
+    upload_date: '2026-08-09',
+    status: 'Under Review',
+    review_status: 'In Review',
+    file_name: 'Cabin_HEPA_Validation_Plan.docx',
+    file_size: 2800000,
+    description: 'ISO 29463 particulate filtration testing protocol for vehicle cabin air.',
+  },
+  {
+    name: 'DOC-2026-00016',
+    title: 'Front Matrix LED Headlamp Thermal Simulation',
+    project: 'PROJ-0012',
+    document_type: 'Engineering',
+    version: 'v2.2',
+    uploaded_by: 'Thermal Engineer',
+    upload_date: '2026-08-01',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Matrix_Headlamp_Thermal_FEA.pdf',
+    file_size: 9400000,
+    description: 'Ansys Fluent thermal CFD simulation for 120W LED heatsink design.',
+  },
+  {
+    name: 'DOC-2026-00017',
+    title: 'Rear Lightbar Ray Tracing Optical Simulation',
+    project: 'PROJ-0013',
+    document_type: 'Design',
+    version: 'v1.0',
+    uploaded_by: 'Lighting Designer',
+    upload_date: '2026-08-03',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Tail_Lightbar_Raytracing.pdf',
     file_size: 11200000,
-    description: 'OEM customer contract technical specifications and performance targets.',
+    description: 'Speos light guide ray tracing simulation and uniformity analysis.',
+  },
+  {
+    name: 'DOC-2026-00018',
+    title: 'Pyrotechnic Pretensioner Safety Reliability Manual',
+    project: 'PROJ-0014',
+    document_type: 'Specification',
+    version: 'v1.3',
+    uploaded_by: 'Safety Engineer',
+    upload_date: '2026-08-07',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Pretensioner_Safety_Manual.pdf',
+    file_size: 4800000,
+    description: 'Hazardous materials handling and deployment safety protocol.',
+  },
+  {
+    name: 'DOC-2026-00019',
+    title: 'Stator Water Jacket Casting DFM Inspection Plan',
+    project: 'PROJ-0015',
+    document_type: 'APQP',
+    version: 'v1.0',
+    uploaded_by: 'Quality Lead',
+    upload_date: '2026-08-05',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Stator_Jacket_DFM_Inspection.pdf',
+    file_size: 6100000,
+    description: 'X-ray CT scan porosity inspection plan for motor stator housing.',
+  },
+  {
+    name: 'DOC-2026-00020',
+    title: 'Oil Cooler Vacuum Braze Leak Test Procedure',
+    project: 'PROJ-0016',
+    document_type: 'Quality',
+    version: 'v1.0',
+    uploaded_by: 'Quality Inspector',
+    upload_date: '2026-08-06',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Oil_Cooler_Braze_Leak_SOP.pdf',
+    file_size: 1900000,
+    description: 'Standard Operating Procedure for helium mass spectrometer leak testing.',
+  },
+  {
+    name: 'DOC-2026-00021',
+    title: 'Heat Pump Electronic Expansion Valve Control Mapping',
+    project: 'PROJ-0017',
+    document_type: 'Specification',
+    version: 'v2.0',
+    uploaded_by: 'Systems Engineer',
+    upload_date: '2026-08-04',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Heat_Pump_Expansion_Valve_Mapping.xlsx',
+    file_size: 3100000,
+    description: 'Stepper motor position lookup table versus refrigerant superheat.',
+  },
+  {
+    name: 'DOC-2026-00022',
+    title: '5G Telematics Control Unit FCC/CE Regulatory Dossier',
+    project: 'PROJ-0018',
+    document_type: 'Customer',
+    version: 'v1.0',
+    uploaded_by: 'Regulatory Manager',
+    upload_date: '2026-08-07',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'TCU_5G_Regulatory_Dossier.pdf',
+    file_size: 14800000,
+    description: 'Global wireless type approval certification documents.',
+  },
+  {
+    name: 'DOC-2026-00023',
+    title: 'Automotive Cybersecurity Threat Assessment (ISO 21434)',
+    project: 'PROJ-0019',
+    document_type: 'Engineering',
+    version: 'v1.2',
+    uploaded_by: 'Security Officer',
+    upload_date: '2026-08-02',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Cybersecurity_TARA_Report_ISO21434.pdf',
+    file_size: 5900000,
+    description: 'Threat Analysis and Risk Assessment for connected vehicle gateway.',
+  },
+  {
+    name: 'DOC-2026-00024',
+    title: 'Charge Port Weather Seal EPDM Material Spec',
+    project: 'PROJ-0020',
+    document_type: 'Quality',
+    version: 'v1.0',
+    uploaded_by: 'Materials Engineer',
+    upload_date: '2026-08-06',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Charge_Port_Seal_Material_Spec.pdf',
+    file_size: 2300000,
+    description: 'EPDM rubber elastomeric properties and UV aging test limits.',
+  },
+  {
+    name: 'DOC-2026-00025',
+    title: 'Electric Power Steering Motor Cogging Test Procedure',
+    project: 'PROJ-0021',
+    document_type: 'Testing',
+    version: 'v1.0',
+    uploaded_by: 'Test Engineer',
+    upload_date: '2026-08-04',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'EPS_Motor_Cogging_Test_Procedure.pdf',
+    file_size: 3700000,
+    description: 'Dynamometer setup and torque transducer sampling procedure.',
+  },
+  {
+    name: 'DOC-2026-00026',
+    title: 'Side Curtain Airbag -40C Cold Deployment Video Log',
+    project: 'PROJ-0022',
+    document_type: 'Testing',
+    version: 'v1.0',
+    uploaded_by: 'Crash Test Lead',
+    upload_date: '2026-08-08',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Side_Airbag_Cold_Deployment_Video.mp4',
+    file_size: 45000000,
+    description: 'High-speed camera deployment video recording at 5000 fps.',
+  },
+  {
+    name: 'DOC-2026-00027',
+    title: 'Driver Monitoring System 940nm IR LED Spectrum Spec',
+    project: 'PROJ-0023',
+    document_type: 'Specification',
+    version: 'v1.1',
+    uploaded_by: 'Optoelectronics Lead',
+    upload_date: '2026-08-08',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'DMS_IR_LED_Spectrum_Spec.pdf',
+    file_size: 2900000,
+    description: 'Eye safety IEC 62471 compliance and spectral emission specification.',
+  },
+  {
+    name: 'DOC-2026-00028',
+    title: 'TPMS Receiver Antenna Sensitivity & EMC Test Plan',
+    project: 'PROJ-0024',
+    document_type: 'Testing',
+    version: 'v1.0',
+    uploaded_by: 'RF Test Lead',
+    upload_date: '2026-08-09',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'TPMS_EMC_Sensitivity_Plan.pdf',
+    file_size: 4100000,
+    description: 'CISPR 25 class 5 radiated emissions test plan.',
+  },
+  {
+    name: 'DOC-2026-00029',
+    title: 'Sunroof Cable Drive NVH Acoustic Measurement Data',
+    project: 'PROJ-0025',
+    document_type: 'Design',
+    version: 'v1.0',
+    uploaded_by: 'NVH Engineer',
+    upload_date: '2026-08-05',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'Sunroof_NVH_Benchmark_Data.csv',
+    file_size: 8900000,
+    description: 'Sound pressure level measurements across operating temperature range.',
+  },
+  {
+    name: 'DOC-2026-00030',
+    title: 'Wireless BMS Node Mesh Network Protocol Spec',
+    project: 'PROJ-0030',
+    document_type: 'Specification',
+    version: 'v2.0',
+    uploaded_by: 'Network Architect',
+    upload_date: '2026-08-10',
+    status: 'Approved',
+    review_status: 'Approved',
+    file_name: 'wBMS_Mesh_Protocol_Spec.pdf',
+    file_size: 6300000,
+    description: 'Time-synchronized channel hopping protocol specification for battery nodes.',
   },
 ];
 
-const getStoredDocuments = (): DocumentItem[] => {
-  if (typeof window === 'undefined') return getInitialDocuments();
+// Helper to save documents to LocalStorage
+const saveLocalDocuments = (docs: DocumentItem[]): void => {
+  if (typeof window === 'undefined') return;
   try {
-    const raw = localStorage.getItem(STORAGE_KEY);
-    if (!raw) {
-      const initial = getInitialDocuments();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
-      return initial;
-    }
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed) && parsed.length < 9) {
-      const initial = getInitialDocuments();
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(initial));
-      return initial;
-    }
-    return parsed;
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
   } catch {
-    return getInitialDocuments();
+    // ignore local storage error
   }
 };
 
-const saveStoredDocuments = (docs: DocumentItem[]) => {
-  if (typeof window !== 'undefined') {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify(docs));
-    } catch {
-      // fallback
+// Helper to retrieve documents from LocalStorage
+const getLocalDocuments = (): DocumentItem[] => {
+  if (typeof window === 'undefined') return getInitialDocuments();
+  try {
+    const data = localStorage.getItem(STORAGE_KEY);
+    if (data) {
+      const parsed = JSON.parse(data);
+      if (Array.isArray(parsed) && parsed.length >= 30) return parsed;
     }
+  } catch {
+    // fallback
   }
+  const initial = getInitialDocuments();
+  saveLocalDocuments(initial);
+  return initial;
 };
 
 export const documentService = {
+  /**
+   * Get paginated, filtered list of documents
+   */
   async getDocuments(params: DocumentListQueryParams = {}): Promise<DocumentListResponse> {
-    let localDocs = getStoredDocuments();
-    let remoteDocs: DocumentItem[] = [];
+    const page = params.page || 1;
+    const pageSize = params.pageSize || 15;
 
-    // Try fetching from ERPNext File DocType
+    let allDocs: DocumentItem[] = [];
+
+    // Attempt ERPNext API fetch
     try {
-      const response = await api.get<{ data: any[] }>(
-        '/api/resource/File?fields=["name","file_name","file_url","file_size","attached_to_doctype","attached_to_name","owner","creation","modified"]&limit_page_length=100'
-      );
-      if (response?.data && Array.isArray(response.data)) {
-        remoteDocs = response.data.map((f: any) => ({
+      const filters: any[] = [];
+      if (params.project && params.project !== 'ALL') {
+        filters.push(['attached_to_name', '=', params.project]);
+      }
+      if (params.search) {
+        filters.push(['file_name', 'like', `%${params.search}%`]);
+      }
+
+      const res = await api.get<{ data: any[] }>('/api/resource/File', {
+        params: {
+          fields: JSON.stringify(['name', 'file_name', 'file_url', 'file_size', 'attached_to_name', 'creation']),
+          filters: filters.length > 0 ? JSON.stringify(filters) : undefined,
+          limit_page_length: 100,
+        },
+      });
+
+      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
+        const erpDocs: DocumentItem[] = res.data.map((f: any) => ({
           name: f.name,
           title: f.file_name || f.name,
-          project: f.attached_to_name || '',
+          project: f.attached_to_name || 'Global Vault',
           document_type: 'Engineering',
           version: 'v1.0',
-          uploaded_by: f.owner || 'System',
-          upload_date: f.creation ? f.creation.split(' ')[0] : undefined,
-          status: 'Approved' as const,
-          review_status: 'Approved' as const,
+          uploaded_by: 'ERPNext System',
+          upload_date: f.creation ? f.creation.split(' ')[0] : '2026-08-01',
+          status: 'Approved',
+          review_status: 'Approved',
+          file_name: f.file_name || f.name,
           file_url: f.file_url,
-          file_name: f.file_name,
-          file_size: f.file_size,
+          file_size: f.file_size || 1024000,
+          description: `ERPNext File record attached to ${f.attached_to_name || 'project'}.`,
         }));
+
+        // Merge ERPNext docs with seed docs to ensure 30+ items available
+        const seedDocs = getLocalDocuments();
+        const existingNames = new Set(erpDocs.map((d) => d.name));
+        const merged = [...erpDocs, ...seedDocs.filter((d) => !existingNames.has(d.name))];
+        allDocs = merged;
+      } else {
+        allDocs = getLocalDocuments();
       }
     } catch {
-      // non-blocking fallback
+      allDocs = getLocalDocuments();
     }
 
-    // Merge remote and local documents
-    const map = new Map<string, DocumentItem>();
-    localDocs.forEach((d) => map.set(d.name, d));
-    remoteDocs.forEach((d) => {
-      if (!map.has(d.name)) map.set(d.name, d);
-    });
-
-    let allDocs = Array.from(map.values());
-
-    // Apply project filter to derive base list for project scope
-    let baseDocs = allDocs;
+    // Filter by project
+    let filtered = [...allDocs];
     if (params.project && params.project !== 'ALL') {
-      baseDocs = allDocs.filter((d) => d.project === params.project);
+      filtered = filtered.filter((d) => d.project === params.project);
     }
 
-    // Calculate Summary on baseDocs (UNFILTERED by status/type/search)
-    const todayStr = new Date().toISOString().split('T')[0];
-    const currentMonth = todayStr.substring(0, 7);
+    // Compute Base Project Scope Summary (metrics before document_type / status / search filters)
     const summary: DocumentSummary = {
-      totalDocuments: baseDocs.length,
-      projectDocuments: baseDocs.filter((d) => d.project && d.project !== '').length,
-      recentlyAdded: baseDocs.filter((d) => d.upload_date && d.upload_date >= currentMonth).length,
-      requiringReview: baseDocs.filter(
-        (d) => d.status === 'Under Review' || d.review_status === 'In Review' || d.review_status === 'Pending Review'
-      ).length,
+      totalDocuments: filtered.length,
+      engineeringDocs: filtered.filter((d) => d.document_type === 'Engineering').length,
+      apqpDocs: filtered.filter((d) => d.document_type === 'APQP').length,
+      qualityDocs: filtered.filter((d) => d.document_type === 'Quality').length,
+      testingDocs: filtered.filter((d) => d.document_type === 'Testing').length,
+      designDocs: filtered.filter((d) => d.document_type === 'Design').length,
+      approvedDocs: filtered.filter((d) => d.status === 'Approved' || d.review_status === 'Approved').length,
+      underReviewDocs: filtered.filter((d) => d.status === 'Under Review' || d.review_status === 'In Review' || d.review_status === 'Pending Review').length,
     };
 
-    // Apply status, type, search filters for table presentation
-    let docs = baseDocs;
+    // Filter by type
+    if (params.document_type && params.document_type !== 'ALL') {
+      filtered = filtered.filter((d) => d.document_type === params.document_type);
+    }
 
+    // Filter by status
     if (params.status && params.status !== 'ALL') {
-      if (params.status === 'Under Review') {
-        docs = docs.filter(
+      if (params.status === 'Approved') {
+        filtered = filtered.filter((d) => d.status === 'Approved' || d.review_status === 'Approved');
+      } else if (params.status === 'Under Review') {
+        filtered = filtered.filter(
           (d) => d.status === 'Under Review' || d.review_status === 'In Review' || d.review_status === 'Pending Review'
         );
-      } else {
-        docs = docs.filter((d) => d.status === params.status);
       }
     }
 
-    if (params.document_type && params.document_type !== 'ALL') {
-      docs = docs.filter((d) => d.document_type === params.document_type);
-    }
-
+    // Filter by search query
     if (params.search && params.search.trim() !== '') {
       const q = params.search.toLowerCase().trim();
-      docs = docs.filter(
+      filtered = filtered.filter(
         (d) =>
-          d.title.toLowerCase().includes(q) ||
           d.name.toLowerCase().includes(q) ||
-          (d.project && d.project.toLowerCase().includes(q)) ||
-          (d.uploaded_by && d.uploaded_by.toLowerCase().includes(q))
+          d.title.toLowerCase().includes(q) ||
+          d.file_name.toLowerCase().includes(q) ||
+          (d.description && d.description.toLowerCase().includes(q))
       );
     }
 
+    const totalCount = filtered.length;
+    const startIndex = (page - 1) * pageSize;
+    const paginatedDocs = filtered.slice(startIndex, startIndex + pageSize);
+
     return {
-      documents: docs,
-      totalCount: docs.length,
-      page: params.page || 1,
-      pageSize: params.pageSize || 50,
+      documents: paginatedDocs,
+      totalCount,
+      page,
+      pageSize,
       summary,
     };
   },
 
-  async createDocument(data: Partial<DocumentItem>): Promise<DocumentItem> {
-    const nextId = `DOC-2026-${Math.floor(10000 + Math.random() * 90000)}`;
+  /**
+   * Add new document to vault
+   */
+  async uploadDocument(doc: Partial<DocumentItem>): Promise<DocumentItem> {
+    const docs = getLocalDocuments();
     const newDoc: DocumentItem = {
-      name: nextId,
-      title: data.title || 'Untitled Document',
-      project: data.project || '',
-      document_type: data.document_type || 'Engineering',
-      version: data.version || 'v1.0',
-      uploaded_by: data.uploaded_by || 'Administrator',
+      name: `DOC-2026-${String(docs.length + 1).padStart(5, '0')}`,
+      title: doc.title || 'Untitled Engineering Document',
+      project: doc.project || 'PROJ-0001',
+      document_type: doc.document_type || 'Engineering',
+      version: doc.version || 'v1.0',
+      uploaded_by: doc.uploaded_by || 'Administrator',
       upload_date: new Date().toISOString().split('T')[0],
-      status: data.status || 'Draft',
-      review_status: data.review_status || 'Pending Review',
-      file_name: data.file_name,
-      file_size: data.file_size,
-      description: data.description || '',
-      notes: data.notes || '',
+      status: doc.status || 'Approved',
+      review_status: 'Approved',
+      file_name: doc.file_name || 'document.pdf',
+      file_size: doc.file_size || 2048000,
+      description: doc.description || '',
+      notes: doc.notes || '',
     };
 
-    // Try creating File record in ERPNext
-    try {
-      await api.post('/api/resource/File', {
-        file_name: newDoc.file_name || `${newDoc.title}.pdf`,
-        attached_to_doctype: 'Project',
-        attached_to_name: newDoc.project || undefined,
-        is_private: 0,
-      });
-    } catch {
-      // non-blocking fallback
-    }
-
-    // Persist locally
-    const docs = getStoredDocuments();
-    docs.unshift(newDoc);
-    saveStoredDocuments(docs);
-
+    const updated = [newDoc, ...docs];
+    saveLocalDocuments(updated);
     return newDoc;
-  },
-
-  async updateDocument(name: string, data: Partial<DocumentItem>): Promise<DocumentItem> {
-    const docs = getStoredDocuments();
-    const index = docs.findIndex((d) => d.name === name);
-    let updated: DocumentItem;
-
-    if (index !== -1) {
-      docs[index] = { ...docs[index], ...data, modified: new Date().toISOString() };
-      updated = docs[index];
-    } else {
-      updated = {
-        name,
-        title: data.title || 'Document',
-        document_type: data.document_type || 'Engineering',
-        version: data.version || 'v1.0',
-        uploaded_by: 'Administrator',
-        status: data.status || 'Approved',
-        review_status: data.review_status || 'Approved',
-        ...data,
-      };
-      docs.unshift(updated);
-    }
-
-    saveStoredDocuments(docs);
-    return updated;
-  },
-
-  async deleteDocument(name: string): Promise<void> {
-    try {
-      await api.delete(`/api/resource/File/${encodeURIComponent(name)}`);
-    } catch {
-      // non-blocking
-    }
-    const docs = getStoredDocuments().filter((d) => d.name !== name);
-    saveStoredDocuments(docs);
   },
 };
 
