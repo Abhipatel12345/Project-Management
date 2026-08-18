@@ -90,15 +90,29 @@ const normalizeTask = (t: any): Task => {
     }
   }
 
-  // Parse RASIC from description metadata block if present
+  // Parse RASIC and Skip Reason from description metadata block if present
   let rasic = t.rasic;
+  let skipReason = t.skip_reason;
   let cleanDescription = t.description || '';
+
   if (t.description && t.description.includes('<!-- RASIC:')) {
     try {
       const match = t.description.match(/<!-- RASIC: (.*?) -->/);
       if (match && match[1]) {
         rasic = JSON.parse(match[1]);
-        cleanDescription = t.description.replace(/<!-- RASIC: .*? -->/, '').trim();
+        cleanDescription = cleanDescription.replace(/<!-- RASIC: .*? -->/, '').trim();
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  if (t.description && t.description.includes('<!-- SKIP_REASON:')) {
+    try {
+      const match = t.description.match(/<!-- SKIP_REASON: (.*?) -->/);
+      if (match && match[1]) {
+        skipReason = match[1];
+        cleanDescription = cleanDescription.replace(/<!-- SKIP_REASON: .*? -->/, '').trim();
       }
     } catch {
       // fallback
@@ -117,6 +131,7 @@ const normalizeTask = (t: any): Task => {
     progress: typeof t.progress === 'number' ? t.progress : t.status === 'Completed' ? 100 : 0,
     assigned_to: assignedTo,
     rasic,
+    skip_reason: skipReason,
     is_overdue,
     overdue_days,
   };
@@ -125,6 +140,7 @@ const normalizeTask = (t: any): Task => {
 const mapStatusToERPNext = (status?: string): string => {
   if (!status) return 'Open';
   const s = status.trim();
+  if (s.includes('Skipped')) return 'Cancelled'; // Maps to Cancelled in standard ERPNext DocType
   if (s.includes('Working') || s.includes('Progress')) return 'Working';
   if (s.includes('Completed') || s.includes('Finished')) return 'Completed';
   if (s.includes('Review')) return 'Pending Review';
@@ -144,11 +160,16 @@ const mapPriorityToERPNext = (priority?: string): string => {
 const cleanPayload = (data: Partial<Task>): Record<string, any> => {
   const payload: Record<string, any> = {};
 
-  // Build description with embedded RASIC block if rasic provided
+  // Build description with embedded RASIC and SKIP_REASON blocks if provided
   let description = data.description || '';
+  description = description.replace(/<!-- RASIC: .*? -->/, '').replace(/<!-- SKIP_REASON: .*? -->/, '').trim();
+
   if (data.rasic && Object.values(data.rasic).some(Boolean)) {
-    const cleanDesc = description.replace(/<!-- RASIC: .*? -->/, '').trim();
-    description = `${cleanDesc}\n\n<!-- RASIC: ${JSON.stringify(data.rasic)} -->`.trim();
+    description = `${description}\n\n<!-- RASIC: ${JSON.stringify(data.rasic)} -->`.trim();
+  }
+
+  if (data.skip_reason) {
+    description = `${description}\n\n<!-- SKIP_REASON: ${data.skip_reason} -->`.trim();
   }
 
   for (const [key, value] of Object.entries(data)) {

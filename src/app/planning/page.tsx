@@ -22,6 +22,7 @@ import { CreateBaselineDialog } from '@/components/planning/baselines/create-bas
 import { BaselineComparisonTable } from '@/components/planning/baselines/baseline-comparison-table';
 import { TaskFormDialog } from '@/components/tasks/task-form-dialog';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
+import { TaskSkipDialog } from '@/components/tasks/task-skip-dialog';
 import { Task } from '@/types/task.types';
 import { Project } from '@/types/project.types';
 import { Loader2 } from 'lucide-react';
@@ -87,6 +88,7 @@ export default function PlanningPage() {
   // Modals state
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
+  const [skippingTask, setSkippingTask] = useState<Task | null>(null);
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
 
   // View Settings
@@ -248,6 +250,23 @@ export default function PlanningPage() {
     }
   };
 
+  const handleConfirmSkipTask = async (task: Task, reason: string) => {
+    try {
+      await updateTaskMutation.mutateAsync({
+        name: task.name,
+        data: {
+          status: 'Skipped',
+          skip_reason: reason,
+        },
+      });
+      showToast(`Task ${task.name} marked as Skipped`, 'info');
+      setSkippingTask(null);
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to skip task', 'error');
+    }
+  };
+
   if (isLoadingProjects) {
     return (
       <div className="flex items-center justify-center py-32 space-x-3 text-slate-500">
@@ -293,6 +312,7 @@ export default function PlanningPage() {
           teamMembers={teamMembers}
           onEditTask={(t: Task) => setEditingTask(t)}
           onViewTask={(t: Task) => setViewingTask(t)}
+          onSkipTask={(t: Task) => setSkippingTask(t)}
           onDateChange={handleDateChange}
           viewMode={viewMode}
           setViewMode={setViewMode}
@@ -366,6 +386,16 @@ export default function PlanningPage() {
           onClose={() => setIsCreateDialogOpen(false)}
           onSubmit={handleCreateSubmit}
           defaultProjectId={selectedProjectId}
+        />
+      )}
+
+      {/* Skip Task Dialog Modal */}
+      {skippingTask && (
+        <TaskSkipDialog
+          isOpen={!!skippingTask}
+          task={skippingTask}
+          onClose={() => setSkippingTask(null)}
+          onConfirmSkip={handleConfirmSkipTask}
         />
       )}
 

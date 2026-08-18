@@ -30,6 +30,10 @@ export function TaskStatusBadge({ status }: TaskStatusBadgeProps) {
       badgeStyle = 'bg-rose-50 text-rose-700 border-rose-200';
       dotColor = 'bg-rose-500';
       break;
+    case 'Skipped':
+      badgeStyle = 'bg-purple-50 text-purple-700 border-purple-200 line-through opacity-80';
+      dotColor = 'bg-purple-500';
+      break;
     default:
       badgeStyle = 'bg-slate-100 text-slate-700 border-slate-200';
       dotColor = 'bg-slate-400';

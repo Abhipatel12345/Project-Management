@@ -62,6 +62,27 @@ export function useRemoveTeamMember(projectId: string) {
   });
 }
 
+export function useReplaceTeamMember(projectId: string) {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      outgoingMemberId,
+      replacementData,
+      reassignOpenTasks,
+    }: {
+      outgoingMemberId: string;
+      replacementData: TeamMemberFormData;
+      reassignOpenTasks?: boolean;
+    }) =>
+      teamService.replaceTeamMember(projectId, outgoingMemberId, replacementData, reassignOpenTasks),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: TEAM_KEYS.project(projectId) });
+      queryClient.invalidateQueries({ queryKey: ['tasks'] });
+    },
+  });
+}
+
 export function useAvailableEmployees(search: string = '') {
   return useQuery({
     queryKey: TEAM_KEYS.employees(search),

@@ -1,4 +1,4 @@
-export type TaskStatus = 'Open' | 'Working' | 'Pending Review' | 'Completed' | 'Cancelled';
+export type TaskStatus = 'Open' | 'Working' | 'Pending Review' | 'Completed' | 'Cancelled' | 'Skipped';
 export type TaskPriority = 'Low' | 'Medium' | 'High' | 'Urgent';
 
 export interface TaskRASIC {
@@ -44,6 +44,9 @@ export interface Task {
   rasic?: TaskRASIC;
   is_overdue?: boolean;
   overdue_days?: number;
+  skip_reason?: string;
+  skipped_by?: string;
+  skipped_on?: string;
 }
 
 export interface TaskSummary {

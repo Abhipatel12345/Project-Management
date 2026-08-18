@@ -410,8 +410,8 @@ export default function DashboardPage() {
                             project.status === 'In Progress'
                               ? 'bg-sky-50 text-sky-700 border border-sky-200'
                               : project.status === 'Completed'
-                              ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                              : 'bg-slate-100 text-slate-700 border border-slate-200'
+                                ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                                : 'bg-slate-100 text-slate-700 border border-slate-200'
                           )}
                         >
                           {project.status || 'Open'}

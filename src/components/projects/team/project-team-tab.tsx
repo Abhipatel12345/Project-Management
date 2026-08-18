@@ -7,12 +7,15 @@ import {
   useUpdateTeamMember,
   useRemoveTeamMember,
   useToggleBoardStatus,
+  useReplaceTeamMember,
 } from '@/hooks/use-project-team';
 import { ProjectTeamMember, TeamMemberFormData } from '@/types/team.types';
 import { TeamMemberDialog } from './team-member-dialog';
+import { ReplaceTeamMemberDialog } from './replace-team-member-dialog';
 import {
   Users,
   UserPlus,
+  UserCheck,
   Search,
   Filter,
   ShieldCheck,
@@ -46,6 +49,7 @@ export function ProjectTeamTab({
   // Dialog States
   const [isAddOpen, setIsAddOpen] = useState(false);
   const [editingMember, setEditingMember] = useState<ProjectTeamMember | null>(null);
+  const [replacingMember, setReplacingMember] = useState<ProjectTeamMember | null>(null);
   const [deletingMemberId, setDeletingMemberId] = useState<string | null>(null);
 
   // TanStack Query Hooks
@@ -54,6 +58,7 @@ export function ProjectTeamTab({
   const updateMutation = useUpdateTeamMember(projectId);
   const toggleBoardMutation = useToggleBoardStatus(projectId);
   const removeMutation = useRemoveTeamMember(projectId);
+  const replaceMutation = useReplaceTeamMember(projectId);
 
   // Sync external header trigger
   React.useEffect(() => {
@@ -80,6 +85,20 @@ export function ProjectTeamTab({
       data,
     });
     setEditingMember(null);
+  };
+
+  // Submit Replace Member
+  const handleReplaceSubmit = async (
+    outgoingMemberId: string,
+    replacementData: TeamMemberFormData,
+    reassignOpenTasks: boolean
+  ) => {
+    await replaceMutation.mutateAsync({
+      outgoingMemberId,
+      replacementData,
+      reassignOpenTasks,
+    });
+    setReplacingMember(null);
   };
 
   // Toggle Board Status
@@ -401,6 +420,14 @@ export function ProjectTeamTab({
                     <td className="py-3.5 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
                         <button
+                          onClick={() => setReplacingMember(member)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition cursor-pointer"
+                          title="Replace Member & Reassign Tasks"
+                        >
+                          <UserCheck className="h-4 w-4 text-amber-600" />
+                        </button>
+
+                        <button
                           onClick={() => setEditingMember(member)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition cursor-pointer"
                           title="Edit Member Details"
@@ -440,6 +467,15 @@ export function ProjectTeamTab({
         onSubmit={handleEditSubmit}
         initialData={editingMember}
         isLoading={updateMutation.isPending}
+      />
+
+      {/* Replace Dialog */}
+      <ReplaceTeamMemberDialog
+        isOpen={!!replacingMember}
+        outgoingMember={replacingMember}
+        onClose={() => setReplacingMember(null)}
+        onSubmitReplace={handleReplaceSubmit}
+        isLoading={replaceMutation.isPending}
       />
 
       {/* Remove Confirmation Dialog */}

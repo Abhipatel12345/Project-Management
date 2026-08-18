@@ -195,6 +195,76 @@ export const teamService = {
   },
 
   /**
+   * Replace a team member with a new employee and reassign open tasks
+   */
+  async replaceTeamMember(
+    projectId: string,
+    outgoingMemberId: string,
+    replacementData: TeamMemberFormData,
+    reassignOpenTasks: boolean = true
+  ): Promise<{ updatedMember: ProjectTeamMember; reassignedTaskCount: number }> {
+    const currentList = await this.getTeamMembers(projectId);
+    const index = currentList.findIndex((m) => m.id === outgoingMemberId);
+
+    if (index === -1) {
+      throw new Error(`Outgoing team member ${outgoingMemberId} not found in project ${projectId}`);
+    }
+
+    const outgoingMember = currentList[index];
+    const updatedMember: ProjectTeamMember = {
+      ...outgoingMember,
+      ...replacementData,
+      modified: new Date().toISOString(),
+    };
+
+    currentList[index] = updatedMember;
+    projectTeamCache[projectId] = [...currentList];
+
+    let reassignedTaskCount = 0;
+
+    if (reassignOpenTasks && projectId) {
+      try {
+        const { taskService } = await import('./task.service');
+        const taskRes = await taskService.getTasks({ project: projectId, pageSize: 100 });
+        const targetTasks = (taskRes.tasks || []).filter(
+          (t) =>
+            (t.assigned_to === outgoingMember.employee_name || t.assigned_to === outgoingMember.user_email) &&
+            t.status !== 'Completed' &&
+            t.status !== 'Cancelled' &&
+            t.status !== 'Skipped'
+        );
+
+        for (const task of targetTasks) {
+          try {
+            await taskService.updateTask(task.name, {
+              assigned_to: replacementData.employee_name,
+            });
+            reassignedTaskCount++;
+
+            // Create audit comment in ERPNext Comment DocType if accessible
+            try {
+              await api.post('/api/resource/Comment', {
+                reference_doctype: 'Task',
+                reference_name: task.name,
+                comment: `[Team Replacement Audit]: Reassigned task from ${outgoingMember.employee_name} to ${replacementData.employee_name}`,
+                comment_by: 'Administrator',
+              });
+            } catch {
+              // Non-blocking comment log
+            }
+          } catch (err) {
+            console.warn(`[Team Replacement Warning] Failed to reassign task ${task.name}:`, err);
+          }
+        }
+      } catch (err) {
+        console.warn('[Team Replacement Warning] Failed to fetch task list for replacement:', err);
+      }
+    }
+
+    return { updatedMember, reassignedTaskCount };
+  },
+
+  /**
    * Search available Employees/Users from ERPNext for adding to team
    */
   async getAvailableEmployees(searchQuery: string = ''): Promise<EmployeeOption[]> {

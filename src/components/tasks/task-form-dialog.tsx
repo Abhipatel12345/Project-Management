@@ -7,6 +7,7 @@ import { Project } from '@/types/project.types';
 import { useProjects } from '@/hooks/use-projects';
 import { useProjectTeam } from '@/hooks/use-project-team';
 import { ProjectTeamMember } from '@/types/team.types';
+import { findMatchingTeamMember } from '@/utils/auto-assignment';
 import { X, Loader2, Calendar, User, ShieldCheck, CheckSquare, Edit3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -37,6 +38,7 @@ export function TaskFormDialog({
     handleSubmit,
     watch,
     reset,
+    setValue,
     formState: { errors },
   } = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
@@ -200,11 +202,30 @@ export function TaskFormDialog({
                 )}
               </div>
 
-              {/* Assigned To (Shows Project Team members) */}
+              {/* Assigned To (Shows Project Team members + Auto-Assign button) */}
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">
-                  Assigned Team Member
-                </label>
+                <div className="flex items-center justify-between">
+                  <label className="block text-xs font-bold text-slate-700">
+                    Assigned Team Member
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const subject = watch('subject');
+                      const match = findMatchingTeamMember(subject, '', teamMembers);
+                      if (match) {
+                        (setValue as any)('assigned_to', match.member.employee_name);
+                        if (!watch('rasic_responsible')) {
+                          (setValue as any)('rasic_responsible', match.member.employee_name);
+                        }
+                      }
+                    }}
+                    className="text-[10px] font-extrabold text-sky-700 hover:text-sky-900 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200 transition cursor-pointer"
+                    title="Automatically find matching team member based on role/skills"
+                  >
+                    ⚡ Auto-Assign
+                  </button>
+                </div>
                 <select
                   {...register('assigned_to')}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
@@ -233,6 +254,7 @@ export function TaskFormDialog({
                   <option value="Working">Working / In Progress</option>
                   <option value="Pending Review">Pending Review</option>
                   <option value="Completed">Completed</option>
+                  <option value="Skipped">Skipped</option>
                   <option value="Cancelled">Cancelled</option>
                 </select>
               </div>
@@ -320,43 +342,73 @@ export function TaskFormDialog({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 text-xs">
                 <div>
                   <label className="text-[10px] font-extrabold text-slate-600 uppercase">R = Responsible</label>
-                  <input
+                  <select
                     {...register('rasic_responsible')}
-                    placeholder="Lead Engineer"
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1"
-                  />
+                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
+                  >
+                    <option value="">Select Team Member</option>
+                    {teamMembers.map((tm: ProjectTeamMember) => (
+                      <option key={tm.id} value={tm.employee_name}>
+                        {tm.employee_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-[10px] font-extrabold text-slate-600 uppercase">A = Accountable</label>
-                  <input
+                  <select
                     {...register('rasic_accountable')}
-                    placeholder="Program Manager"
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1"
-                  />
+                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
+                  >
+                    <option value="">Select Team Member</option>
+                    {teamMembers.map((tm: ProjectTeamMember) => (
+                      <option key={tm.id} value={tm.employee_name}>
+                        {tm.employee_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-[10px] font-extrabold text-slate-600 uppercase">S = Support</label>
-                  <input
+                  <select
                     {...register('rasic_support')}
-                    placeholder="CAD Release"
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1"
-                  />
+                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
+                  >
+                    <option value="">Select Team Member</option>
+                    {teamMembers.map((tm: ProjectTeamMember) => (
+                      <option key={tm.id} value={tm.employee_name}>
+                        {tm.employee_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-[10px] font-extrabold text-slate-600 uppercase">C = Consulted</label>
-                  <input
+                  <select
                     {...register('rasic_consulted')}
-                    placeholder="Quality Lead"
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1"
-                  />
+                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
+                  >
+                    <option value="">Select Team Member</option>
+                    {teamMembers.map((tm: ProjectTeamMember) => (
+                      <option key={tm.id} value={tm.employee_name}>
+                        {tm.employee_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <label className="text-[10px] font-extrabold text-slate-600 uppercase">I = Informed</label>
-                  <input
+                  <select
                     {...register('rasic_informed')}
-                    placeholder="Plant Operations"
-                    className="w-full px-2.5 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1"
-                  />
+                    className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
+                  >
+                    <option value="">Select Team Member</option>
+                    {teamMembers.map((tm: ProjectTeamMember) => (
+                      <option key={tm.id} value={tm.employee_name}>
+                        {tm.employee_name}
+                      </option>
+                    ))}
+                  </select>
                 </div>
               </div>
             </div>

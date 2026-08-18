@@ -15,7 +15,7 @@ export const taskFormSchema = z.object({
     .min(3, 'Task subject must be at least 3 characters long')
     .max(140, 'Task subject cannot exceed 140 characters'),
   project: z.string().min(1, 'Project selection is required'),
-  status: z.enum(['Open', 'Working', 'Pending Review', 'Completed', 'Cancelled'], {
+  status: z.enum(['Open', 'Working', 'Pending Review', 'Completed', 'Cancelled', 'Skipped'], {
     required_error: 'Please select a valid task status',
   }),
   priority: z.enum(['Low', 'Medium', 'High', 'Urgent'], {
@@ -34,6 +34,7 @@ export const taskFormSchema = z.object({
   assigned_employee_name: z.string().optional(),
   parent_task: z.string().optional(),
   depends_on: z.string().optional(),
+  skip_reason: z.string().optional(),
   // RASIC abstraction fields
   rasic_responsible: z.string().optional(),
   rasic_accountable: z.string().optional(),

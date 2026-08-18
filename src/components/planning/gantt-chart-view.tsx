@@ -13,6 +13,7 @@ import {
   SlidersHorizontal,
   Bookmark,
   Layers,
+  SkipForward,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -36,6 +37,9 @@ interface GanttChartViewProps {
   onOpenManageBaselines?: () => void;
   isCompareMode?: boolean;
   onToggleCompareMode?: (val?: boolean) => void;
+
+  // Skip & Retime Triggers
+  onSkipTask?: (task: Task) => void;
 }
 
 export function GanttChartView({
@@ -54,6 +58,7 @@ export function GanttChartView({
   onOpenManageBaselines,
   isCompareMode = false,
   onToggleCompareMode,
+  onSkipTask,
 }: GanttChartViewProps) {
   const [currentBaseDate, setCurrentBaseDate] = useState<Date>(new Date());
   const [searchQuery, setSearchQuery] = useState('');
@@ -442,6 +447,15 @@ export function GanttChartView({
 
                         <td className="py-2 px-3 text-right">
                           <div className="flex items-center justify-end gap-1">
+                            {onSkipTask && t.status !== 'Skipped' && t.status !== 'Completed' && (
+                              <button
+                                onClick={() => onSkipTask(t)}
+                                className="p-1 rounded-md text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition cursor-pointer"
+                                title="Skip Task Work Package"
+                              >
+                                <SkipForward className="h-3.5 w-3.5" />
+                              </button>
+                            )}
                             <button
                               onClick={() => onViewTask(t)}
                               className="p-1 rounded-md text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition cursor-pointer"
@@ -483,6 +497,7 @@ export function GanttChartView({
               {filteredTasks.map((t) => {
                 const barSpan = getTaskBarSpan(t.exp_start_date, t.exp_end_date);
                 const isCritical = criticalPathTaskIds.has(t.name);
+                const isSkipped = t.status === 'Skipped';
 
                 // Baseline Reference Bar positioning
                 const btSnapshot = activeBaseline?.tasks.find((bt) => bt.task_id === t.name);
@@ -504,7 +519,9 @@ export function GanttChartView({
                       initial={{ scaleX: 0.8, opacity: 0 }}
                       animate={{ scaleX: 1, opacity: 1 }}
                       className={`relative h-6 rounded-xl border flex items-center justify-between px-2 text-[10px] font-extrabold shadow-2xs transition-all z-10 ${
-                        isCritical
+                        isSkipped
+                          ? 'bg-purple-50 border-purple-300 text-purple-900 line-through opacity-70'
+                          : isCritical
                           ? 'bg-rose-50 border-rose-300 text-rose-900 ring-2 ring-rose-500/20'
                           : t.status === 'Completed'
                           ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
