@@ -1,11 +1,7 @@
 import api from './api';
+import { UserDetails, LoginPayload, LoginResponse } from '@/types/auth.types';
 
-export interface UserDetails {
-  email: string;
-  fullName: string;
-  roles: string[];
-  userImage?: string;
-}
+export type { UserDetails, LoginPayload, LoginResponse };
 
 export interface ERPNextVersionInfo {
   frappe?: string;
@@ -23,83 +19,60 @@ export interface ConnectionTestResult {
   timestamp: string;
 }
 
-export interface LoginPayload {
-  usr: string;
-  pwd: string;
-}
-
-export interface LoginResponse {
-  message: string;
-  home_page?: string;
-  full_name?: string;
-}
-
 export const authService = {
   /**
-   * Authenticate user with ERPNext backend
-   * POST /api/method/login
+   * Authenticate user into isolated PDM session
+   * POST /api/auth/pdm-login
    */
   async login(payload: LoginPayload): Promise<LoginResponse> {
-    const response = await api.post<LoginResponse>('/api/method/login', payload);
+    const response = await api.post<LoginResponse>('/api/auth/pdm-login', payload);
     return response;
   },
 
   /**
-   * Logout session from ERPNext backend
-   * POST /api/method/logout
+   * Logout from PDM session (leaves ERPNext sid cookie untouched)
+   * POST /api/auth/pdm-logout
    */
   async logout(): Promise<void> {
     try {
-      await api.post('/api/method/logout');
+      await api.post('/api/auth/pdm-logout');
     } catch {
-      // Fallback GET if POST endpoint behaves differently in specific versions
-      await api.get('/api/method/logout');
+      await api.get('/api/auth/pdm-logout');
     }
   },
 
   /**
-   * Fetch currently authenticated user email and details from ERPNext
+   * Fetch currently authenticated PDM user session details
+   * GET /api/auth/pdm-session
    */
   async getLoggedUser(): Promise<UserDetails> {
-    const res = await api.get<{ message: string }>('/api/method/frappe.auth.get_logged_user');
-    const email = res.message;
-
-    if (!email || email === 'Guest') {
-      throw new Error('User is not logged in');
-    }
-
-    let fullName = email.split('@')[0];
-    let roles: string[] = ['System User'];
-
     try {
-      // Attempt fetching User DocType details for full name and roles
-      const userDocRes = await api.get<{
-        data: { full_name?: string; first_name?: string; roles?: { role: string }[] };
-      }>(`/api/resource/User/${encodeURIComponent(email)}`);
-
-      if (userDocRes?.data) {
-        fullName = userDocRes.data.full_name || userDocRes.data.first_name || fullName;
-        if (Array.isArray(userDocRes.data.roles)) {
-          roles = userDocRes.data.roles.map((r) => r.role);
-        }
+      const res = await api.get<{ message: string; user?: UserDetails }>('/api/auth/pdm-session');
+      if (res && res.user) {
+        return res.user;
       }
     } catch {
-      // Proceed with email prefix if User DocType read permission is restricted
+      // Fallback: Check localStorage if cookie read is delayed
+      if (typeof window !== 'undefined') {
+        const stored = localStorage.getItem('pdm_user_session');
+        if (stored) {
+          try {
+            return JSON.parse(stored);
+          } catch {
+            // ignore
+          }
+        }
+      }
     }
-
-    return {
-      email,
-      fullName: fullName.charAt(0).toUpperCase() + fullName.slice(1),
-      roles,
-    };
+    throw new Error('User is not logged in to PDM');
   },
 
   /**
-   * Health & latency test
+   * Health & ERPNext connection test
    */
   async testConnection(): Promise<ConnectionTestResult> {
     const startTime = performance.now();
-    const erpUrl = process.env.NEXT_PUBLIC_ERP_URL || 'https://demo.erpnext.com';
+    const erpUrl = process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083';
     const timestamp = new Date().toISOString();
 
     try {
@@ -116,9 +89,9 @@ export const authService = {
 
       let loggedUser = 'Guest';
       try {
-        const userRes = await api.get<{ message?: string }>('/api/method/frappe.auth.get_logged_user');
-        if (userRes?.message) {
-          loggedUser = userRes.message;
+        const sessionRes = await api.get<{ user?: UserDetails }>('/api/auth/pdm-session');
+        if (sessionRes?.user?.email) {
+          loggedUser = `${sessionRes.user.fullName} (${sessionRes.user.roleLabel})`;
         }
       } catch {
         loggedUser = 'Unauthenticated';

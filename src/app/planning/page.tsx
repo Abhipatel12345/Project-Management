@@ -27,18 +27,25 @@ import { Task } from '@/types/task.types';
 import { Project } from '@/types/project.types';
 import { Loader2 } from 'lucide-react';
 
+import { useSearchParams } from 'next/navigation';
+
 export default function PlanningPage() {
   const { showToast } = useToast();
+  const searchParams = useSearchParams();
+  const initialProjectParam = searchParams ? searchParams.get('project') : null;
+
   const { data: projectsData, isLoading: isLoadingProjects } = useProjects({ page: 1, pageSize: 50 });
   const projects: Project[] = projectsData?.projects || [];
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectParam || '');
 
-  // Auto-select first project when projects load
+  // Auto-select project when projects load or URL param is present
   React.useEffect(() => {
-    if (projects.length > 0 && !selectedProjectId) {
+    if (initialProjectParam) {
+      setSelectedProjectId(initialProjectParam);
+    } else if (projects.length > 0 && !selectedProjectId) {
       setSelectedProjectId(projects[0].name);
     }
-  }, [projects, selectedProjectId]);
+  }, [projects, selectedProjectId, initialProjectParam]);
 
   // Fetch project-isolated tasks
   const {

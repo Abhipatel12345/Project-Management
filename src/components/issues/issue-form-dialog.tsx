@@ -5,12 +5,14 @@ import { Project } from '@/types/project.types';
 import { useProjects } from '@/hooks/use-projects';
 import { useProjectTeam } from '@/hooks/use-project-team';
 import { ProjectTeamMember } from '@/types/team.types';
-import { X, Loader2, AlertTriangle, User, Tag, FolderKanban } from 'lucide-react';
+import { X, Loader2, AlertTriangle, Lock, Layers, FolderKanban } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export interface IssueFormValues {
   subject: string;
   project?: string;
+  task?: string;
+  task_subject?: string;
   status: IssueStatus;
   priority: IssuePriority;
   issue_type: IssueType | string;
@@ -26,6 +28,8 @@ interface IssueFormDialogProps {
   onSubmit: (values: IssueFormValues) => Promise<void>;
   initialData?: Issue | null;
   defaultProjectId?: string;
+  defaultTaskId?: string;
+  defaultTaskSubject?: string;
 }
 
 export function IssueFormDialog({
@@ -34,6 +38,8 @@ export function IssueFormDialog({
   onSubmit,
   initialData,
   defaultProjectId,
+  defaultTaskId,
+  defaultTaskSubject,
 }: IssueFormDialogProps) {
   const isEditing = !!initialData;
   const { data: projectsData } = useProjects({ page: 1, pageSize: 50 });
@@ -49,6 +55,8 @@ export function IssueFormDialog({
     defaultValues: {
       subject: '',
       project: defaultProjectId || '',
+      task: defaultTaskId || '',
+      task_subject: defaultTaskSubject || '',
       status: 'Open',
       priority: 'Medium',
       issue_type: 'Technical',
@@ -67,6 +75,8 @@ export function IssueFormDialog({
       reset({
         subject: initialData.subject || '',
         project: initialData.project || defaultProjectId || '',
+        task: initialData.task || defaultTaskId || '',
+        task_subject: (initialData as any).task_subject || defaultTaskSubject || '',
         status: initialData.status || 'Open',
         priority: initialData.priority || 'Medium',
         issue_type: initialData.issue_type || 'Technical',
@@ -79,6 +89,8 @@ export function IssueFormDialog({
       reset({
         subject: '',
         project: defaultProjectId || (projects.length > 0 ? projects[0].name : ''),
+        task: defaultTaskId || '',
+        task_subject: defaultTaskSubject || '',
         status: 'Open',
         priority: 'Medium',
         issue_type: 'Technical',
@@ -88,11 +100,20 @@ export function IssueFormDialog({
         assigned_to: '',
       });
     }
-  }, [initialData, reset, isOpen, defaultProjectId, projects]);
+  }, [initialData, reset, isOpen, defaultProjectId, defaultTaskId, defaultTaskSubject, projects]);
 
   const onFormSubmit = async (values: IssueFormValues) => {
     try {
-      await onSubmit(values);
+      const finalTask = values.task || defaultTaskId;
+      const finalDesc = finalTask && !values.description?.includes(`[Task: ${finalTask}]`)
+        ? `[Task: ${finalTask}] ${values.description || ''}`
+        : values.description;
+
+      await onSubmit({
+        ...values,
+        task: finalTask,
+        description: finalDesc,
+      });
       onClose();
     } catch {
       // Keep modal open on API failure
@@ -125,15 +146,46 @@ export function IssueFormDialog({
             </div>
             <div>
               <h2 className="text-lg font-black text-slate-900">
-                {isEditing ? `Edit Issue (${initialData?.name})` : 'Create New Issue'}
+                {isEditing ? `Edit Issue (${initialData?.name})` : 'Create Task Issue'}
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                Log and assign engineering issues, non-conformances, or defect tickets in ERPNext.
+                Log and assign engineering issues directly associated with a project task.
               </p>
             </div>
           </div>
 
           <form onSubmit={handleSubmit(onFormSubmit)} className="space-y-4">
+            {/* Read-only Task & Project Badge Banner when creating from Task */}
+            {(defaultTaskId || watch('task')) && (
+              <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                <div className="text-[10px] uppercase tracking-wider font-extrabold text-slate-500 flex items-center gap-1.5">
+                  <Lock className="h-3 w-3 text-slate-400" /> Derived Task & Project Association (Read-Only)
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-xs">
+                  <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200">
+                    <Layers className="h-4 w-4 text-sky-600 shrink-0" />
+                    <div className="truncate">
+                      <span className="text-[10px] text-slate-400 font-bold block">Task ID / Subject</span>
+                      <span className="font-bold text-slate-900 font-mono">
+                        {defaultTaskId || watch('task')}
+                      </span>{' '}
+                      {defaultTaskSubject && <span className="text-slate-600">({defaultTaskSubject})</span>}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2 p-2 rounded-xl bg-white border border-slate-200">
+                    <FolderKanban className="h-4 w-4 text-indigo-600 shrink-0" />
+                    <div className="truncate">
+                      <span className="text-[10px] text-slate-400 font-bold block">Project ID</span>
+                      <span className="font-bold text-slate-900 font-mono">
+                        {selectedProjectId || defaultProjectId || 'Unassigned'}
+                      </span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {/* Subject */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700">
@@ -142,7 +194,7 @@ export function IssueFormDialog({
               <input
                 type="text"
                 {...register('subject', { required: 'Subject is required' })}
-                placeholder="e.g. Battery pack cooling loop pressure drop during high load test"
+                placeholder="e.g. Material specification missing for door panel mold"
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 transition"
               />
               {errors.subject && (
@@ -158,7 +210,8 @@ export function IssueFormDialog({
                 </label>
                 <select
                   {...register('project')}
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer"
+                  disabled={!!defaultProjectId}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-rose-500 cursor-pointer disabled:opacity-75"
                 >
                   <option value="">No Project Associated</option>
                   {projects.map((p) => (
@@ -267,7 +320,7 @@ export function IssueFormDialog({
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-rose-600 hover:bg-rose-500 text-white font-bold text-xs transition cursor-pointer shadow-xs disabled:opacity-50"
               >
                 {isSubmitting && <Loader2 className="h-4 w-4 animate-spin" />}
-                <span>{isEditing ? 'Save Issue Updates' : 'Create ERPNext Issue'}</span>
+                <span>{isEditing ? 'Save Issue Updates' : 'Create Task Issue'}</span>
               </button>
             </div>
           </form>

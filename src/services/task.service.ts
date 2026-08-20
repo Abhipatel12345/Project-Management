@@ -323,6 +323,14 @@ export const taskService = {
    * Create task in ERPNext
    */
   async createTask(data: Partial<Task>): Promise<Task> {
+    if (data.exp_start_date && data.exp_end_date) {
+      const cleanStart = formatDateForERPNext(data.exp_start_date);
+      const cleanEnd = formatDateForERPNext(data.exp_end_date);
+      if (cleanStart && cleanEnd && cleanStart > cleanEnd) {
+        throw new Error(`Task Expected End Date (${cleanEnd}) cannot be before Task Start Date (${cleanStart}).`);
+      }
+    }
+
     try {
       const payload = cleanPayload(data);
       const response = await api.post<{ data: any }>('/api/resource/Task', payload);
@@ -351,6 +359,14 @@ export const taskService = {
    * Update task in ERPNext
    */
   async updateTask(name: string, data: Partial<Task>): Promise<Task> {
+    if (data.exp_start_date && data.exp_end_date) {
+      const cleanStart = formatDateForERPNext(data.exp_start_date);
+      const cleanEnd = formatDateForERPNext(data.exp_end_date);
+      if (cleanStart && cleanEnd && cleanStart > cleanEnd) {
+        throw new Error(`Task Expected End Date (${cleanEnd}) cannot be before Task Start Date (${cleanStart}).`);
+      }
+    }
+
     const payload = cleanPayload(data);
 
     try {

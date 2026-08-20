@@ -38,7 +38,7 @@ export function DesignReviewHeaderSummary({
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-md bg-indigo-50 text-indigo-700 text-[10px] font-black uppercase tracking-wider border border-indigo-200">
-              Governance & Quality Phase 2
+              Governance & Quality
             </span>
             <span className="text-[10px] font-bold text-slate-400">• Engineering Sign-off</span>
           </div>

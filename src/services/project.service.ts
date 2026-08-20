@@ -1,14 +1,12 @@
 import api from './api';
 import { Project, ProjectListQueryParams, ProjectListResponse } from '@/types/project.types';
 
-const PROJECT_FIELDS = [
+const STANDARD_PROJECT_FIELDS = [
   'name',
   'project_name',
   'status',
   'priority',
   'project_type',
-  'custom_project_category',
-  'custom_product_group',
   'percent_complete',
   'expected_start_date',
   'expected_end_date',
@@ -22,6 +20,12 @@ const PROJECT_FIELDS = [
   'creation',
   'modified',
   'owner',
+];
+
+const PROJECT_FIELDS = [
+  ...STANDARD_PROJECT_FIELDS,
+  'custom_project_category',
+  'custom_product_group',
 ];
 
 const normalizeProject = (p: Project): Project => ({
@@ -137,39 +141,52 @@ export const projectService = {
       filters.push(['project_type', '=', params.project_type]);
     }
 
-    const queryParts: string[] = [
-      `fields=${encodeURIComponent(JSON.stringify(PROJECT_FIELDS))}`,
-      `limit_start=${limitStart}`,
-      `limit_page_length=${pageSize}`,
-      `order_by=${encodeURIComponent(`${sortBy} ${sortOrder}`)}`,
-    ];
-
-    if (filters.length > 0) {
-      queryParts.push(`filters=${encodeURIComponent(JSON.stringify(filters))}`);
-    }
-
-    const url = `/api/resource/Project?${queryParts.join('&')}`;
+    const buildUrl = (fieldsToUse: string[]) => {
+      const queryParts: string[] = [
+        `fields=${encodeURIComponent(JSON.stringify(fieldsToUse))}`,
+        `limit_start=0`,
+        `limit_page_length=500`,
+        `order_by=${encodeURIComponent(`${sortBy} ${sortOrder}`)}`,
+      ];
+      if (filters.length > 0) {
+        queryParts.push(`filters=${encodeURIComponent(JSON.stringify(filters))}`);
+      }
+      return `/api/resource/Project?${queryParts.join('&')}`;
+    };
 
     try {
-      const response = await api.get<{ data: Project[] }>(url);
+      const response = await api.get<{ data: Project[] }>(buildUrl(PROJECT_FIELDS));
       const rawProjects = response.data || [];
-      const projects = rawProjects.map(normalizeProject);
-
-      // Fetch count estimate or calculate
-      let totalCount = projects.length;
-      if (projects.length === pageSize || page > 1) {
-        totalCount = Math.max(page * pageSize, projects.length + limitStart);
-      }
+      const allProjects = rawProjects.map(normalizeProject);
+      const totalCount = allProjects.length;
+      const paginatedProjects = allProjects.slice(limitStart, limitStart + pageSize);
 
       return {
-        projects,
+        projects: paginatedProjects,
         totalCount,
         page,
         pageSize,
       };
     } catch (error: any) {
-      console.error('[ERPNext API Error] Failed to fetch Projects:', error);
-      throw error;
+      // Fallback: If VM ERPNext throws error due to missing custom fields, query standard fields
+      try {
+        console.warn('[ERPNext Project Service] Retrying project list query with standard fields fallback...');
+        const fallbackResponse = await api.get<{ data: Project[] }>(buildUrl(STANDARD_PROJECT_FIELDS));
+        const rawProjects = fallbackResponse.data || [];
+        const allProjects = rawProjects.map(normalizeProject);
+        const totalCount = allProjects.length;
+        const paginatedProjects = allProjects.slice(limitStart, limitStart + pageSize);
+
+        return {
+          projects: paginatedProjects,
+          totalCount,
+          page,
+          pageSize,
+        };
+      } catch (fallbackError: any) {
+        console.error('[ERPNext API Error] Failed to fetch Projects:', fallbackError);
+        throw fallbackError;
+      }
     }
   },
 

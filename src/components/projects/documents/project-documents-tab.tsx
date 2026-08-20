@@ -4,6 +4,7 @@ import { useToast } from '@/providers/toast-context';
 import { DocumentTableView } from '@/components/documents/document-table-view';
 import { DocumentFormDialog, DocumentFormValues } from '@/components/documents/document-form-dialog';
 import { DocumentDetailModal } from '@/components/documents/document-detail-modal';
+import { DocumentViewerModal } from '@/components/documents/document-viewer-modal';
 import { DocumentItem } from '@/types/document.types';
 import { Plus, Loader2, FileText, RefreshCw } from 'lucide-react';
 
@@ -37,6 +38,7 @@ export function ProjectDocumentsTab({ projectId, projectName }: ProjectDocuments
   const [isCreateOpen, setIsCreateOpen] = useState(false);
   const [editingDocument, setEditingDocument] = useState<DocumentItem | null>(null);
   const [viewingDocument, setViewingDocument] = useState<DocumentItem | null>(null);
+  const [inspectingViewerDoc, setInspectingViewerDoc] = useState<DocumentItem | null>(null);
 
   const handleCreateSubmit = async (values: DocumentFormValues) => {
     try {
@@ -140,7 +142,7 @@ export function ProjectDocumentsTab({ projectId, projectName }: ProjectDocuments
       ) : (
         <DocumentTableView
           documents={documents}
-          onViewDocument={(doc) => setViewingDocument(doc)}
+          onViewDocument={(doc) => setInspectingViewerDoc(doc)}
           onEditDocument={(doc) => setEditingDocument(doc)}
           onDeleteDocument={handleDeleteDocument}
         />
@@ -175,6 +177,14 @@ export function ProjectDocumentsTab({ projectId, projectName }: ProjectDocuments
             setEditingDocument(doc);
           }}
           onDelete={handleDeleteDocument}
+        />
+      )}
+
+      {inspectingViewerDoc && (
+        <DocumentViewerModal
+          document={inspectingViewerDoc}
+          isOpen={!!inspectingViewerDoc}
+          onClose={() => setInspectingViewerDoc(null)}
         />
       )}
     </div>

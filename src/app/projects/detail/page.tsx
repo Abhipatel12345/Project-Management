@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 export default function ProjectDetailPageRedirect() {
   const router = useRouter();
   useEffect(() => {
-    router.replace('/projects/charter');
+    router.replace('/projects/PROJ-0001');
   }, [router]);
   return null;
 }

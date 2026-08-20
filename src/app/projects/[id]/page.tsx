@@ -14,6 +14,9 @@ import { ProjectIssuesTab } from '@/components/projects/issues/project-issues-ta
 import { ProjectDocumentsTab } from '@/components/projects/documents/project-documents-tab';
 import { ProjectDesignReviewsTab } from '@/components/projects/design-review/project-design-reviews-tab';
 import { ProjectGatesTab } from '@/components/projects/gates/project-gates-tab';
+import { ProjectPlanningTab } from '@/components/projects/planning/project-planning-tab';
+import { ProjectConnectionsTab } from '@/components/projects/connections/project-connections-tab';
+import { AccessDenied } from '@/components/shared/access-denied';
 import {
   ArrowLeft,
   Calendar,
@@ -35,6 +38,9 @@ import {
   Folder,
   Activity,
   ShieldAlert,
+  Network,
+  Boxes,
+  ArrowRight,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -49,7 +55,7 @@ export default function ProjectDetailPage() {
 
   // Workspace Tabs
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'team' | 'tasks' | 'planning' | 'documents' | 'reviews' | 'gates' | 'issues' | 'activity'
+    'overview' | 'team' | 'tasks' | 'planning' | 'documents' | 'reviews' | 'gates' | 'issues' | 'activity' | 'connections' | 'materials'
   >('overview');
 
   const { data: project, isLoading, isError, error, refetch } = useProject(projectId);
@@ -93,14 +99,23 @@ export default function ProjectDetailPage() {
   }
 
   if (isError || !project) {
+    const errMsg = error instanceof Error ? error.message : '';
+    if (errMsg.includes('403') || errMsg.includes('Forbidden') || errMsg.includes('Access Denied')) {
+      return (
+        <AccessDenied
+          title="403 Forbidden — Project Access Restricted"
+          reason={errMsg || `You are not authorized to view Project "${projectId}" under your current ERPNext role.`}
+          returnUrl="/projects"
+        />
+      );
+    }
+
     return (
       <div className="p-8 rounded-2xl bg-white border border-rose-200 text-center space-y-4 max-w-lg mx-auto my-12 shadow-xs font-sans">
         <AlertCircle className="h-10 w-10 text-rose-500 mx-auto" />
         <h2 className="text-lg font-bold text-slate-900">Project Not Found</h2>
         <p className="text-xs text-slate-500">
-          {error instanceof Error
-            ? error.message
-            : `Could not retrieve details for project "${projectId}".`}
+          {errMsg || `Could not retrieve details for project "${projectId}".`}
         </p>
         <Link
           href="/projects"
@@ -314,6 +329,32 @@ export default function ProjectDetailPage() {
           <Activity className="h-4 w-4" />
           <span>Activity Log</span>
         </button>
+
+        {/* Tab 10: Connections */}
+        <button
+          onClick={() => setActiveTab('connections')}
+          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
+            activeTab === 'connections'
+              ? 'bg-sky-600 text-white font-bold shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+        >
+          <Network className="h-4 w-4" />
+          <span>Connections</span>
+        </button>
+
+        {/* Tab 11: Material Requisitions */}
+        <button
+          onClick={() => setActiveTab('materials')}
+          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
+            activeTab === 'materials'
+              ? 'bg-amber-600 text-white font-bold shadow-2xs'
+              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+          }`}
+        >
+          <Boxes className="h-4 w-4" />
+          <span>Material Requisitions</span>
+        </button>
       </div>
 
       {/* Tab 1: OVERVIEW */}
@@ -488,48 +529,34 @@ export default function ProjectDetailPage() {
 
       {/* Tab 4: PLANNING */}
       {activeTab === 'planning' && (
-        <div className="p-12 rounded-2xl bg-white border border-slate-200 shadow-xs text-center space-y-4">
-          <div className="h-14 w-14 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center mx-auto shadow-xs">
-            <CalendarDays className="h-7 w-7" />
-          </div>
-          <div>
-            <h3 className="text-lg font-extrabold text-slate-900">
-              Planning & Gantt Timeline ({project.project_name})
-            </h3>
-            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-              Interactive program schedules, APQP gate milestones, and critical path analysis.
-            </p>
-          </div>
-          <Link
-            href="/planning"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs"
-          >
-            Open Gantt Planning
-          </Link>
-        </div>
+        <ProjectPlanningTab
+          projectId={projectId}
+          projectName={project.project_name || project.name}
+        />
       )}
 
       {/* Tab 5: DOCUMENTS */}
       {activeTab === 'documents' && (
-        <div className="p-12 rounded-2xl bg-white border border-slate-200 shadow-xs text-center space-y-4">
-          <div className="h-14 w-14 rounded-2xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center mx-auto shadow-xs">
-            <Folder className="h-7 w-7" />
-          </div>
-          <div>
-            <h3 className="text-lg font-extrabold text-slate-900">
-              Engineering Documents & CAD Vault ({project.project_name})
-            </h3>
-            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-              Store DHF attachments, BOM specifications, CAD drawings, and compliance sign-offs.
-            </p>
-          </div>
-          <Link
-            href="/documents"
-            className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs"
-          >
-            Open Document Vault
-          </Link>
-        </div>
+        <ProjectDocumentsTab
+          projectId={projectId}
+          projectName={project.project_name || project.name}
+        />
+      )}
+
+      {/* Tab 6: DESIGN REVIEWS */}
+      {activeTab === 'reviews' && (
+        <ProjectDesignReviewsTab
+          projectId={projectId}
+          projectName={project.project_name || project.name}
+        />
+      )}
+
+      {/* Tab 7: STAGE GATES */}
+      {activeTab === 'gates' && (
+        <ProjectGatesTab
+          projectId={projectId}
+          projectName={project.project_name || project.name}
+        />
       )}
 
       {/* Tab 6: ISSUES */}
@@ -553,6 +580,50 @@ export default function ProjectDetailPage() {
             <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
               Real-time audit log of team member additions, charter modifications, and gate sign-offs.
             </p>
+          </div>
+        </div>
+      )}
+
+      {/* Tab 8: CONNECTIONS */}
+      {activeTab === 'connections' && (
+        <ProjectConnectionsTab
+          projectId={projectId}
+          projectName={project.project_name || project.name}
+        />
+      )}
+
+      {/* Tab 9: MATERIALS (Material Requisitions) */}
+      {activeTab === 'materials' && (
+        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
+            <div>
+              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <Boxes className="h-5 w-5 text-sky-600" /> Material Requisitions ({project.project_name})
+              </h3>
+              <p className="text-xs text-slate-500 mt-0.5">
+                Request prototype components and materials from the warehouse, track bin status, and confirm receipt.
+              </p>
+            </div>
+            <Link
+              href="/warehouse"
+              className="px-4 py-2.5 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-2 shadow-xs shrink-0"
+            >
+              <Boxes className="h-4 w-4" /> Open Warehouse Depot
+            </Link>
+          </div>
+
+          <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-3">
+            <Boxes className="h-10 w-10 text-sky-600 mx-auto" />
+            <h4 className="text-sm font-bold text-slate-900">Project Material Requisition System Active</h4>
+            <p className="text-xs text-slate-500 max-w-md mx-auto">
+              Material requests created here are dispatched to the Warehouse Depot. Warehouse users check stock, reserve bin items, and issue materials directly to project engineers.
+            </p>
+            <Link
+              href="/warehouse"
+              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl bg-sky-600 text-white hover:bg-sky-500 transition shadow-xs"
+            >
+              Go to Warehouse Requisition Manager <ArrowRight className="h-3.5 w-3.5" />
+            </Link>
           </div>
         </div>
       )}

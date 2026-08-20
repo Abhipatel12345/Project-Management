@@ -20,7 +20,10 @@ import {
   Settings,
   HelpCircle,
   Activity,
+  Boxes,
 } from 'lucide-react';
+import { PDMUserSession } from '@/types/auth.types';
+import { accessControlService } from '@/services/access-control.service';
 
 export interface NavChildItem {
   title: string;
@@ -45,7 +48,7 @@ export interface NavSection {
 
 export const NAVIGATION_SECTIONS: NavSection[] = [
   {
-    title: 'PHASE 1: PRODUCT EXECUTION',
+    title: 'PRODUCT EXECUTION',
     items: [
       { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
       {
@@ -61,13 +64,14 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         ],
       },
       { title: 'Task Management', href: '/tasks', icon: CheckSquare },
+      { title: 'Warehouse & Materials', href: '/warehouse', icon: Boxes },
       { title: 'Planning & Gantt', href: '/planning', icon: CalendarDays },
       { title: 'Open Issues', href: '/issues', icon: AlertTriangle },
       { title: 'Documents', href: '/documents', icon: FileText },
     ],
   },
   {
-    title: 'PHASE 2: GOVERNANCE & QUALITY',
+    title: 'GOVERNANCE & QUALITY',
     items: [
       { title: 'Design Review', href: '/design-review', icon: ClipboardList },
       {
@@ -76,7 +80,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
         icon: Lock,
         children: [
           { title: 'Gate Criteria', href: '/gates' },
-          { title: 'Gate Review', href: '/gates/review' },
+          { title: 'Gate Review Board', href: '/gates/review' },
         ],
       },
       { title: 'Risk Register & FMEA', href: '/risks', icon: ShieldAlert },
@@ -85,7 +89,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
     ],
   },
   {
-    title: 'PHASE 3: LAUNCH & INTELLIGENCE',
+    title: 'LAUNCH & INTELLIGENCE',
     items: [
       { title: 'Flawless Launch', href: '/launch', icon: Rocket },
       { title: 'Imperative Scorecard', href: '/scorecard', icon: Target },
@@ -95,12 +99,44 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
       { title: 'Settings', href: '/settings', icon: Settings },
     ],
   },
-  {
-    title: 'SUPPORT',
-    items: [
-      { title: 'Help & Docs', href: '/help', icon: HelpCircle },
-    ],
-  },
 ];
 
+/**
+ * Dynamically filter navigation sections based on active user's ERPNext role permissions
+ */
+export function getRoleNavSections(user: PDMUserSession | null): NavSection[] {
+  if (!user) return NAVIGATION_SECTIONS;
 
+  const result: NavSection[] = [];
+
+  for (const section of NAVIGATION_SECTIONS) {
+    const validItems: NavItem[] = [];
+
+    for (const item of section.items) {
+      const canAccessMain = accessControlService.canAccessPage(user, item.href).allowed;
+      let filteredChildren: NavChildItem[] | undefined = undefined;
+
+      if (item.children) {
+        filteredChildren = item.children.filter(
+          (c) => accessControlService.canAccessPage(user, c.href).allowed
+        );
+      }
+
+      if (canAccessMain || (filteredChildren && filteredChildren.length > 0)) {
+        validItems.push({
+          ...item,
+          children: filteredChildren,
+        });
+      }
+    }
+
+    if (validItems.length > 0) {
+      result.push({
+        title: section.title,
+        items: validItems,
+      });
+    }
+  }
+
+  return result;
+}

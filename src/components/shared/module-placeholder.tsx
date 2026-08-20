@@ -26,7 +26,7 @@ export function ModulePlaceholderPage({
         <div>
           <div className="flex items-center gap-2 text-[11px] font-extrabold tracking-wider uppercase text-sky-800 mb-1">
             <ShieldCheck className="h-4 w-4 text-sky-600" />
-            <span>PHASE {phase}: {moduleName.toUpperCase()}</span>
+            <span>{moduleName.toUpperCase()}</span>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900">{title}</h1>
           <p className="text-xs text-slate-500 max-w-xl mt-1">{description}</p>
@@ -49,7 +49,7 @@ export function ModulePlaceholderPage({
 
         <div>
           <span className="px-3 py-1 rounded-full bg-sky-50 text-sky-700 border border-sky-200 text-[11px] font-bold uppercase tracking-wider">
-            Phase {phase} Module Roadmap
+            {moduleName} Module Roadmap
           </span>
           <h2 className="text-xl font-extrabold text-slate-900 mt-3">{title}</h2>
           <p className="text-xs text-slate-500 max-w-md mx-auto mt-2 leading-relaxed">

@@ -4,10 +4,11 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { taskFormSchema, TaskFormValues } from '@/lib/validations/task.schema';
 import { Task } from '@/types/task.types';
 import { Project } from '@/types/project.types';
-import { useProjects } from '@/hooks/use-projects';
+import { useProjects, useProject } from '@/hooks/use-projects';
 import { useProjectTeam } from '@/hooks/use-project-team';
 import { ProjectTeamMember } from '@/types/team.types';
 import { findMatchingTeamMember } from '@/utils/auto-assignment';
+import { validateTaskDatesAgainstProject } from '@/utils/date-utils';
 import { X, Loader2, Calendar, User, ShieldCheck, CheckSquare, Edit3 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -39,6 +40,7 @@ export function TaskFormDialog({
     watch,
     reset,
     setValue,
+    setError,
     formState: { errors },
   } = useForm<TaskFormValues>({
     resolver: zodResolver(taskFormSchema),
@@ -65,8 +67,14 @@ export function TaskFormDialog({
 
   const selectedProjectId = watch('project') || defaultProjectId || '';
   const { data: teamMembers = [] } = useProjectTeam(selectedProjectId);
+  const { data: selectedProject } = useProject(selectedProjectId);
+
+  const firstProjectName = projects[0]?.name || '';
+  const initialTaskIdentifier = initialData?.name || initialData?.subject || '';
 
   useEffect(() => {
+    if (!isOpen) return;
+
     if (initialData) {
       const cleanStartDate = initialData.exp_start_date
         ? initialData.exp_start_date.split(' ')[0].split('T')[0]
@@ -97,7 +105,7 @@ export function TaskFormDialog({
     } else {
       reset({
         subject: '',
-        project: defaultProjectId || (projects.length > 0 ? projects[0].name : ''),
+        project: defaultProjectId || firstProjectName,
         status: 'Open',
         priority: 'Medium',
         exp_start_date: '',
@@ -115,9 +123,36 @@ export function TaskFormDialog({
         rasic_informed: '',
       });
     }
-  }, [initialData, reset, isOpen, defaultProjectId, projects]);
+  }, [isOpen, initialTaskIdentifier, defaultProjectId, firstProjectName, reset]);
 
   const onFormSubmit = async (values: TaskFormValues) => {
+    // Perform date validation against active project bounds before calling ERPNext API
+    const activeProject = selectedProject || projects.find((p: Project) => p.name === values.project);
+
+    const validation = validateTaskDatesAgainstProject(
+      values.exp_start_date,
+      values.exp_end_date,
+      activeProject?.expected_start_date,
+      activeProject?.expected_end_date,
+      activeProject?.project_name || activeProject?.name || values.project
+    );
+
+    if (!validation.isValid) {
+      if (validation.startDateError) {
+        setError('exp_start_date', {
+          type: 'manual',
+          message: validation.startDateError,
+        });
+      }
+      if (validation.endDateError) {
+        setError('exp_end_date', {
+          type: 'manual',
+          message: validation.endDateError,
+        });
+      }
+      return; // Stop form submission if date validation fails
+    }
+
     try {
       await onSubmit(values);
       onClose();
@@ -284,6 +319,9 @@ export function TaskFormDialog({
                   type="date"
                   className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition"
                 />
+                {errors.exp_start_date && (
+                  <p className="text-[11px] text-rose-500 font-bold">{errors.exp_start_date.message}</p>
+                )}
               </div>
 
               <div className="space-y-1.5">
@@ -293,6 +331,9 @@ export function TaskFormDialog({
                   type="date"
                   className="w-full px-3.5 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-mono focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition"
                 />
+                {errors.exp_end_date && (
+                  <p className="text-[11px] text-rose-500 font-bold">{errors.exp_end_date.message}</p>
+                )}
               </div>
 
               <div className="space-y-1.5">

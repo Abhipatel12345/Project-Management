@@ -143,7 +143,29 @@ export function DocumentDetailModal({
               </button>
 
               <button
-                onClick={() => alert(`Downloading attachment ${doc.file_name || doc.name}...`)}
+                onClick={() => {
+                  const fileName = doc.file_name || doc.title || 'document';
+                  const fileUrl = doc.file_url;
+                  if (fileUrl) {
+                    const a = window.document.createElement('a');
+                    a.href = fileUrl;
+                    a.download = fileName;
+                    window.document.body.appendChild(a);
+                    a.click();
+                    window.document.body.removeChild(a);
+                  } else {
+                    const content = `PDM Document Attachment\nID: ${doc.name}\nTitle: ${doc.title}\nProject: ${doc.project}\nVersion: ${doc.version}\nUploaded By: ${doc.uploaded_by}\nDescription: ${doc.description || 'N/A'}`;
+                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
+                    const url = URL.createObjectURL(blob);
+                    const a = window.document.createElement('a');
+                    a.href = url;
+                    a.download = fileName.endsWith('.txt') ? fileName : `${fileName}.txt`;
+                    window.document.body.appendChild(a);
+                    a.click();
+                    window.document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                  }
+                }}
                 className="flex items-center gap-2 px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition cursor-pointer shadow-xs"
               >
                 <Download className="h-4 w-4" />

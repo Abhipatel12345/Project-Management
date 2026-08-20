@@ -63,7 +63,7 @@ export const dashboardService = {
   async getProjects(): Promise<DashboardProjectItem[]> {
     try {
       const response = await api.get<{ data: DashboardProjectItem[] }>(
-        '/api/resource/Project?fields=["name","project_name","status","percent_complete","expected_end_date"]&limit_page_length=20&order_by=modified desc'
+        '/api/resource/Project?fields=["name","project_name","status","percent_complete","expected_end_date","owner"]&limit_page_length=500&order_by=modified desc'
       );
       return response.data || [];
     } catch (error) {
@@ -78,7 +78,7 @@ export const dashboardService = {
   async getTasks(): Promise<DashboardTaskItem[]> {
     try {
       const response = await api.get<{ data: DashboardTaskItem[] }>(
-        '/api/resource/Task?fields=["name","subject","status","priority","exp_end_date","project"]&limit_page_length=20&order_by=modified desc'
+        '/api/resource/Task?fields=["name","subject","status","priority","exp_end_date","project"]&limit_page_length=500&order_by=modified desc'
       );
       return response.data || [];
     } catch (error) {

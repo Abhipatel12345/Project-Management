@@ -7,7 +7,7 @@ import { useTheme } from 'next-themes';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/providers/auth-context';
 import { RouteGuard } from '@/components/shared/route-guard';
-import { NAVIGATION_SECTIONS, NavItem } from '@/constants/navigation';
+import { NAVIGATION_SECTIONS, NavItem, NavSection, getRoleNavSections } from '@/constants/navigation';
 import {
   Sun,
   Moon,
@@ -31,6 +31,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const pathname = usePathname();
   const { theme, setTheme } = useTheme();
   const { user, isAuthenticated, logout } = useAuth();
+  const navSections = getRoleNavSections(user);
   const [mounted, setMounted] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [userMenuOpen, setUserMenuOpen] = useState(false);
@@ -103,7 +104,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
           {/* Sidebar Nav Items */}
           <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 custom-scrollbar">
-            {NAVIGATION_SECTIONS.map((section, idx) => (
+            {navSections.map((section, idx) => (
               <div key={idx} className="space-y-1">
                 {section.title && (
                   <h3 className="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
@@ -194,7 +195,9 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           {/* Footer User Badge */}
           <div className="p-3 border-t border-slate-800/80 bg-[#070B15]">
             <div className="flex items-center justify-between text-xs text-slate-400 px-2 py-1">
-              <span className="text-[11px] font-medium text-slate-400">ERPNext Session</span>
+              <span className="text-[11px] font-medium text-slate-400">
+                PDM Session ({user?.roleLabel || 'Active'})
+              </span>
               <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
             </div>
           </div>
@@ -241,9 +244,14 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                     <div className="h-7 w-7 rounded-lg bg-sky-600 font-bold text-xs text-white flex items-center justify-center">
                       {user.fullName.charAt(0).toUpperCase()}
                     </div>
-                    <span className="text-xs font-semibold text-slate-700 hidden sm:inline">
-                      {user.fullName}
-                    </span>
+                    <div className="flex flex-col text-left hidden sm:flex">
+                      <span className="text-xs font-semibold text-slate-800 leading-tight">
+                        {user.fullName}
+                      </span>
+                      <span className="text-[10px] text-sky-600 font-bold leading-none">
+                        {user.roleLabel}
+                      </span>
+                    </div>
                     <ChevronDown className="h-3.5 w-3.5 text-slate-400 hidden sm:inline" />
                   </button>
 
@@ -254,13 +262,18 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         animate={{ opacity: 1, y: 0 }}
                         exit={{ opacity: 0, y: 6 }}
                         transition={{ duration: 0.12 }}
-                        className="absolute right-0 mt-2 w-52 rounded-2xl bg-white border border-slate-200 shadow-xl p-2 z-50 space-y-1 text-slate-800"
+                        className="absolute right-0 mt-2 w-56 rounded-2xl bg-white border border-slate-200 shadow-xl p-2 z-50 space-y-1 text-slate-800"
                       >
-                        <div className="px-3 py-2 border-b border-slate-100">
+                        <div className="px-3 py-2 border-b border-slate-100 space-y-0.5">
                           <div className="text-xs font-bold text-slate-900 truncate">
                             {user.fullName}
                           </div>
                           <div className="text-[11px] text-slate-500 truncate">{user.email}</div>
+                          <div className="pt-1">
+                            <span className="inline-block px-2 py-0.5 text-[10px] font-bold rounded-md bg-sky-100 text-sky-800 border border-sky-200">
+                              Role: {user.roleLabel}
+                            </span>
+                          </div>
                         </div>
 
                         <button

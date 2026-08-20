@@ -134,7 +134,7 @@ export function CreateBaselineDialog({
                 rows={3}
                 value={description}
                 onChange={(e) => setDescription(e.target.value)}
-                placeholder="Add notes about why this baseline is being created (e.g., Gate 2 Approval, Scope Change, Phase 1 Completion)..."
+                placeholder="Add notes about why this baseline is being created (e.g., Gate 2 Approval, Scope Change, Initial Plan Freeze)..."
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
               />
             </div>

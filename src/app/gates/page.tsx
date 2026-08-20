@@ -22,6 +22,9 @@ import { GateFormDialog, GateFormValues } from '@/components/gates/gate-form-dia
 import { GateDetailModal } from '@/components/gates/gate-detail-modal';
 import { Gate, GateCriterion, GateDeliverable } from '@/types/gate.types';
 import { Project } from '@/types/project.types';
+import { BackButton } from '@/components/shared/back-button';
+import { Pagination } from '@/components/shared/pagination';
+import { ImportExportControls } from '@/components/shared/import-export-controls';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 
 export default function GateManagementPage() {

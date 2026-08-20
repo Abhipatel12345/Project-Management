@@ -1,0 +1,235 @@
+import api from './api';
+import {
+  PROJECT_CONNECTIONS,
+  ConnectionCountResult,
+  ConnectionRecordsResponse,
+  ConnectionRecordItem,
+} from '@/types/connection.types';
+
+export const projectConnectionsService = {
+  /**
+   * Fetch live count for a single DocType linked to a Project ID
+   */
+  async getConnectionCount(
+    projectId: string,
+    doctype: string,
+    label: string,
+    group: string,
+    projectField: string = 'project',
+    alternativeProjectField?: string
+  ): Promise<ConnectionCountResult> {
+    if (!projectId || !doctype) {
+      return {
+        doctype,
+        label,
+        group,
+        count: 0,
+        status: 'success',
+      };
+    }
+
+    const tryFetchWithField = async (fieldToUse: string): Promise<number> => {
+      const filters = JSON.stringify([[fieldToUse, '=', projectId]]);
+      const fields = JSON.stringify(['name']);
+      const url = `/api/resource/${encodeURIComponent(doctype)}?filters=${encodeURIComponent(
+        filters
+      )}&fields=${encodeURIComponent(fields)}&limit_page_length=9999`;
+
+      const response = await api.get<{ data: any[] }>(url);
+      return Array.isArray(response.data) ? response.data.length : 0;
+    };
+
+    try {
+      const count = await tryFetchWithField(projectField);
+      return {
+        doctype,
+        label,
+        group,
+        count,
+        status: 'success',
+      };
+    } catch (err: any) {
+      const errStr = String(err?.message || err);
+      
+      // Fallback: If primary projectField is not permitted and an alternative exists, try it
+      if (alternativeProjectField && (errStr.includes('Field not permitted') || errStr.includes('Invalid field'))) {
+        try {
+          const count = await tryFetchWithField(alternativeProjectField);
+          return {
+            doctype,
+            label,
+            group,
+            count,
+            status: 'success',
+          };
+        } catch (altErr: any) {
+          // fall through to error handling below
+        }
+      }
+
+      if (errStr.includes('403') || errStr.includes('Permission') || errStr.includes('Access denied')) {
+        return {
+          doctype,
+          label,
+          group,
+          count: null,
+          status: 'permission_denied',
+          errorMessage: 'Permission denied',
+        };
+      }
+
+      if (errStr.includes('404') || errStr.includes('DoesNotExistError') || errStr.includes('not found')) {
+        return {
+          doctype,
+          label,
+          group,
+          count: null,
+          status: 'not_found',
+          errorMessage: 'DocType unavailable',
+        };
+      }
+
+      return {
+        doctype,
+        label,
+        group,
+        count: null,
+        status: 'error',
+        errorMessage: errStr.length > 60 ? `${errStr.substring(0, 57)}...` : errStr,
+      };
+    }
+  },
+
+  /**
+   * Fetch counts for ALL 14 DocTypes across all 5 groups in parallel
+   */
+  async getAllConnectionCounts(projectId: string): Promise<Record<string, ConnectionCountResult>> {
+    const allItems = PROJECT_CONNECTIONS.flatMap((g) =>
+      g.items.map((item) => ({ ...item, group: g.group }))
+    );
+
+    const promises = allItems.map((item) =>
+      this.getConnectionCount(
+        projectId,
+        item.doctype,
+        item.label,
+        item.group,
+        item.projectField,
+        item.alternativeProjectField
+      )
+    );
+
+    const results = await Promise.all(promises);
+
+    const countsMap: Record<string, ConnectionCountResult> = {};
+    results.forEach((res) => {
+      countsMap[res.doctype] = res;
+    });
+
+    return countsMap;
+  },
+
+  /**
+   * Fetch paginated list of related records for a given DocType and Project ID
+   */
+  async getConnectionRecords(
+    projectId: string,
+    doctype: string,
+    projectField: string = 'project',
+    alternativeProjectField?: string,
+    page: number = 1,
+    pageSize: number = 20
+  ): Promise<ConnectionRecordsResponse> {
+    const limitStart = (page - 1) * pageSize;
+    const fetchFields = [
+      'name',
+      'title',
+      'subject',
+      'status',
+      'priority',
+      'posting_date',
+      'transaction_date',
+      'schedule_date',
+      'delivery_date',
+      'creation',
+      'modified',
+      'owner',
+      'customer',
+      'supplier',
+      'grand_total',
+      'total_amount',
+      'qty',
+      'material_request_type',
+      'stock_entry_type',
+    ];
+
+    const tryQuery = async (fieldToUse: string) => {
+      const filters = JSON.stringify([[fieldToUse, '=', projectId]]);
+      const fields = JSON.stringify(fetchFields);
+      const url = `/api/resource/${encodeURIComponent(doctype)}?filters=${encodeURIComponent(
+        filters
+      )}&fields=${encodeURIComponent(
+        fields
+      )}&limit_start=${limitStart}&limit_page_length=${pageSize}&order_by=${encodeURIComponent(
+        'modified desc'
+      )}`;
+
+      const response = await api.get<{ data: ConnectionRecordItem[] }>(url);
+      return response.data || [];
+    };
+
+    try {
+      let records: ConnectionRecordItem[] = [];
+      try {
+        records = await tryQuery(projectField);
+      } catch (err: any) {
+        if (alternativeProjectField) {
+          records = await tryQuery(alternativeProjectField);
+        } else {
+          throw err;
+        }
+      }
+
+      let totalCount = records.length;
+      if (records.length === pageSize || page > 1) {
+        totalCount = Math.max(page * pageSize, records.length + limitStart);
+      }
+
+      return {
+        doctype,
+        records,
+        totalCount,
+        page,
+        pageSize,
+      };
+    } catch (error: any) {
+      console.error(`[ERPNext Connection Service] Error fetching ${doctype} records:`, error);
+      return {
+        doctype,
+        records: [],
+        totalCount: 0,
+        page,
+        pageSize,
+      };
+    }
+  },
+
+  /**
+   * Create a new record in ERPNext with linked Project ID
+   */
+  async createConnectionRecord(
+    doctype: string,
+    data: Record<string, any>
+  ): Promise<ConnectionRecordItem> {
+    try {
+      const url = `/api/resource/${encodeURIComponent(doctype)}`;
+      const response = await api.post<{ data: ConnectionRecordItem }>(url, data);
+      return response.data;
+    } catch (error: any) {
+      console.error(`[ERPNext Connection Service] Error creating ${doctype} record:`, error);
+      throw error;
+    }
+  },
+};
+
+export default projectConnectionsService;

@@ -201,7 +201,7 @@ function LoginForm() {
             {isSubmitting ? (
               <>
                 <Loader2 className="h-4 w-4 animate-spin text-white" />
-                <span>Authenticating with ERPNext...</span>
+                <span>Authenticating PDM Session...</span>
               </>
             ) : (
               <>
@@ -212,10 +212,79 @@ function LoginForm() {
           </button>
         </form>
 
+        {/* Quick Role Fill Buttons for Easy Executive Demo Testing */}
+        <div className="pt-3 border-t border-slate-800 space-y-2">
+          <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center">
+            Executive Demo Quick Test Roles
+          </div>
+          <div className="grid grid-cols-3 gap-1.5 text-[10px]">
+            <button
+              type="button"
+              onClick={() => {
+                onSubmit({ usr: 'it_admin', pwd: 'password' });
+              }}
+              className="py-1 px-1.5 rounded-lg bg-slate-800 hover:bg-sky-600 hover:text-white text-slate-300 font-semibold transition text-center truncate cursor-pointer"
+              title="IT Admin — User Management"
+            >
+              1. IT Admin
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSubmit({ usr: 'admin', pwd: 'password' });
+              }}
+              className="py-1 px-1.5 rounded-lg bg-slate-800 hover:bg-sky-600 hover:text-white text-slate-300 font-semibold transition text-center truncate cursor-pointer"
+              title="PMO Admin — Create Project"
+            >
+              2. PMO Admin
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSubmit({ usr: 'projectmanager', pwd: 'password' });
+              }}
+              className="py-1 px-1.5 rounded-lg bg-slate-800 hover:bg-sky-600 hover:text-white text-slate-300 font-semibold transition text-center truncate cursor-pointer"
+              title="Project Manager — Gates, Tasks, Requisitions"
+            >
+              3. Project PM
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSubmit({ usr: 'teammember', pwd: 'password' });
+              }}
+              className="py-1 px-1.5 rounded-lg bg-slate-800 hover:bg-sky-600 hover:text-white text-slate-300 font-semibold transition text-center truncate cursor-pointer"
+              title="Team Member — Execution & Issues"
+            >
+              4. Team Member
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSubmit({ usr: 'warehouse_user', pwd: 'password' });
+              }}
+              className="py-1 px-1.5 rounded-lg bg-slate-800 hover:bg-sky-600 hover:text-white text-slate-300 font-semibold transition text-center truncate cursor-pointer"
+              title="Warehouse — Reserve & Issue Materials"
+            >
+              5. Warehouse
+            </button>
+            <button
+              type="button"
+              onClick={() => {
+                onSubmit({ usr: 'gate_reviewer', pwd: 'password' });
+              }}
+              className="py-1 px-1.5 rounded-lg bg-slate-800 hover:bg-sky-600 hover:text-white text-slate-300 font-semibold transition text-center truncate cursor-pointer"
+              title="Gate Reviewer — Board Approval"
+            >
+              6. Gate Reviewer
+            </button>
+          </div>
+        </div>
+
         {/* Footer Security Badge */}
-        <div className="pt-4 border-t border-slate-800 text-center flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-400">
+        <div className="pt-2 border-t border-slate-800 text-center flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-400">
           <ShieldCheck className="h-3.5 w-3.5 text-emerald-400" />
-          <span>Secured via ERPNext REST Session & Cookies</span>
+          <span>Isolated PDM Session & Independent Cookie Architecture</span>
         </div>
       </div>
     </div>

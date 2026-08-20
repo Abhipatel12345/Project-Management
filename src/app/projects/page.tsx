@@ -15,6 +15,9 @@ import { ProjectPriorityBadge } from '@/components/projects/project-priority-bad
 import { ProjectTableSkeleton } from '@/components/projects/project-table-skeleton';
 import { ProjectFormDialog } from '@/components/projects/project-form-dialog';
 import { ProjectDeleteDialog } from '@/components/projects/project-delete-dialog';
+import { BackButton } from '@/components/shared/back-button';
+import { Pagination } from '@/components/shared/pagination';
+import { ImportExportControls } from '@/components/shared/import-export-controls';
 import {
   FolderKanban,
   Plus,
@@ -24,8 +27,6 @@ import {
   Eye,
   Edit2,
   Trash2,
-  ChevronLeft,
-  ChevronRight,
   AlertCircle,
   FolderOpen,
   Calendar,
@@ -157,7 +158,13 @@ export default function ProjectsPage() {
           </p>
         </div>
 
-        <div className="flex items-center gap-2 shrink-0">
+        <div className="flex flex-wrap items-center gap-2 shrink-0">
+          <BackButton fallbackUrl="/dashboard" />
+          <ImportExportControls
+            entityName="Projects"
+            dataToExport={projects}
+            exportFilename="pdm_projects"
+          />
           <button
             onClick={() => refetch()}
             disabled={isFetching}
@@ -407,32 +414,13 @@ export default function ProjectsPage() {
           </div>
 
           {/* Pagination Controls */}
-          <div className="flex items-center justify-between px-2 text-xs text-slate-500 font-medium">
-            <div>
-              Showing {projects.length > 0 ? (page - 1) * pageSize + 1 : 0} to{' '}
-              {Math.min(page * pageSize, totalCount)} of {totalCount} projects
-            </div>
-
-            <div className="flex items-center gap-2">
-              <button
-                onClick={() => setPage((p) => Math.max(p - 1, 1))}
-                disabled={page === 1}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <span className="font-bold text-slate-800">
-                Page {page} of {totalPages}
-              </span>
-              <button
-                onClick={() => setPage((p) => Math.min(p + 1, totalPages))}
-                disabled={page >= totalPages}
-                className="p-1.5 rounded-lg border border-slate-200 bg-white text-slate-600 disabled:opacity-40 hover:bg-slate-50 transition"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
+          <Pagination
+            currentPage={page}
+            totalPages={totalPages}
+            totalRecords={totalCount}
+            pageSize={pageSize}
+            onPageChange={setPage}
+          />
         </div>
       )}
 

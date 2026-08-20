@@ -1,6 +1,8 @@
 import React from 'react';
 import { Project } from '@/types/project.types';
 import { GateSummary } from '@/types/gate.types';
+import { BackButton } from '@/components/shared/back-button';
+import { ImportExportControls } from '@/components/shared/import-export-controls';
 import {
   Lock,
   FolderKanban,
@@ -54,6 +56,9 @@ export function GateHeaderSummary({
 
         {/* Action Controls */}
         <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto">
+          <BackButton fallbackUrl="/dashboard" />
+          <ImportExportControls entityName="Gate Criteria" exportFilename="pdm_gate_criteria" />
+
           {/* Project Selector */}
           <div className="relative min-w-[240px]">
             <div className="absolute left-3.5 top-3 text-emerald-600">
