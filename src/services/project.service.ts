@@ -26,6 +26,7 @@ const PROJECT_FIELDS = [
   ...STANDARD_PROJECT_FIELDS,
   'custom_project_category',
   'custom_product_group',
+  'custom_upload_document',
 ];
 
 const normalizeProject = (p: Project): Project => ({
@@ -245,6 +246,84 @@ export const projectService = {
     } catch (error: any) {
       console.error(`[ERPNext API Error] Failed to delete Project ${name}:`, error);
       throw error;
+    }
+  },
+
+  /**
+   * Upload an attached file directly to Frappe linked to Project DocType and custom_upload_document
+   */
+  async uploadProjectDocument(
+    projectId: string,
+    file: File | Blob,
+    fileName?: string,
+    fieldname: string = 'custom_upload_document'
+  ): Promise<{ file_url: string; name: string; file_name: string }> {
+    try {
+      const formData = new FormData();
+      const actualName = fileName || (file instanceof File ? file.name : 'document.pdf');
+      formData.append('file', file, actualName);
+      formData.append('is_private', '0');
+      formData.append('doctype', 'Project');
+      formData.append('docname', projectId);
+      formData.append('fieldname', fieldname);
+
+      const response = await api.post<{ message: any }>('/api/method/upload_file', formData, {
+        headers: {
+          'Content-Type': 'multipart/form-data',
+        },
+      });
+
+      const message = response?.message || {};
+      const fileUrl = message.file_url || `/files/${encodeURIComponent(actualName)}`;
+
+      // Automatically update Project.custom_upload_document to point to the uploaded file
+      if (fieldname === 'custom_upload_document') {
+        try {
+          await this.updateProject(projectId, {
+            custom_upload_document: fileUrl,
+          });
+        } catch (updateErr) {
+          console.warn(`[Project Service] Could not update custom_upload_document on Project ${projectId}:`, updateErr);
+        }
+      }
+
+      return {
+        file_url: fileUrl,
+        name: message.name || '',
+        file_name: message.file_name || actualName,
+      };
+    } catch (error: any) {
+      console.error(`[ERPNext API Error] Failed to upload document for Project ${projectId}:`, error);
+      throw error;
+    }
+  },
+
+  /**
+   * Get all File records attached to a Project from ERPNext
+   */
+  async getProjectFiles(projectId: string): Promise<any[]> {
+    try {
+      const filters = JSON.stringify([
+        ['attached_to_doctype', '=', 'Project'],
+        ['attached_to_name', '=', projectId],
+      ]);
+      const fields = JSON.stringify([
+        'name',
+        'file_name',
+        'file_url',
+        'file_size',
+        'is_private',
+        'attached_to_doctype',
+        'attached_to_name',
+        'attached_to_field',
+        'creation',
+      ]);
+      const url = `/api/resource/File?filters=${encodeURIComponent(filters)}&fields=${encodeURIComponent(fields)}&order_by=creation desc&limit_page_length=100`;
+      const response = await api.get<{ data: any[] }>(url);
+      return response.data || [];
+    } catch (error: any) {
+      console.warn(`[Project Service] Could not fetch attached File records for Project ${projectId}:`, error);
+      return [];
     }
   },
 };

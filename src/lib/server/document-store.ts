@@ -105,15 +105,125 @@ export const writeDocumentsFile = (docs: DocumentItem[]): void => {
     }
     fs.writeFileSync(FILE_PATH, JSON.stringify(docs, null, 2), 'utf-8');
   } catch {
-    // Filesystem may be read-only in Vercel serverless functions; in-memory cache handles current invocation
+    // Filesystem may be read-only in Vercel serverless functions
   }
 };
 
-export const getDocumentsByProject = (projectId: string, searchParams?: DocumentListQueryParams): DocumentListResponse => {
+/**
+ * Fetch ERPNext File records and Project.custom_upload_document for a project
+ */
+export const syncErpNextProjectDocuments = async (projectId: string): Promise<DocumentItem[]> => {
+  if (!projectId || projectId === 'ALL' || projectId === 'Global Vault' || projectId === 'Global_Vault') {
+    return [];
+  }
+  try {
+    const erpUrl = process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083';
+    const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
+    const apiSecret = process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
+    const headers = { Authorization: `token ${apiKey}:${apiSecret}` };
+
+    const erpDocs: DocumentItem[] = [];
+
+    // 1. Fetch File records attached to Project
+    const fileFilters = JSON.stringify([
+      ['attached_to_doctype', '=', 'Project'],
+      ['attached_to_name', '=', projectId],
+    ]);
+    const fileFields = JSON.stringify([
+      'name',
+      'file_name',
+      'file_url',
+      'file_size',
+      'creation',
+      'owner',
+      'attached_to_field',
+    ]);
+    const fileUrl = `${erpUrl}/api/resource/File?filters=${encodeURIComponent(fileFilters)}&fields=${encodeURIComponent(fileFields)}&order_by=creation desc&limit_page_length=100`;
+    
+    const fileRes = await fetch(fileUrl, { headers });
+    if (fileRes.ok) {
+      const fileData = await fileRes.json();
+      const files: any[] = fileData.data || [];
+
+      for (const f of files) {
+        const fileName = f.file_name || (f.file_url ? path.basename(f.file_url) : 'document.pdf');
+        erpDocs.push({
+          name: f.name,
+          title: fileName.replace(/\.[^/.]+$/, '').replace(/_/g, ' '),
+          project: projectId,
+          document_type: f.attached_to_field === 'custom_upload_document' ? 'Engineering' : 'Specification',
+          version: 'v1.0',
+          uploaded_by: f.owner || 'Administrator',
+          upload_date: f.creation ? f.creation.split(' ')[0] : new Date().toISOString().split('T')[0],
+          status: 'Approved',
+          review_status: 'Approved',
+          file_name: fileName,
+          file_size: f.file_size || 1024,
+          mime_type: getMimeType(fileName),
+          file_url: f.file_url,
+          storage_type: 'local',
+        });
+      }
+    }
+
+    // 2. Fetch Project record to check custom_upload_document
+    const projRes = await fetch(`${erpUrl}/api/resource/Project/${encodeURIComponent(projectId)}`, { headers });
+    if (projRes.ok) {
+      const projData = await projRes.json();
+      const customDocUrl = projData.data?.custom_upload_document;
+      if (customDocUrl && !erpDocs.some((d) => d.file_url === customDocUrl)) {
+        const fileName = path.basename(customDocUrl);
+        erpDocs.unshift({
+          name: `DOC-${projectId}-MAIN`,
+          title: `${projData.data?.project_name || projectId} Uploaded Document`,
+          project: projectId,
+          document_type: 'Engineering',
+          version: 'v1.0',
+          uploaded_by: projData.data?.owner || 'Administrator',
+          upload_date: projData.data?.creation ? projData.data.creation.split(' ')[0] : new Date().toISOString().split('T')[0],
+          status: 'Approved',
+          review_status: 'Approved',
+          file_name: fileName,
+          file_size: 2048,
+          mime_type: getMimeType(fileName),
+          file_url: customDocUrl,
+          storage_type: 'local',
+        });
+      }
+    }
+
+    return erpDocs;
+  } catch (err) {
+    console.warn(`[Document Store] Error fetching ERPNext project files for ${projectId}:`, err);
+    return [];
+  }
+};
+
+export const getDocumentsByProject = async (
+  projectId: string,
+  searchParams?: DocumentListQueryParams
+): Promise<DocumentListResponse> => {
   const allDocs = readDocumentsFile();
   const normProject = (projectId || '').toLowerCase().trim();
 
-  let filtered = allDocs.filter((d) => {
+  // Fetch live ERPNext attachments for this project
+  const erpDocs = await syncErpNextProjectDocuments(projectId);
+
+  // Merge store documents and live ERPNext documents (deduping by file_name or file_url)
+  const combinedDocs = [...allDocs];
+  for (const ed of erpDocs) {
+    const exists = combinedDocs.some(
+      (d) =>
+        d.name === ed.name ||
+        (d.project === ed.project && d.file_name === ed.file_name) ||
+        (ed.file_url && d.file_url === ed.file_url)
+    );
+    if (!exists) {
+      combinedDocs.push(ed);
+    }
+  }
+
+  let filtered = combinedDocs.filter((d) => {
     if (!projectId || projectId === 'ALL') return true;
     const docProj = (d.project || '').toLowerCase().trim();
     return docProj === normProject || docProj.includes(normProject) || normProject.includes(docProj);
@@ -168,7 +278,7 @@ export const getDocumentsByProject = (projectId: string, searchParams?: Document
 };
 
 /**
- * Save a document record and store the physical file in object storage (Vercel Blob / local)
+ * Save a document record and store the physical file in object storage (Vercel Blob / local / ERPNext)
  */
 export const saveDocument = async (doc: Partial<DocumentItem>): Promise<DocumentItem> => {
   const allDocs = readDocumentsFile();
@@ -219,6 +329,11 @@ export const saveDocument = async (doc: Partial<DocumentItem>): Promise<Document
     storageInfo = uploaded;
   }
 
+  const finalFileUrl =
+    storageInfo.blobUrl ||
+    doc.file_url ||
+    `/api/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(docId)}/download`;
+
   const newDoc: DocumentItem = {
     name: docId,
     title: doc.title || cleanFileName,
@@ -236,7 +351,7 @@ export const saveDocument = async (doc: Partial<DocumentItem>): Promise<Document
     storage_key: storageInfo.storageKey,
     blob_url: storageInfo.blobUrl,
     file_path: storageInfo.filePath,
-    file_url: storageInfo.blobUrl || `/api/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(docId)}/download`,
+    file_url: finalFileUrl,
     description: doc.description || '',
     notes: doc.notes || '',
   };
@@ -263,13 +378,19 @@ export const getDocumentBinary = async (
   const normProj = (projectId || '').toLowerCase().trim();
   const normDoc = (docId || '').toLowerCase().trim();
 
-  const doc = allDocs.find((d) => {
+  let doc = allDocs.find((d) => {
     const isDocMatch = d.name.toLowerCase() === normDoc || (d.file_name && d.file_name.toLowerCase() === normDoc);
     if (!isDocMatch) return false;
     if (!projectId || projectId === 'ALL' || projectId === 'Global Vault') return true;
     const docProj = (d.project || '').toLowerCase().trim();
     return docProj === normProj || docProj.includes(normProj) || normProj.includes(docProj);
   });
+
+  // If not found in local memory, check live ERPNext Project files
+  if (!doc && projectId && projectId !== 'Global Vault') {
+    const erpDocs = await syncErpNextProjectDocuments(projectId);
+    doc = erpDocs.find((d) => d.name.toLowerCase() === normDoc || (d.file_name && d.file_name.toLowerCase() === normDoc));
+  }
 
   if (!doc) return null;
 

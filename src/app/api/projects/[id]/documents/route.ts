@@ -50,8 +50,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '100', 10);
 
-    // Fetch documents linked to project from persistent server store
-    const res = getDocumentsByProject(projectId, {
+    // Fetch documents linked to project from persistent server store and live ERPNext attachments
+    const res = await getDocumentsByProject(projectId, {
       search,
       document_type,
       status,

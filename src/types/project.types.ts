@@ -59,6 +59,7 @@ export interface Project {
   total_costing_amount?: number;
   company?: string;
   department?: string;
+  custom_upload_document?: string;
   notes?: string;
   creation?: string;
   modified?: string;

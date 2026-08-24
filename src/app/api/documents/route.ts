@@ -31,7 +31,7 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '100', 10);
 
-    const res = getDocumentsByProject(project, {
+    const res = await getDocumentsByProject(project, {
       search,
       document_type,
       status,

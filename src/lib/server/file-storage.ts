@@ -132,6 +132,50 @@ export async function uploadDocumentFile(params: {
 
   const storageKey = `documents/${safeProj}/${safeDocId}/${cleanFileName}`;
 
+  // ERPNext Integration: Upload and attach to Project DocType in ERPNext
+  let erpFileUrl: string | undefined = undefined;
+  if (projectId && projectId !== 'Global Vault' && projectId !== 'Global_Vault') {
+    try {
+      const erpUrl = process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083';
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
+      const apiSecret = process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
+
+      const formData = new FormData();
+      formData.append('file', new Blob([new Uint8Array(buffer)], { type: mime }), cleanFileName);
+      formData.append('is_private', '0');
+      formData.append('doctype', 'Project');
+      formData.append('docname', projectId);
+      formData.append('fieldname', 'custom_upload_document');
+
+      const erpUploadRes = await fetch(`${erpUrl}/api/method/upload_file`, {
+        method: 'POST',
+        headers: {
+          Authorization: `token ${apiKey}:${apiSecret}`,
+        },
+        body: formData,
+      });
+
+      if (erpUploadRes.ok) {
+        const erpData = await erpUploadRes.json();
+        erpFileUrl = erpData.message?.file_url;
+
+        // Update Project.custom_upload_document in ERPNext
+        if (erpFileUrl) {
+          await fetch(`${erpUrl}/api/resource/Project/${encodeURIComponent(projectId)}`, {
+            method: 'PUT',
+            headers: {
+              Authorization: `token ${apiKey}:${apiSecret}`,
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ custom_upload_document: erpFileUrl }),
+          });
+        }
+      }
+    } catch (erpErr) {
+      console.warn('ERPNext Frappe file upload sync notice:', erpErr);
+    }
+  }
+
   // Production: Vercel Blob
   if (isBlobStorageEnabled()) {
     try {
@@ -145,7 +189,7 @@ export async function uploadDocumentFile(params: {
       return {
         storageType: 'vercel-blob',
         storageKey: blob.pathname,
-        blobUrl: blob.url,
+        blobUrl: erpFileUrl || blob.url,
         fileSize: buffer.length,
         mimeType: mime,
       };
@@ -168,6 +212,7 @@ export async function uploadDocumentFile(params: {
       return {
         storageType: 'local',
         storageKey: storageKey,
+        blobUrl: erpFileUrl,
         filePath: relFilePath,
         fileSize: buffer.length,
         mimeType: mime,
@@ -181,6 +226,7 @@ export async function uploadDocumentFile(params: {
   return {
     storageType: 'inline',
     storageKey: storageKey,
+    blobUrl: erpFileUrl,
     fileSize: buffer.length,
     mimeType: mime,
   };
@@ -215,7 +261,28 @@ export async function retrieveDocumentFile(doc: DocumentItem): Promise<Retrieved
     }
   }
 
-  // 2. Check inline base64 data URL
+  // 2. Check Frappe / ERPNext file URL (/files/... or /private/files/...)
+  if (doc.file_url && (doc.file_url.startsWith('/files/') || doc.file_url.startsWith('/private/files/'))) {
+    try {
+      const erpUrl = process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083';
+      const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
+      const apiSecret = process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
+      const res = await fetch(`${erpUrl}${doc.file_url}`, {
+        headers: {
+          Authorization: `token ${apiKey}:${apiSecret}`,
+        },
+      });
+      if (res.ok) {
+        const arrayBuf = await res.arrayBuffer();
+        const buffer = Buffer.from(arrayBuf);
+        return { buffer, fileName, mimeType, fileSize: buffer.length };
+      }
+    } catch (err) {
+      console.error('Error fetching file from ERPNext:', err);
+    }
+  }
+
+  // 3. Check inline base64 data URL
   if (doc.file_data && doc.file_data.startsWith('data:')) {
     const base64Index = doc.file_data.indexOf(';base64,');
     if (base64Index !== -1) {

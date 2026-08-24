@@ -31,6 +31,7 @@ export const projectFormSchema = z.object({
   company: z.string().optional(),
   department: z.string().optional(),
   owner: z.string().optional(),
+  custom_upload_document: z.string().optional(),
   notes: z.string().max(2000, 'Notes cannot exceed 2000 characters').optional(),
 });
 

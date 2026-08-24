@@ -25,6 +25,7 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import documentService from '@/services/document.service';
+import projectService from '@/services/project.service';
 import { auditService } from '@/services/audit.service';
 import { useAuth } from '@/providers/auth-context';
 
@@ -172,9 +173,22 @@ export function ProjectFormDialog({
       setFormError(null);
       const createdProj: any = await onSubmit(data, attachedFiles);
 
-      // Save attached files directly into document store linked to the Canonical Project ID & Name
-      const targetProjectId = createdProj?.name || createdProj?.project_name || data.project_name || 'NEW-PROJECT';
+      // Save attached files directly into ERPNext Project DocType and document store linked to Canonical Project ID
+      const targetProjectId = createdProj?.name || createdProj?.project_name || data.project_name || initialData?.name || 'NEW-PROJECT';
       for (const attFile of attachedFiles) {
+        // Upload directly to Frappe File DocType linked to Project and custom_upload_document
+        try {
+          await projectService.uploadProjectDocument(
+            targetProjectId,
+            attFile.file,
+            attFile.name,
+            'custom_upload_document'
+          );
+        } catch (erpUpErr) {
+          console.warn('ERPNext direct upload notice:', erpUpErr);
+        }
+
+        // Also sync to application document store
         await documentService.uploadDocument({
           title: attFile.name,
           project: targetProjectId,
@@ -184,6 +198,7 @@ export function ProjectFormDialog({
           file_name: attFile.name,
           file_size: attFile.size,
           file_url: attFile.dataUrl,
+          file_data: attFile.dataUrl,
           status: 'Approved',
           review_status: 'Approved',
           description: `Uploaded during project creation for ${data.project_name || targetProjectId}`,
@@ -194,7 +209,7 @@ export function ProjectFormDialog({
           'Uploaded Document',
           'Document',
           attFile.name,
-          `Attached ${attFile.name} to Project "${targetProjectId}" during project setup.`
+          `Attached ${attFile.name} to Project "${targetProjectId}" (custom_upload_document) during project setup.`
         );
       }
 
