@@ -101,7 +101,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     }
 
     const body = await req.json();
-    const doc = saveDocument({
+    const doc = await saveDocument({
       ...body,
       project: projectId,
       uploaded_by: session.fullName || body.uploaded_by || 'Administrator',

@@ -59,7 +59,7 @@ export async function POST(req: NextRequest) {
     }
 
     const body = await req.json();
-    const doc = saveDocument({
+    const doc = await saveDocument({
       ...body,
       uploaded_by: session.fullName || body.uploaded_by || 'Administrator',
     });
@@ -89,7 +89,7 @@ export async function DELETE(req: NextRequest) {
       return NextResponse.json({ _error_message: 'Document name is required.' }, { status: 400 });
     }
 
-    deleteDocument(name);
+    await deleteDocument(name);
     return NextResponse.json({ success: true });
   } catch (error: any) {
     return NextResponse.json(

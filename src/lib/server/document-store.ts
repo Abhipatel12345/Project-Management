@@ -1,118 +1,19 @@
 import fs from 'fs';
 import path from 'path';
 import { DocumentItem, DocumentListQueryParams, DocumentListResponse, DocumentSummary } from '@/types/document.types';
+import {
+  uploadDocumentFile,
+  retrieveDocumentFile,
+  deleteDocumentFile,
+  getMimeType,
+  RetrievedFileResult,
+} from './file-storage';
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const FILE_PATH = path.join(DATA_DIR, 'documents.json');
-const UPLOADS_DIR = path.join(DATA_DIR, 'uploads');
 
-export const getMimeType = (fileName?: string): string => {
-  if (!fileName) return 'application/octet-stream';
-  const ext = fileName.split('.').pop()?.toLowerCase() || '';
-  switch (ext) {
-    case 'pdf':
-      return 'application/pdf';
-    case 'xlsx':
-      return 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
-    case 'xls':
-      return 'application/vnd.ms-excel';
-    case 'docx':
-      return 'application/vnd.openxmlformats-officedocument.wordprocessingml.document';
-    case 'doc':
-      return 'application/msword';
-    case 'pptx':
-      return 'application/vnd.openxmlformats-officedocument.presentationml.presentation';
-    case 'ppt':
-      return 'application/vnd.ms-powerpoint';
-    case 'step':
-    case 'stp':
-      return 'application/step';
-    case 'dwg':
-      return 'application/acad';
-    case 'csv':
-      return 'text/csv; charset=utf-8';
-    case 'txt':
-    case 'log':
-      return 'text/plain; charset=utf-8';
-    case 'json':
-      return 'application/json';
-    case 'png':
-      return 'image/png';
-    case 'jpg':
-    case 'jpeg':
-      return 'image/jpeg';
-    case 'svg':
-      return 'image/svg+xml';
-    case 'zip':
-      return 'application/zip';
-    default:
-      return 'application/octet-stream';
-  }
-};
-
-const ensureDirectoryExists = (dir: string = DATA_DIR) => {
-  if (!fs.existsSync(dir)) {
-    fs.mkdirSync(dir, { recursive: true });
-  }
-};
-
-/**
- * Creates a minimal valid sample file buffer for seed documents if not uploaded yet
- */
-const createSampleBuffer = (fileName: string, title: string): Buffer => {
-  const ext = fileName.split('.').pop()?.toLowerCase() || '';
-  if (ext === 'pdf') {
-    // Minimal valid PDF binary
-    const pdfContent = `%PDF-1.4
-1 0 obj
-<< /Type /Catalog /Pages 2 0 R >>
-endobj
-2 0 obj
-<< /Type /Pages /Kids [3 0 R] /Count 1 >>
-endobj
-3 0 obj
-<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R /Resources << /Font << /F1 5 0 R >> >> >>
-endobj
-4 0 obj
-<< /Length 75 >>
-stream
-BT
-/F1 18 Tf
-50 700 Td
-(${title.replace(/[\(\)]/g, '')}) Tj
-ET
-endstream
-endobj
-5 0 obj
-<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>
-endobj
-xref
-0 6
-0000000000 65535 f 
-0000000009 00000 n 
-0000000058 00000 n 
-0000000115 00000 n 
-0000000244 00000 n 
-0000000369 00000 n 
-trailer
-<< /Size 6 /Root 1 0 R >>
-startxref
-448
-%%EOF`;
-    return Buffer.from(pdfContent, 'utf-8');
-  } else if (ext === 'step' || ext === 'stp') {
-    return Buffer.from(
-      `ISO-10303-21;\nHEADER;\nFILE_DESCRIPTION(('PDM CAD Model: ${title}'),'2;1');\nFILE_NAME('${fileName}','2026-08-01',('Lead Engineer'),('Automotive PDM'),'Inteva APQP','AutoCAD','');\nFILE_SCHEMA(('AUTOMOTIVE_DESIGN'));\nENDSEC;\nDATA;\n#1=APPLICATION_CONTEXT('automotive mechanical design');\nENDSEC;\nEND-ISO-10303-21;\n`,
-      'utf-8'
-    );
-  } else if (ext === 'xlsx' || ext === 'docx' || ext === 'zip') {
-    // Standard ZIP header PK\x03\x04
-    const zipHeader = Buffer.from([0x50, 0x4b, 0x03, 0x04, 0x0a, 0x00, 0x00, 0x00, 0x00, 0x00]);
-    const comment = Buffer.from(`\n${title} (Automotive PDM Document Archive)`, 'utf-8');
-    return Buffer.concat([zipHeader, comment]);
-  }
-  return Buffer.from(`Product Development Management Document\nTitle: ${title}\nFile: ${fileName}\nDate: 2026-08-01\n`, 'utf-8');
-};
+// In-memory cache for serverless environments
+let inMemoryDocs: DocumentItem[] | null = null;
 
 const getSeedDocuments = (): DocumentItem[] => [
   {
@@ -180,27 +81,31 @@ const getSeedDocuments = (): DocumentItem[] => [
 ];
 
 export const readDocumentsFile = (): DocumentItem[] => {
-  try {
-    ensureDirectoryExists(DATA_DIR);
-    if (!fs.existsSync(FILE_PATH)) {
-      const seed = getSeedDocuments();
-      fs.writeFileSync(FILE_PATH, JSON.stringify(seed, null, 2), 'utf-8');
-      return seed;
-    }
-    const raw = fs.readFileSync(FILE_PATH, 'utf-8');
-    return JSON.parse(raw);
-  } catch (err) {
-    console.error('Error reading documents.json:', err);
-    return getSeedDocuments();
+  if (inMemoryDocs && inMemoryDocs.length > 0) {
+    return inMemoryDocs;
   }
+  try {
+    if (fs.existsSync(FILE_PATH)) {
+      const raw = fs.readFileSync(FILE_PATH, 'utf-8');
+      inMemoryDocs = JSON.parse(raw);
+      return inMemoryDocs || getSeedDocuments();
+    }
+  } catch (err) {
+    console.error('Error reading documents.json, using seed documents:', err);
+  }
+  inMemoryDocs = getSeedDocuments();
+  return inMemoryDocs;
 };
 
 export const writeDocumentsFile = (docs: DocumentItem[]): void => {
+  inMemoryDocs = docs;
   try {
-    ensureDirectoryExists(DATA_DIR);
+    if (!fs.existsSync(DATA_DIR)) {
+      fs.mkdirSync(DATA_DIR, { recursive: true });
+    }
     fs.writeFileSync(FILE_PATH, JSON.stringify(docs, null, 2), 'utf-8');
-  } catch (err) {
-    console.error('Error writing documents.json:', err);
+  } catch {
+    // Filesystem may be read-only in Vercel serverless functions; in-memory cache handles current invocation
   }
 };
 
@@ -263,9 +168,9 @@ export const getDocumentsByProject = (projectId: string, searchParams?: Document
 };
 
 /**
- * Save a document record and store the actual binary file to disk
+ * Save a document record and store the physical file in object storage (Vercel Blob / local)
  */
-export const saveDocument = (doc: Partial<DocumentItem>): DocumentItem => {
+export const saveDocument = async (doc: Partial<DocumentItem>): Promise<DocumentItem> => {
   const allDocs = readDocumentsFile();
   const nextNum = allDocs.length + 1;
   const docId = doc.name || `DOC-2026-${String(nextNum).padStart(5, '0')}`;
@@ -273,24 +178,13 @@ export const saveDocument = (doc: Partial<DocumentItem>): DocumentItem => {
   const cleanFileName = path.basename(doc.file_name || `${doc.title || 'document'}.pdf`);
   const mime = doc.mime_type || getMimeType(cleanFileName);
 
-  // Setup project storage directory: .data/uploads/projects/<projectId>/<docId>/
-  const safeProj = projectId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const safeDocId = docId.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const targetDir = path.join(UPLOADS_DIR, 'projects', safeProj, safeDocId);
-  ensureDirectoryExists(targetDir);
-
-  const diskFilePath = path.join(targetDir, cleanFileName);
-  const relFilePath = path.join('.data', 'uploads', 'projects', safeProj, safeDocId, cleanFileName);
-
   let fileBuffer: Buffer | null = null;
   const rawData = doc.file_data || doc.file_url;
 
   if (rawData && rawData.startsWith('data:')) {
-    // Decode base64 Data URL
     const base64Index = rawData.indexOf(';base64,');
     if (base64Index !== -1) {
-      const base64Str = rawData.slice(base64Index + 8);
-      fileBuffer = Buffer.from(base64Str, 'base64');
+      fileBuffer = Buffer.from(rawData.slice(base64Index + 8), 'base64');
     } else {
       const commaIdx = rawData.indexOf(',');
       const rawPayload = commaIdx !== -1 ? rawData.slice(commaIdx + 1) : rawData;
@@ -298,18 +192,32 @@ export const saveDocument = (doc: Partial<DocumentItem>): DocumentItem => {
     }
   }
 
-  // If no buffer was passed, create sample content
-  if (!fileBuffer) {
-    if (!fs.existsSync(diskFilePath)) {
-      fileBuffer = createSampleBuffer(cleanFileName, doc.title || cleanFileName);
-    }
-  }
+  let storageInfo: {
+    storageType: 'vercel-blob' | 'local' | 'inline';
+    storageKey?: string;
+    blobUrl?: string;
+    filePath?: string;
+    fileSize: number;
+    mimeType: string;
+  } = {
+    storageType: (doc.storage_type || 'local') as 'vercel-blob' | 'local' | 'inline',
+    storageKey: doc.storage_key,
+    blobUrl: doc.blob_url,
+    filePath: doc.file_path,
+    fileSize: doc.file_size || (fileBuffer ? fileBuffer.length : 1024),
+    mimeType: mime,
+  };
 
   if (fileBuffer) {
-    fs.writeFileSync(diskFilePath, fileBuffer);
+    const uploaded = await uploadDocumentFile({
+      projectId,
+      documentId: docId,
+      fileName: cleanFileName,
+      buffer: fileBuffer,
+      mimeType: mime,
+    });
+    storageInfo = uploaded;
   }
-
-  const finalFileSize = fileBuffer ? fileBuffer.length : (fs.existsSync(diskFilePath) ? fs.statSync(diskFilePath).size : (doc.file_size || 1024));
 
   const newDoc: DocumentItem = {
     name: docId,
@@ -322,10 +230,13 @@ export const saveDocument = (doc: Partial<DocumentItem>): DocumentItem => {
     status: doc.status || 'Approved',
     review_status: doc.review_status || 'Approved',
     file_name: cleanFileName,
-    file_size: finalFileSize,
-    mime_type: mime,
-    file_path: relFilePath,
-    file_url: `/api/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(docId)}/download`,
+    file_size: storageInfo.fileSize,
+    mime_type: storageInfo.mimeType,
+    storage_type: storageInfo.storageType,
+    storage_key: storageInfo.storageKey,
+    blob_url: storageInfo.blobUrl,
+    file_path: storageInfo.filePath,
+    file_url: storageInfo.blobUrl || `/api/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(docId)}/download`,
     description: doc.description || '',
     notes: doc.notes || '',
   };
@@ -344,10 +255,10 @@ export const saveDocument = (doc: Partial<DocumentItem>): DocumentItem => {
 /**
  * Retrieves the stored binary file buffer, filename, and mime type for download
  */
-export const getDocumentBinary = (
+export const getDocumentBinary = async (
   projectId: string,
   docId: string
-): { buffer: Buffer; fileName: string; mimeType: string; fileSize: number; document: DocumentItem } | null => {
+): Promise<{ buffer: Buffer; fileName: string; mimeType: string; fileSize: number; document: DocumentItem } | null> => {
   const allDocs = readDocumentsFile();
   const normProj = (projectId || '').toLowerCase().trim();
   const normDoc = (docId || '').toLowerCase().trim();
@@ -362,62 +273,30 @@ export const getDocumentBinary = (
 
   if (!doc) return null;
 
-  const fileName = doc.file_name || `${doc.title || 'document'}.pdf`;
-  const mimeType = doc.mime_type || getMimeType(fileName);
+  const result: RetrievedFileResult | null = await retrieveDocumentFile(doc);
+  if (!result) return null;
 
-  // Check stored disk path
-  if (doc.file_path) {
-    const absPath = path.isAbsolute(doc.file_path) ? doc.file_path : path.join(process.cwd(), doc.file_path);
-    if (fs.existsSync(absPath)) {
-      const buffer = fs.readFileSync(absPath);
-      return { buffer, fileName, mimeType, fileSize: buffer.length, document: doc };
-    }
-  }
-
-  // Check standard project upload path
-  const safeProj = (doc.project || 'Global_Vault').replace(/[^a-zA-Z0-9_-]/g, '_');
-  const safeDocId = doc.name.replace(/[^a-zA-Z0-9_-]/g, '_');
-  const stdPath = path.join(UPLOADS_DIR, 'projects', safeProj, safeDocId, fileName);
-  if (fs.existsSync(stdPath)) {
-    const buffer = fs.readFileSync(stdPath);
-    return { buffer, fileName, mimeType, fileSize: buffer.length, document: doc };
-  }
-
-  // Check data URL fallback
-  if (doc.file_url && doc.file_url.startsWith('data:')) {
-    const base64Index = doc.file_url.indexOf(';base64,');
-    if (base64Index !== -1) {
-      const base64Str = doc.file_url.slice(base64Index + 8);
-      const buffer = Buffer.from(base64Str, 'base64');
-      return { buffer, fileName, mimeType, fileSize: buffer.length, document: doc };
-    }
-  }
-
-  // Create sample buffer if seed document
-  const buffer = createSampleBuffer(fileName, doc.title || fileName);
-  ensureDirectoryExists(path.dirname(stdPath));
-  fs.writeFileSync(stdPath, buffer);
-
-  return { buffer, fileName, mimeType, fileSize: buffer.length, document: doc };
+  return {
+    buffer: result.buffer,
+    fileName: result.fileName,
+    mimeType: result.mimeType,
+    fileSize: result.fileSize,
+    document: doc,
+  };
 };
 
-export const deleteDocument = (name: string): boolean => {
+export const deleteDocument = async (name: string): Promise<boolean> => {
   const allDocs = readDocumentsFile();
   const doc = allDocs.find((d) => d.name === name);
   const filtered = allDocs.filter((d) => d.name !== name);
   if (filtered.length !== allDocs.length) {
     writeDocumentsFile(filtered);
-    if (doc?.file_path) {
-      const absPath = path.isAbsolute(doc.file_path) ? doc.file_path : path.join(process.cwd(), doc.file_path);
-      if (fs.existsSync(absPath)) {
-        try {
-          fs.unlinkSync(absPath);
-        } catch {
-          // ignore
-        }
-      }
+    if (doc) {
+      await deleteDocumentFile(doc);
     }
     return true;
   }
   return false;
 };
+
+export { getMimeType };

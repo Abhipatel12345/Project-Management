@@ -57,7 +57,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ name: str
       }
     }
 
-    const result = getDocumentBinary(doc.project || 'Global Vault', documentId);
+    const result = await getDocumentBinary(doc.project || 'Global Vault', documentId);
     if (!result) {
       return NextResponse.json(
         { _error_message: 'Document file not found in storage.' },

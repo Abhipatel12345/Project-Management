@@ -47,8 +47,8 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       );
     }
 
-    // Retrieve the actual binary file from disk
-    const result = getDocumentBinary(projectId, documentId);
+    // Retrieve the actual binary file from storage
+    const result = await getDocumentBinary(projectId, documentId);
 
     if (!result) {
       return NextResponse.json(

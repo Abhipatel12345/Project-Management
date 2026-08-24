@@ -38,6 +38,9 @@ export interface DocumentItem {
   file_size?: number;
   file_path?: string;
   mime_type?: string;
+  storage_key?: string;
+  blob_url?: string;
+  storage_type?: 'vercel-blob' | 'local' | 'inline';
   file_data?: string;
   description?: string;
   notes?: string;

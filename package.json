@@ -16,6 +16,7 @@
     "@hookform/resolvers": "^3.9.1",
     "@tanstack/react-query": "^5.62.7",
     "@tanstack/react-table": "^8.20.5",
+    "@vercel/blob": "^2.8.0",
     "axios": "^1.7.9",
     "clsx": "^2.1.1",
     "framer-motion": "^11.15.0",
