@@ -26,6 +26,8 @@ import { Pagination } from '@/components/shared/pagination';
 import { ImportExportControls } from '@/components/shared/import-export-controls';
 import { useAuth } from '@/providers/auth-context';
 import { useToast } from '@/providers/toast-context';
+import documentService from '@/services/document.service';
+import { auditService } from '@/services/audit.service';
 import {
   Search,
   Plus,
@@ -47,6 +49,10 @@ import {
   ShieldAlert,
   X,
   SkipForward,
+  UploadCloud,
+  Paperclip,
+  FileText,
+  Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -95,6 +101,9 @@ export default function GlobalTaskManagementPage() {
   const [submittingTask, setSubmittingTask] = useState<Task | null>(null);
   const [submissionComment, setSubmissionComment] = useState('');
   const [submissionProgress, setSubmissionProgress] = useState(100);
+  const [submissionFiles, setSubmissionFiles] = useState<
+    { name: string; size: number; file: File; dataUrl: string }[]
+  >([]);
   const [isSubmittingAction, setIsSubmittingAction] = useState(false);
 
   // Review State
@@ -118,8 +127,8 @@ export default function GlobalTaskManagementPage() {
     priority: selectedPriority,
     assigned_to: selectedAssignee,
     is_overdue: showOverdueOnly,
-    page: 1,
-    pageSize: 100,
+    page,
+    pageSize,
   });
 
   const tasks = data?.tasks || [];
@@ -969,7 +978,7 @@ export default function GlobalTaskManagementPage() {
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-slate-700">Submission Comment & Deliverables Summary</label>
                   <textarea
-                    rows={4}
+                    rows={3}
                     value={submissionComment}
                     onChange={(e) => setSubmissionComment(e.target.value)}
                     placeholder="Provide notes on completed deliverables, testing results, or CAD specification release..."
@@ -977,17 +986,87 @@ export default function GlobalTaskManagementPage() {
                   />
                 </div>
 
+                {/* File Upload Zone */}
+                <div className="space-y-2">
+                  <label className="block text-xs font-bold text-slate-700 flex items-center justify-between">
+                    <span className="flex items-center gap-1.5">
+                      <Paperclip className="h-3.5 w-3.5 text-sky-600" />
+                      Supporting Deliverables & Task Documents
+                    </span>
+                    <span className="text-[10px] text-slate-400">PDF, DOCX, XLSX, Images</span>
+                  </label>
+
+                  <label className="p-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition text-center cursor-pointer flex flex-col items-center justify-center gap-1">
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={(e) => {
+                        if (!e.target.files) return;
+                        Array.from(e.target.files).forEach((file) => {
+                          const reader = new FileReader();
+                          reader.onload = () => {
+                            setSubmissionFiles((prev) => [
+                              ...prev,
+                              {
+                                name: file.name,
+                                size: file.size,
+                                file,
+                                dataUrl: reader.result as string,
+                              },
+                            ]);
+                          };
+                          reader.readAsDataURL(file);
+                        });
+                      }}
+                    />
+                    <UploadCloud className="h-5 w-5 text-sky-600" />
+                    <p className="text-xs font-bold text-slate-700">Click to attach task files / deliverables</p>
+                    <p className="text-[10px] text-slate-400">Files will be attached to this task & available to Stage-Gates.</p>
+                  </label>
+
+                  {/* Attached files list */}
+                  {submissionFiles.length > 0 && (
+                    <div className="space-y-1 pt-1">
+                      {submissionFiles.map((f, idx) => (
+                        <div
+                          key={idx}
+                          className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between text-xs shadow-2xs"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <FileText className="h-4 w-4 text-sky-600 shrink-0" />
+                            <span className="font-bold text-slate-800 truncate">{f.name}</span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              ({(f.size / 1024).toFixed(0)} KB)
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => setSubmissionFiles((prev) => prev.filter((_, i) => i !== idx))}
+                            className="p-1 text-slate-400 hover:text-rose-600 rounded-lg transition cursor-pointer"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex items-center justify-end gap-3 pt-4 border-t border-slate-100">
                   <button
-                    onClick={() => setSubmittingTask(null)}
-                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold"
+                    onClick={() => {
+                      setSubmittingTask(null);
+                      setSubmissionFiles([]);
+                    }}
+                    className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold cursor-pointer"
                   >
                     Cancel
                   </button>
                   <button
                     onClick={handleTaskSubmissionSubmit}
                     disabled={isSubmittingAction}
-                    className="flex items-center gap-2 px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-xs"
+                    className="flex items-center gap-2 px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-xs cursor-pointer disabled:opacity-50"
                   >
                     {isSubmittingAction && <Loader2 className="h-4 w-4 animate-spin" />}
                     <span>Submit Work Package</span>

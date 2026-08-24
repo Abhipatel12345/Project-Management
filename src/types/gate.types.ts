@@ -54,6 +54,7 @@ export interface GateDeliverable {
   name: string;
   description?: string;
   responsible_person?: string;
+  responsible_user_id?: string;
   project?: string;
   due_date?: string;
   status: DeliverableStatus;
@@ -61,6 +62,10 @@ export interface GateDeliverable {
   is_required: boolean;
   document_reference?: string;
   related_task?: string;
+  approved_by?: string;
+  approved_at?: string;
+  approval_status?: 'Not Started' | 'Submitted' | 'Under Review' | 'Approved' | 'Rejected' | string;
+  approval_comment?: string;
 }
 
 export interface GateReviewRecord {

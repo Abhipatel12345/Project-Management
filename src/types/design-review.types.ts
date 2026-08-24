@@ -46,6 +46,19 @@ export interface DesignReview {
   description?: string;
   notes?: string;
   findings: ReviewFinding[];
+  documents?: {
+    id: string;
+    name: string;
+    file_name: string;
+    file_url?: string;
+    file_size?: number;
+    mime_type?: string;
+    uploaded_by?: string;
+    uploaded_at?: string;
+  }[];
+  approved_by?: string;
+  approved_at?: string;
+  approval_comment?: string;
   creation?: string;
   modified?: string;
   owner?: string;

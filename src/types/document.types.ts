@@ -44,6 +44,9 @@ export interface DocumentItem {
   file_data?: string;
   description?: string;
   notes?: string;
+  task?: string;
+  entity_type?: 'Project' | 'Task' | 'DesignReview' | 'Gate' | 'GateDeliverable' | 'BOM' | 'MaterialRequest' | string;
+  entity_id?: string;
   modified?: string;
   owner?: string;
 }
@@ -57,6 +60,9 @@ export interface DocumentSummary {
 
 export interface DocumentListQueryParams {
   project?: string;
+  task?: string;
+  entity_type?: string;
+  entity_id?: string;
   search?: string;
   document_type?: string;
   status?: string;

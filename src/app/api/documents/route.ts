@@ -25,6 +25,9 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const project = searchParams.get('project') || 'ALL';
+    const task = searchParams.get('task') || undefined;
+    const entity_type = searchParams.get('entity_type') || undefined;
+    const entity_id = searchParams.get('entity_id') || undefined;
     const search = searchParams.get('search') || undefined;
     const document_type = searchParams.get('document_type') || undefined;
     const status = searchParams.get('status') || undefined;
@@ -32,6 +35,9 @@ export async function GET(req: NextRequest) {
     const pageSize = parseInt(searchParams.get('pageSize') || '100', 10);
 
     const res = await getDocumentsByProject(project, {
+      task,
+      entity_type,
+      entity_id,
       search,
       document_type,
       status,

@@ -37,7 +37,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
   const [userMenuOpen, setUserMenuOpen] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  
+
   // Track open accordion state for items with children
   const [openItems, setOpenItems] = useState<Record<string, boolean>>({
     Projects: true,
@@ -111,7 +111,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 NETLINK
               </span>
               <span className="text-[10px] font-bold text-[#0B74DE] tracking-wider uppercase">
-                PROCUREMENT & PDM
+                PROJECT MANAGEMENT
               </span>
             </div>
           </div>

@@ -4,6 +4,8 @@ import React, { useState } from 'react';
 import Link from 'next/link';
 import { useParams, useRouter } from 'next/navigation';
 import { useProject, useUpdateProject, useDeleteProject } from '@/hooks/use-projects';
+import { useTasks } from '@/hooks/use-tasks';
+import { useGates } from '@/hooks/use-gates';
 import { ProjectStatusBadge } from '@/components/projects/project-status-badge';
 import { ProjectPriorityBadge } from '@/components/projects/project-priority-badge';
 import { ProjectFormDialog } from '@/components/projects/project-form-dialog';
@@ -16,6 +18,7 @@ import { ProjectDesignReviewsTab } from '@/components/projects/design-review/pro
 import { ProjectGatesTab } from '@/components/projects/gates/project-gates-tab';
 import { ProjectPlanningTab } from '@/components/projects/planning/project-planning-tab';
 import { ProjectConnectionsTab } from '@/components/projects/connections/project-connections-tab';
+import { ProjectActivityTab } from '@/components/projects/activity/project-activity-tab';
 import { AccessDenied } from '@/components/shared/access-denied';
 import { useAuth } from '@/providers/auth-context';
 import {
@@ -63,8 +66,53 @@ export default function ProjectDetailPage() {
   >('overview');
 
   const { data: project, isLoading, isError, error, refetch } = useProject(projectId);
+  const { data: tasksData } = useTasks({ project: projectId, pageSize: 100 });
+  const { data: gatesData } = useGates({ project: projectId });
+
   const updateProjectMutation = useUpdateProject();
   const deleteProjectMutation = useDeleteProject();
+
+  const projectTasks = tasksData?.tasks || [];
+  const projectGates = gatesData?.gates || [];
+
+  // Separate calculations:
+  // 1. Task Completion %
+  const completedTasksCount = projectTasks.filter((t: any) => t.status === 'Completed').length;
+  const taskCompletionPct =
+    projectTasks.length > 0 ? Math.round((completedTasksCount / projectTasks.length) * 100) : 0;
+
+  // 2. Gate Readiness % (aggregate across project gates)
+  let totalRequiredGateItems = 0;
+  let completedRequiredGateItems = 0;
+  projectGates.forEach((g: any) => {
+    const reqCrit = (g.criteria || []).filter((c: any) => c.is_required && c.status !== 'Not Applicable');
+    const reqDel = (g.deliverables || []).filter((d: any) => d.is_required);
+    totalRequiredGateItems += reqCrit.length + reqDel.length;
+    completedRequiredGateItems +=
+      reqCrit.filter((c: any) => c.status === 'Completed').length +
+      reqDel.filter((d: any) => d.status === 'Approved' || d.status === 'Completed').length;
+  });
+  const gateReadinessPct =
+    totalRequiredGateItems > 0
+      ? Math.round((completedRequiredGateItems / totalRequiredGateItems) * 100)
+      : projectGates.length > 0
+      ? 100
+      : 0;
+
+  // 3. Charter Completion % (based on charter fields and setup)
+  let charterPoints = 0;
+  if (project?.project_name) charterPoints += 20;
+  if (project?.notes && project.notes.length > 10) charterPoints += 25;
+  if (project?.expected_start_date && project?.expected_end_date) charterPoints += 25;
+  if (project?.estimated_cost && project.estimated_cost > 0) charterPoints += 15;
+  if (project?.project_type) charterPoints += 15;
+  const charterCompletionPct = Math.min(charterPoints, 100);
+
+  // 4. Overall Project Progress
+  const overallProjectProgress =
+    typeof project?.percent_complete === 'number' && project.percent_complete > 0
+      ? project.percent_complete
+      : taskCompletionPct;
 
   const handleCreateTeamClick = () => {
     setActiveTab('team');
@@ -203,19 +251,48 @@ export default function ProjectDetailPage() {
             </p>
           </div>
 
-          {/* Completion Progress Bar */}
-          <div className="p-4 rounded-xl bg-white border border-sky-200/80 min-w-[240px] space-y-2 shadow-2xs">
-            <div className="flex items-center justify-between text-xs">
-              <span className="text-slate-500 font-bold">Charter Completion</span>
-              <span className="text-sm font-black text-sky-600">
-                {project.percent_complete || 0}%
-              </span>
+          {/* Metrics Progression Cards: Project Progress, Gate Readiness & Charter Completion */}
+          <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 min-w-[320px]">
+            {/* Overall Project Progress */}
+            <div className="p-3.5 rounded-xl bg-white border border-sky-200/80 space-y-1.5 shadow-2xs">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600 font-bold">Project Progress</span>
+                <span className="text-xs font-black text-sky-700">{overallProjectProgress}%</span>
+              </div>
+              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-sky-600 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(overallProjectProgress, 100)}%` }}
+                />
+              </div>
             </div>
-            <div className="h-2.5 w-full bg-slate-100 rounded-full overflow-hidden border border-slate-200/60">
-              <div
-                className="h-full bg-gradient-to-r from-sky-500 to-blue-600 rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(project.percent_complete || 0, 100)}%` }}
-              />
+
+            {/* Stage Gate Readiness */}
+            <div className="p-3.5 rounded-xl bg-white border border-emerald-200/80 space-y-1.5 shadow-2xs">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600 font-bold">Gate Readiness</span>
+                <span className="text-xs font-black text-emerald-700">{gateReadinessPct}%</span>
+              </div>
+              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-emerald-600 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(gateReadinessPct, 100)}%` }}
+                />
+              </div>
+            </div>
+
+            {/* Charter Definition */}
+            <div className="p-3.5 rounded-xl bg-white border border-indigo-200/80 space-y-1.5 shadow-2xs">
+              <div className="flex items-center justify-between text-xs">
+                <span className="text-slate-600 font-bold">Charter Setup</span>
+                <span className="text-xs font-black text-indigo-700">{charterCompletionPct}%</span>
+              </div>
+              <div className="h-2 w-full bg-slate-100 rounded-full overflow-hidden">
+                <div
+                  className="h-full bg-indigo-600 rounded-full transition-all duration-500"
+                  style={{ width: `${Math.min(charterCompletionPct, 100)}%` }}
+                />
+              </div>
             </div>
           </div>
         </div>
@@ -579,19 +656,10 @@ export default function ProjectDetailPage() {
 
       {/* Tab 7: ACTIVITY */}
       {activeTab === 'activity' && (
-        <div className="p-12 rounded-2xl bg-white border border-slate-200 shadow-xs text-center space-y-4">
-          <div className="h-14 w-14 rounded-2xl bg-purple-50 text-purple-600 border border-purple-200 flex items-center justify-center mx-auto shadow-xs">
-            <Activity className="h-7 w-7" />
-          </div>
-          <div>
-            <h3 className="text-lg font-extrabold text-slate-900">
-              System Audit Trail & Version Logs ({project.project_name})
-            </h3>
-            <p className="text-xs text-slate-500 max-w-md mx-auto mt-1">
-              Real-time audit log of team member additions, charter modifications, and gate sign-offs.
-            </p>
-          </div>
-        </div>
+        <ProjectActivityTab
+          projectId={projectId}
+          projectName={project.project_name || project.name}
+        />
       )}
 
       {/* Tab 8: CONNECTIONS */}

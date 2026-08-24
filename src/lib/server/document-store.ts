@@ -252,6 +252,25 @@ export const getDocumentsByProject = async (
     }
   }
 
+  if (searchParams?.task && searchParams.task !== 'ALL') {
+    const taskNorm = searchParams.task.toLowerCase().trim();
+    filtered = filtered.filter(
+      (d) =>
+        (d.task && d.task.toLowerCase().trim() === taskNorm) ||
+        (d.entity_type === 'Task' && d.entity_id && d.entity_id.toLowerCase().trim() === taskNorm) ||
+        (d.description && d.description.toLowerCase().includes(taskNorm))
+    );
+  }
+
+  if (searchParams?.entity_type && searchParams.entity_type !== 'ALL') {
+    filtered = filtered.filter((d) => d.entity_type === searchParams.entity_type);
+  }
+
+  if (searchParams?.entity_id && searchParams.entity_id !== 'ALL') {
+    const entNorm = searchParams.entity_id.toLowerCase().trim();
+    filtered = filtered.filter((d) => d.entity_id && d.entity_id.toLowerCase().trim() === entNorm);
+  }
+
   if (searchParams?.search && searchParams.search.trim() !== '') {
     const q = searchParams.search.toLowerCase().trim();
     filtered = filtered.filter(
@@ -259,7 +278,8 @@ export const getDocumentsByProject = async (
         d.name.toLowerCase().includes(q) ||
         d.title.toLowerCase().includes(q) ||
         (d.file_name && d.file_name.toLowerCase().includes(q)) ||
-        (d.description && d.description.toLowerCase().includes(q))
+        (d.description && d.description.toLowerCase().includes(q)) ||
+        (d.task && d.task.toLowerCase().includes(q))
     );
   }
 
@@ -354,6 +374,9 @@ export const saveDocument = async (doc: Partial<DocumentItem>): Promise<Document
     file_url: finalFileUrl,
     description: doc.description || '',
     notes: doc.notes || '',
+    task: doc.task,
+    entity_type: doc.entity_type,
+    entity_id: doc.entity_id,
   };
 
   const existingIdx = allDocs.findIndex((d) => d.name === newDoc.name);

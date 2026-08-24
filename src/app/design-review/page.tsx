@@ -130,6 +130,45 @@ export default function DesignReviewPage() {
     }
   };
 
+  const handleUpdateReviewStatus = async (
+    reviewName: string,
+    status: any,
+    approvalStatus: any,
+    approvedBy?: string,
+    comment?: string
+  ) => {
+    try {
+      await updateReviewMutation.mutateAsync({
+        name: reviewName,
+        data: {
+          status,
+          approval_status: approvalStatus,
+          approved_by: approvedBy,
+          approved_at: new Date().toISOString(),
+          approval_comment: comment,
+        },
+      });
+      showToast(`Design Review ${reviewName} updated to ${approvalStatus}`, 'success');
+      refetch();
+      if (viewingReview && viewingReview.name === reviewName) {
+        setViewingReview((prev) =>
+          prev
+            ? {
+                ...prev,
+                status,
+                approval_status: approvalStatus,
+                approved_by: approvedBy,
+                approved_at: new Date().toISOString(),
+                approval_comment: comment,
+              }
+            : null
+        );
+      }
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update review status', 'error');
+    }
+  };
+
   const handleDeleteReview = async (reviewName: string) => {
     if (!confirm(`Are you sure you want to delete design review ${reviewName}?`)) return;
     try {
@@ -230,6 +269,7 @@ export default function DesignReviewPage() {
           }}
           onDelete={handleDeleteReview}
           onAddFinding={handleAddFinding}
+          onUpdateReviewStatus={handleUpdateReviewStatus}
         />
       )}
     </div>

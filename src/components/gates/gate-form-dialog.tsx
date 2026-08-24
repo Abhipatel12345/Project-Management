@@ -3,7 +3,8 @@ import { useForm } from 'react-hook-form';
 import { Gate, GateType, GateStatus, GateApprovalStatus } from '@/types/gate.types';
 import { Project } from '@/types/project.types';
 import { useProjects } from '@/hooks/use-projects';
-import { X, Loader2, Lock } from 'lucide-react';
+import { useAvailableEmployees } from '@/hooks/use-project-team';
+import { X, Loader2, Lock, User } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export interface GateFormValues {
@@ -35,7 +36,11 @@ export function GateFormDialog({
 }: GateFormDialogProps) {
   const isEditing = !!initialData;
   const { data: projectsData } = useProjects({ page: 1, pageSize: 50 });
+  const { data: employees = [] } = useAvailableEmployees('');
   const projects: Project[] = projectsData?.projects || [];
+
+  const defaultOwner =
+    employees.length > 0 ? employees[0].full_name || employees[0].name : 'Sarah Jenkins';
 
   const {
     register,
@@ -49,7 +54,7 @@ export function GateFormDialog({
       gate_type: 'Concept & Charter',
       planned_date: new Date().toISOString().split('T')[0],
       actual_date: '',
-      gate_owner: 'Program Director',
+      gate_owner: defaultOwner,
       status: 'Not Started',
       approval_status: 'Pending',
       description: '',
@@ -179,12 +184,25 @@ export function GateFormDialog({
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700">Gate Owner / Lead</label>
-                <input
-                  type="text"
+                <select
                   {...register('gate_owner')}
-                  placeholder="e.g. Program Director"
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
-                />
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 transition cursor-pointer"
+                >
+                  {employees.length > 0 ? (
+                    employees.map((emp: any) => (
+                      <option key={emp.name || emp.email} value={emp.full_name || emp.name}>
+                        {emp.full_name || emp.name} ({emp.designation || 'Team Lead'})
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Sarah Jenkins">Sarah Jenkins (Project Manager)</option>
+                      <option value="Yash">Yash (Team Member)</option>
+                      <option value="Administrator">Administrator (PMO / Administrator)</option>
+                      <option value="Quality Manager">Quality Manager (Gate Reviewer)</option>
+                    </>
+                  )}
+                </select>
               </div>
 
               <div className="space-y-1.5">

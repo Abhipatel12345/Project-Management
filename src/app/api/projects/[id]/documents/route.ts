@@ -44,6 +44,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     }
 
     const { searchParams } = new URL(req.url);
+    const task = searchParams.get('task') || undefined;
+    const entity_type = searchParams.get('entity_type') || undefined;
+    const entity_id = searchParams.get('entity_id') || undefined;
     const search = searchParams.get('search') || undefined;
     const document_type = searchParams.get('document_type') || undefined;
     const status = searchParams.get('status') || undefined;
@@ -52,6 +55,9 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
     // Fetch documents linked to project from persistent server store and live ERPNext attachments
     const res = await getDocumentsByProject(projectId, {
+      task,
+      entity_type,
+      entity_id,
       search,
       document_type,
       status,

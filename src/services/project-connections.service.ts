@@ -222,8 +222,34 @@ export const projectConnectionsService = {
     data: Record<string, any>
   ): Promise<ConnectionRecordItem> {
     try {
+      const payload = { ...data };
+
+      // Ensure required child table rows for Material Request in ERPNext
+      if (doctype === 'Material Request' && (!payload.items || payload.items.length === 0)) {
+        payload.items = [
+          {
+            item_code: payload.item_code || payload.item || 'RAW-MAT-001',
+            qty: Number(payload.qty) || 1,
+            schedule_date: payload.schedule_date || new Date().toISOString().split('T')[0],
+            uom: 'Nos',
+          },
+        ];
+      }
+
+      // Ensure required child table rows for BOM in ERPNext
+      if (doctype === 'BOM' && (!payload.items || payload.items.length === 0)) {
+        payload.items = [
+          {
+            item_code: 'PART-001',
+            qty: 1,
+            uom: 'Nos',
+            rate: 50,
+          },
+        ];
+      }
+
       const url = `/api/resource/${encodeURIComponent(doctype)}`;
-      const response = await api.post<{ data: ConnectionRecordItem }>(url, data);
+      const response = await api.post<{ data: ConnectionRecordItem }>(url, payload);
       return response.data;
     } catch (error: any) {
       console.error(`[ERPNext Connection Service] Error creating ${doctype} record:`, error);
