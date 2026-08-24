@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PDMUserSession } from '@/types/auth.types';
 
+export const dynamic = 'force-dynamic';
+
 export async function GET(req: NextRequest) {
   try {
     const pdmCookie = req.cookies.get('pdm_session')?.value;

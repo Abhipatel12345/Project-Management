@@ -411,6 +411,7 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
       <TaskDetailModal
         task={viewingTask}
         onClose={() => setViewingTask(null)}
+        onRefresh={refetch}
         onEdit={(t) => {
           setViewingTask(null);
           setEditingTask(t);

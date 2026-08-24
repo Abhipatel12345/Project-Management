@@ -25,6 +25,7 @@ interface DocumentTableViewProps {
   onViewDocument: (doc: DocumentItem) => void;
   onEditDocument: (doc: DocumentItem) => void;
   onDeleteDocument: (docName: string) => void;
+  onDownloadDocument?: (doc: DocumentItem) => void;
 }
 
 export function DocumentTableView({
@@ -34,6 +35,7 @@ export function DocumentTableView({
   onViewDocument,
   onEditDocument,
   onDeleteDocument,
+  onDownloadDocument,
 }: DocumentTableViewProps) {
   const [searchQuery, setSearchQuery] = useState('');
   const [typeFilter, setTypeFilter] = useState('ALL');
@@ -235,6 +237,21 @@ export function DocumentTableView({
                     {/* Actions */}
                     <td className="py-3 px-4 text-right">
                       <div className="flex items-center justify-end gap-1">
+                        <button
+                          onClick={() => {
+                            if (onDownloadDocument) {
+                              onDownloadDocument(doc);
+                            } else {
+                              import('@/services/document.service').then(({ documentService }) => {
+                                documentService.downloadDocument(doc.project, doc.name, doc.file_name || doc.title);
+                              });
+                            }
+                          }}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition cursor-pointer"
+                          title="Download Document"
+                        >
+                          <Download className="h-4 w-4" />
+                        </button>
                         <button
                           onClick={() => onViewDocument(doc)}
                           className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition cursor-pointer"

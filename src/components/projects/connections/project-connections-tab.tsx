@@ -94,7 +94,7 @@ export function ProjectConnectionsTab({ projectId, projectName }: ProjectConnect
         <button
           onClick={() => refetch()}
           disabled={isLoading}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer shrink-0"
+          className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold border border-slate-200 shadow-xs transition disabled:opacity-50 cursor-pointer shrink-0"
         >
           <RefreshCw className={`h-3.5 w-3.5 ${isLoading ? 'animate-spin' : ''}`} />
           <span>Refresh Connections</span>

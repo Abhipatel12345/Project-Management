@@ -5,6 +5,9 @@ export interface PDMPermissions {
   manageProjects: boolean;
   manageTasks: boolean;
   manageDeliverables: boolean;
+  manageTeamMembers: boolean;
+  manageBoardMembers: boolean;
+  manageProjectSettings: boolean;
   reviewGates: boolean;
   approveGates: boolean;
   reviewDesign: boolean;

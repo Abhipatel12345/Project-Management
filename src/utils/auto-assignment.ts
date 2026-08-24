@@ -38,11 +38,21 @@ export function findMatchingTeamMember(
       matchReasons.push(`Department match (${member.department})`);
     }
 
-    // 2. Role / Function keyword matches (+20 points each)
+    // 2. Role / Function keyword matches (+25 points each)
     const keywords = [
       'battery',
       'cad',
       'chassis',
+      'door',
+      'panel',
+      'handle',
+      'locking',
+      'lock',
+      'mechanical',
+      'system',
+      'systems',
+      'engineer',
+      'engineering',
       'quality',
       'validation',
       'powertrain',
@@ -58,7 +68,7 @@ export function findMatchingTeamMember(
 
     for (const kw of keywords) {
       if (subjectLower.includes(kw)) {
-        if (memberRole.includes(kw) || memberFunc.includes(kw)) {
+        if (memberRole.includes(kw) || memberFunc.includes(kw) || memberDept.includes(kw)) {
           score += 25;
           matchReasons.push(`Skill/Keyword match ("${kw}")`);
         }

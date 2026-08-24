@@ -249,9 +249,10 @@ export function TaskFormDialog({
                       const subject = watch('subject');
                       const match = findMatchingTeamMember(subject, '', teamMembers);
                       if (match) {
-                        (setValue as any)('assigned_to', match.member.employee_name);
+                        const targetVal = match.member.user_email || match.member.employee_name;
+                        setValue('assigned_to', targetVal);
                         if (!watch('rasic_responsible')) {
-                          (setValue as any)('rasic_responsible', match.member.employee_name);
+                          setValue('rasic_responsible', targetVal);
                         }
                       }
                     }}
@@ -267,7 +268,7 @@ export function TaskFormDialog({
                 >
                   <option value="">Unassigned</option>
                   {teamMembers.map((tm: ProjectTeamMember) => (
-                    <option key={tm.id} value={tm.employee_name}>
+                    <option key={tm.id} value={tm.user_email || tm.employee_name}>
                       {tm.employee_name} ({tm.role} — {tm.department})
                     </option>
                   ))}
@@ -389,8 +390,8 @@ export function TaskFormDialog({
                   >
                     <option value="">Select Team Member</option>
                     {teamMembers.map((tm: ProjectTeamMember) => (
-                      <option key={tm.id} value={tm.employee_name}>
-                        {tm.employee_name}
+                      <option key={tm.id} value={tm.user_email || tm.employee_name}>
+                        {tm.employee_name} ({tm.role})
                       </option>
                     ))}
                   </select>
@@ -403,8 +404,8 @@ export function TaskFormDialog({
                   >
                     <option value="">Select Team Member</option>
                     {teamMembers.map((tm: ProjectTeamMember) => (
-                      <option key={tm.id} value={tm.employee_name}>
-                        {tm.employee_name}
+                      <option key={tm.id} value={tm.user_email || tm.employee_name}>
+                        {tm.employee_name} ({tm.role})
                       </option>
                     ))}
                   </select>
@@ -417,8 +418,8 @@ export function TaskFormDialog({
                   >
                     <option value="">Select Team Member</option>
                     {teamMembers.map((tm: ProjectTeamMember) => (
-                      <option key={tm.id} value={tm.employee_name}>
-                        {tm.employee_name}
+                      <option key={tm.id} value={tm.user_email || tm.employee_name}>
+                        {tm.employee_name} ({tm.role})
                       </option>
                     ))}
                   </select>
@@ -431,8 +432,8 @@ export function TaskFormDialog({
                   >
                     <option value="">Select Team Member</option>
                     {teamMembers.map((tm: ProjectTeamMember) => (
-                      <option key={tm.id} value={tm.employee_name}>
-                        {tm.employee_name}
+                      <option key={tm.id} value={tm.user_email || tm.employee_name}>
+                        {tm.employee_name} ({tm.role})
                       </option>
                     ))}
                   </select>
@@ -445,8 +446,8 @@ export function TaskFormDialog({
                   >
                     <option value="">Select Team Member</option>
                     {teamMembers.map((tm: ProjectTeamMember) => (
-                      <option key={tm.id} value={tm.employee_name}>
-                        {tm.employee_name}
+                      <option key={tm.id} value={tm.user_email || tm.employee_name}>
+                        {tm.employee_name} ({tm.role})
                       </option>
                     ))}
                   </select>

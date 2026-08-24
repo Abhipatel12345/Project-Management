@@ -8,6 +8,7 @@ import {
   useArchiveBaseline,
   useDeleteBaseline,
 } from '@/hooks/use-baselines';
+import { useCreateSkipRequest } from '@/hooks/use-skip-requests';
 import { useProjectTeam } from '@/hooks/use-project-team';
 import { useToast } from '@/providers/toast-context';
 import baselineService from '@/services/baseline.service';
@@ -53,6 +54,7 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
   // Fetch project-isolated baselines
   const { data: baselines = [], refetch: refetchBaselines } = useProjectBaselines(projectId);
   const createBaselineMutation = useCreateBaseline();
+  const createSkipRequestMutation = useCreateSkipRequest();
   const activateBaselineMutation = useActivateBaseline();
   const archiveBaselineMutation = useArchiveBaseline();
   const deleteBaselineMutation = useDeleteBaseline();
@@ -177,21 +179,20 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
     }
   };
 
-  const handleSkipConfirm = async (task: Task, reason: string) => {
+  const handleSkipConfirm = async (task: Task, reason: string, comment?: string) => {
     try {
-      await updateTaskMutation.mutateAsync({
-        name: task.name,
-        data: {
-          status: 'Skipped',
-          progress: 0,
-          description: `[Skipped Work Package] ${task.description || ''} (Reason: ${reason})`,
-        },
+      await createSkipRequestMutation.mutateAsync({
+        task_id: task.name,
+        task_subject: task.subject,
+        project_id: projectId,
+        skip_reason: reason,
+        additional_comment: comment,
       });
-      showToast(`Work package ${task.name} skipped in ERPNext`, 'info');
+      showToast(`Skip request submitted for task ${task.name}. Pending PM approval.`, 'success');
       setSkippingTask(null);
       refetchTasks();
     } catch (err: any) {
-      showToast(err.message || 'Failed to skip task', 'error');
+      showToast(err.message || 'Failed to submit skip request', 'error');
     }
   };
 
@@ -345,6 +346,7 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
         <TaskDetailModal
           task={viewingTask}
           onClose={() => setViewingTask(null)}
+          onRefresh={refetchTasks}
           onEdit={(t) => {
             setViewingTask(null);
             setEditingTask(t);
@@ -358,7 +360,7 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
           isOpen={!!skippingTask}
           task={skippingTask}
           onClose={() => setSkippingTask(null)}
-          onConfirmSkip={handleSkipConfirm}
+          onSubmitSkipRequest={handleSkipConfirm}
         />
       )}
 

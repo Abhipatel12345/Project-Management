@@ -10,6 +10,7 @@ import {
   useArchiveBaseline,
   useDeleteBaseline,
 } from '@/hooks/use-baselines';
+import { useCreateSkipRequest } from '@/hooks/use-skip-requests';
 import { useProjectTeam } from '@/hooks/use-project-team';
 import { useToast } from '@/providers/toast-context';
 import baselineService from '@/services/baseline.service';
@@ -91,6 +92,7 @@ export default function PlanningPage() {
   const updateTaskMutation = useUpdateTask();
   const createTaskMutation = useCreateTask();
   const deleteTaskMutation = useDeleteTask();
+  const createSkipRequestMutation = useCreateSkipRequest();
 
   // Modals state
   const [editingTask, setEditingTask] = useState<Task | null>(null);
@@ -257,20 +259,20 @@ export default function PlanningPage() {
     }
   };
 
-  const handleConfirmSkipTask = async (task: Task, reason: string) => {
+  const handleConfirmSkipTask = async (task: Task, reason: string, comment?: string) => {
     try {
-      await updateTaskMutation.mutateAsync({
-        name: task.name,
-        data: {
-          status: 'Skipped',
-          skip_reason: reason,
-        },
+      await createSkipRequestMutation.mutateAsync({
+        task_id: task.name,
+        task_subject: task.subject,
+        project_id: selectedProjectId || task.project || 'Global Project',
+        skip_reason: reason,
+        additional_comment: comment,
       });
-      showToast(`Task ${task.name} marked as Skipped`, 'info');
+      showToast(`Skip request submitted for task ${task.name}. Pending PM approval.`, 'success');
       setSkippingTask(null);
       refetch();
     } catch (err: any) {
-      showToast(err.message || 'Failed to skip task', 'error');
+      showToast(err.message || 'Failed to submit skip request', 'error');
     }
   };
 
@@ -402,7 +404,7 @@ export default function PlanningPage() {
           isOpen={!!skippingTask}
           task={skippingTask}
           onClose={() => setSkippingTask(null)}
-          onConfirmSkip={handleConfirmSkipTask}
+          onSubmitSkipRequest={handleConfirmSkipTask}
         />
       )}
 
@@ -411,6 +413,7 @@ export default function PlanningPage() {
         <TaskDetailModal
           task={viewingTask}
           onClose={() => setViewingTask(null)}
+          onRefresh={refetch}
           onEdit={(t: Task) => {
             setViewingTask(null);
             setEditingTask(t);

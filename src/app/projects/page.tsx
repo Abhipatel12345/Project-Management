@@ -77,9 +77,10 @@ export default function ProjectsPage() {
   const handleCreateSubmit = async (values: any) => {
     try {
       setActionError(null);
-      await createProjectMutation.mutateAsync(values);
+      const created = await createProjectMutation.mutateAsync(values);
       setActionSuccess(`Project "${values.project_name}" created successfully!`);
       setTimeout(() => setActionSuccess(null), 4000);
+      return created;
     } catch (err: any) {
       const msg = err.message || 'Failed to create project.';
       setActionError(msg);
@@ -150,7 +151,7 @@ export default function ProjectsPage() {
         <div>
           <div className="flex items-center gap-2 text-[11px] font-extrabold tracking-wider uppercase text-sky-800 mb-1">
             <FolderKanban className="h-4 w-4 text-sky-600" />
-            <span>MODULE 2: AUTOMOTIVE PROGRAM & PROJECT DIRECTORY</span>
+            <span>AUTOMOTIVE PROGRAM & PROJECT DIRECTORY</span>
           </div>
           <h1 className="text-2xl font-black tracking-tight text-slate-900">Project Directory</h1>
           <p className="text-xs text-slate-500">

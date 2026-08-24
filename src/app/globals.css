@@ -2,26 +2,46 @@
 
 @layer base {
   :root {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
+    --background: #F7F9FC;
+    --foreground: #172033;
+    --surface: #FFFFFF;
+    --surface-secondary: #F1F5F9;
+    --primary: #0B74DE;
+    --primary-hover: #095FB5;
+    --primary-light: #EAF4FF;
+    --text-primary: #172033;
+    --text-secondary: #526071;
+    --text-muted: #7A8797;
+    --border: #E2E8F0;
+    --success: #10B981;
+    --warning: #F59E0B;
+    --danger: #EF4444;
+  }
+
+  html,
+  body {
+    height: 100%;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
   }
 }
 
-/* Custom scrollbars */
+/* Custom scrollbars for light theme */
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-track {
-  background: rgba(15, 23, 42, 0.6);
+  background: rgba(241, 245, 249, 0.8);
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb {
-  background: rgba(51, 65, 85, 0.8);
+  background: rgba(203, 213, 225, 0.8);
   border-radius: 9999px;
 }
 
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-  background: rgba(100, 116, 139, 1);
+  background: rgba(148, 163, 184, 1);
 }

@@ -143,27 +143,14 @@ export function DocumentDetailModal({
               </button>
 
               <button
-                onClick={() => {
+                onClick={async () => {
                   const fileName = doc.file_name || doc.title || 'document';
-                  const fileUrl = doc.file_url;
-                  if (fileUrl) {
-                    const a = window.document.createElement('a');
-                    a.href = fileUrl;
-                    a.download = fileName;
-                    window.document.body.appendChild(a);
-                    a.click();
-                    window.document.body.removeChild(a);
-                  } else {
-                    const content = `PDM Document Attachment\nID: ${doc.name}\nTitle: ${doc.title}\nProject: ${doc.project}\nVersion: ${doc.version}\nUploaded By: ${doc.uploaded_by}\nDescription: ${doc.description || 'N/A'}`;
-                    const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-                    const url = URL.createObjectURL(blob);
-                    const a = window.document.createElement('a');
-                    a.href = url;
-                    a.download = fileName.endsWith('.txt') ? fileName : `${fileName}.txt`;
-                    window.document.body.appendChild(a);
-                    a.click();
-                    window.document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+                  try {
+                    const { documentService } = await import('@/services/document.service');
+                    await documentService.downloadDocument(doc.project, doc.name, fileName);
+                  } catch (err: any) {
+                    console.error('Download error:', err);
+                    alert(err.message || 'Unable to download this document because the file is no longer available.');
                   }
                 }}
                 className="flex items-center gap-2 px-5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition cursor-pointer shadow-xs"

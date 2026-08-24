@@ -67,6 +67,8 @@ export default function DocumentsPage() {
         description: values.description,
         notes: values.notes,
         file_name: values.file_name,
+        file_size: values.file_size,
+        file_data: values.file_data,
       });
       showToast(`Document ${newDoc.name} uploaded successfully to ERPNext!`, 'success');
       setIsCreateOpen(false);
@@ -112,6 +114,16 @@ export default function DocumentsPage() {
       refetch();
     } catch (err: any) {
       showToast(err.message || 'Failed to delete document', 'error');
+    }
+  };
+
+  const handleDownloadDocument = async (doc: DocumentItem) => {
+    try {
+      const { documentService } = await import('@/services/document.service');
+      await documentService.downloadDocument(doc.project, doc.name, doc.file_name || doc.title);
+      showToast(`Downloading ${doc.file_name || doc.title}`, 'info');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to download document', 'error');
     }
   };
 
@@ -171,6 +183,7 @@ export default function DocumentsPage() {
           onViewDocument={(doc) => setViewingDocument(doc)}
           onEditDocument={(doc) => setEditingDocument(doc)}
           onDeleteDocument={handleDeleteDocument}
+          onDownloadDocument={handleDownloadDocument}
         />
       )}
 

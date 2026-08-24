@@ -12,6 +12,7 @@ import { TeamAllocationTable, ProjectAllocationData } from '@/components/project
 import { TeamAllocationDetailModal } from '@/components/projects/team/team-allocation-detail-modal';
 import { TeamMemberDialog } from '@/components/projects/team/team-member-dialog';
 import { useToast } from '@/providers/toast-context';
+import { useAuth } from '@/providers/auth-context';
 import {
   Users,
   Search,
@@ -25,6 +26,8 @@ import {
 
 export default function ProjectTeamPage() {
   const { showToast } = useToast();
+  const { hasPermission } = useAuth();
+  const canManageTeam = hasPermission('manageTeamMembers');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [sortBy, setSortBy] = useState<'team' | 'progress' | 'date' | 'name'>('team');
@@ -227,13 +230,15 @@ export default function ProjectTeamPage() {
             <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
           </button>
 
-          <button
-            onClick={() => openAddMemberModal()}
-            className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>+ Add Team Member</span>
-          </button>
+          {canManageTeam && (
+            <button
+              onClick={() => openAddMemberModal()}
+              className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>+ Add Team Member</span>
+            </button>
+          )}
         </div>
       </div>
 

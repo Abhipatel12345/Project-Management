@@ -53,6 +53,8 @@ export function ProjectDocumentsTab({ projectId, projectName }: ProjectDocuments
         description: values.description,
         notes: values.notes,
         file_name: values.file_name,
+        file_size: values.file_size,
+        file_data: values.file_data,
       });
       showToast(`Document ${newDoc.name} uploaded for project ${projectId}`, 'success');
       setIsCreateOpen(false);
@@ -101,6 +103,16 @@ export function ProjectDocumentsTab({ projectId, projectName }: ProjectDocuments
     }
   };
 
+  const handleDownloadDocument = async (doc: DocumentItem) => {
+    try {
+      const { documentService } = await import('@/services/document.service');
+      await documentService.downloadDocument(projectId, doc.name, doc.file_name || doc.title);
+      showToast(`Downloading ${doc.file_name || doc.title}`, 'info');
+    } catch (err: any) {
+      showToast(err.message || 'Failed to download document', 'error');
+    }
+  };
+
   return (
     <div className="space-y-6 font-sans">
       {/* Header Bar */}
@@ -145,6 +157,7 @@ export function ProjectDocumentsTab({ projectId, projectName }: ProjectDocuments
           onViewDocument={(doc) => setInspectingViewerDoc(doc)}
           onEditDocument={(doc) => setEditingDocument(doc)}
           onDeleteDocument={handleDeleteDocument}
+          onDownloadDocument={handleDownloadDocument}
         />
       )}
 

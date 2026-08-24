@@ -17,6 +17,7 @@ import { ProjectGatesTab } from '@/components/projects/gates/project-gates-tab';
 import { ProjectPlanningTab } from '@/components/projects/planning/project-planning-tab';
 import { ProjectConnectionsTab } from '@/components/projects/connections/project-connections-tab';
 import { AccessDenied } from '@/components/shared/access-denied';
+import { useAuth } from '@/providers/auth-context';
 import {
   ArrowLeft,
   Calendar,
@@ -48,6 +49,9 @@ export default function ProjectDetailPage() {
   const params = useParams();
   const router = useRouter();
   const projectId = decodeURIComponent((params.id as string) || '');
+  const { user, hasPermission } = useAuth();
+  const canManageTeam = hasPermission('manageTeamMembers');
+  const canManageProjectSettings = hasPermission('manageProjectSettings');
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
@@ -143,29 +147,35 @@ export default function ProjectDetailPage() {
         {/* Header Action Triggers */}
         <div className="flex items-center gap-2">
           {/* Create Team / Add Team Member Button */}
-          <button
-            onClick={handleCreateTeamClick}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition"
-          >
-            <UserPlus className="h-3.5 w-3.5" />
-            <span>Create Team</span>
-          </button>
+          {canManageTeam && (
+            <button
+              onClick={handleCreateTeamClick}
+              className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              <span>Create Team</span>
+            </button>
+          )}
 
-          <button
-            onClick={() => setIsEditOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-2xs"
-          >
-            <Edit2 className="h-3.5 w-3.5 text-sky-600" />
-            <span>Edit Charter</span>
-          </button>
+          {canManageProjectSettings && (
+            <button
+              onClick={() => setIsEditOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-2xs cursor-pointer"
+            >
+              <Edit2 className="h-3.5 w-3.5 text-sky-600" />
+              <span>Edit Charter</span>
+            </button>
+          )}
 
-          <button
-            onClick={() => setIsDeleteOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-rose-50 text-rose-600 border-rose-200 text-xs font-bold transition shadow-2xs"
-          >
-            <Trash2 className="h-3.5 w-3.5" />
-            <span>Delete</span>
-          </button>
+          {canManageProjectSettings && (
+            <button
+              onClick={() => setIsDeleteOpen(true)}
+              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-rose-50 text-rose-600 border-rose-200 text-xs font-bold transition shadow-2xs cursor-pointer"
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>Delete</span>
+            </button>
+          )}
         </div>
       </div>
 

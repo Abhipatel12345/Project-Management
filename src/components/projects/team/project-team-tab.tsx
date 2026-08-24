@@ -12,6 +12,7 @@ import {
 import { ProjectTeamMember, TeamMemberFormData } from '@/types/team.types';
 import { TeamMemberDialog } from './team-member-dialog';
 import { ReplaceTeamMemberDialog } from './replace-team-member-dialog';
+import { useAuth } from '@/providers/auth-context';
 import {
   Users,
   UserPlus,
@@ -26,6 +27,7 @@ import {
   Loader2,
   Building,
   Briefcase,
+  Lock,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -40,6 +42,10 @@ export function ProjectTeamTab({
   isCreateOpenExternal = false,
   onCloseExternalCreate,
 }: ProjectTeamTabProps) {
+  const { user, hasPermission } = useAuth();
+  const canManageTeam = hasPermission('manageTeamMembers');
+  const canManageBoard = hasPermission('manageBoardMembers');
+
   // Filters & State
   const [search, setSearch] = useState('');
   const [departmentFilter, setDepartmentFilter] = useState('ALL');
@@ -62,10 +68,10 @@ export function ProjectTeamTab({
 
   // Sync external header trigger
   React.useEffect(() => {
-    if (isCreateOpenExternal) {
+    if (isCreateOpenExternal && canManageTeam) {
       setIsAddOpen(true);
     }
-  }, [isCreateOpenExternal]);
+  }, [isCreateOpenExternal, canManageTeam]);
 
   const handleCloseAddDialog = () => {
     setIsAddOpen(false);
@@ -283,15 +289,35 @@ export function ProjectTeamTab({
             </button>
           </div>
 
-          <button
-            onClick={() => setIsAddOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition"
-          >
-            <UserPlus className="h-3.5 w-3.5" />
-            <span>Add Member</span>
-          </button>
+          {canManageTeam ? (
+            <button
+              onClick={() => setIsAddOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+            >
+              <UserPlus className="h-3.5 w-3.5" />
+              <span>Add Member</span>
+            </button>
+          ) : (
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-slate-100 border border-slate-200 text-slate-500 text-xs font-semibold"
+              title="Team modifications are restricted to PMO Administrators (Inteva PM Requirement)"
+            >
+              <Lock className="h-3.5 w-3.5 text-slate-400" />
+              <span>Team Read-Only</span>
+            </div>
+          )}
         </div>
       </div>
+
+      {/* Project Manager Governance Banner */}
+      {!canManageTeam && user?.role === 'projectmanager' && (
+        <div className="p-3.5 rounded-2xl bg-sky-50/70 border border-sky-200 text-sky-900 text-xs flex items-center gap-2.5 font-medium shadow-2xs">
+          <ShieldCheck className="h-4 w-4 text-sky-600 shrink-0" />
+          <span>
+            <strong>Project Manager Workspace:</strong> You can view all project team allocations and task workloads. Adding/replacing team members and modifying steering board composition are restricted to PMO Administrators.
+          </span>
+        </div>
+      )}
 
       {/* Team Table View */}
       {isLoading ? (
@@ -317,13 +343,15 @@ export function ProjectTeamTab({
           <p className="text-xs text-slate-500 max-w-sm mx-auto">
             No engineering team members match your current filter criteria.
           </p>
-          <button
-            onClick={() => setIsAddOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs"
-          >
-            <UserPlus className="h-4 w-4" />
-            Add First Team Member
-          </button>
+          {canManageTeam && (
+            <button
+              onClick={() => setIsAddOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+            >
+              <UserPlus className="h-4 w-4" />
+              Add First Team Member
+            </button>
+          )}
         </div>
       ) : (
         <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-xs">
@@ -337,7 +365,7 @@ export function ProjectTeamTab({
                   <th className="py-3.5 px-4">Program Role</th>
                   <th className="py-3.5 px-4">Board Status</th>
                   <th className="py-3.5 px-4">Status</th>
-                  <th className="py-3.5 px-4 text-right">Actions</th>
+                  <th className="py-3.5 px-4 text-right">{canManageTeam ? 'Actions' : 'Governance'}</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200/80 text-xs">
@@ -386,18 +414,32 @@ export function ProjectTeamTab({
 
                     {/* Board Member Toggle Badge */}
                     <td className="py-3.5 px-4">
-                      <button
-                        onClick={() => handleToggleBoard(member.id)}
-                        className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer ${
-                          member.is_board_member
-                            ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-2xs'
-                            : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
-                        }`}
-                        title="Click to toggle Steering Board Member status"
-                      >
-                        <ShieldCheck className="h-3.5 w-3.5" />
-                        {member.is_board_member ? 'Board Member' : 'Core Member'}
-                      </button>
+                      {canManageBoard ? (
+                        <button
+                          onClick={() => handleToggleBoard(member.id)}
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border transition cursor-pointer ${
+                            member.is_board_member
+                              ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-2xs'
+                              : 'bg-slate-100 text-slate-600 border-slate-200 hover:bg-slate-200'
+                          }`}
+                          title="Click to toggle Steering Board Member status"
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          {member.is_board_member ? 'Board Member' : 'Core Member'}
+                        </button>
+                      ) : (
+                        <span
+                          className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-full text-[11px] font-bold border ${
+                            member.is_board_member
+                              ? 'bg-amber-50 text-amber-800 border-amber-200 shadow-2xs'
+                              : 'bg-slate-100 text-slate-600 border-slate-200'
+                          }`}
+                          title="Steering Board status is managed by PMO Administrators"
+                        >
+                          <ShieldCheck className="h-3.5 w-3.5" />
+                          {member.is_board_member ? 'Board Member' : 'Core Member'}
+                        </span>
+                      )}
                     </td>
 
                     {/* Status */}
@@ -418,31 +460,37 @@ export function ProjectTeamTab({
 
                     {/* Actions */}
                     <td className="py-3.5 px-4 text-right">
-                      <div className="flex items-center justify-end gap-1">
-                        <button
-                          onClick={() => setReplacingMember(member)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition cursor-pointer"
-                          title="Replace Member & Reassign Tasks"
-                        >
-                          <UserCheck className="h-4 w-4 text-amber-600" />
-                        </button>
+                      {canManageTeam ? (
+                        <div className="flex items-center justify-end gap-1">
+                          <button
+                            onClick={() => setReplacingMember(member)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 transition cursor-pointer"
+                            title="Replace Member & Reassign Tasks"
+                          >
+                            <UserCheck className="h-4 w-4 text-amber-600" />
+                          </button>
 
-                        <button
-                          onClick={() => setEditingMember(member)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition cursor-pointer"
-                          title="Edit Member Details"
-                        >
-                          <Edit2 className="h-4 w-4" />
-                        </button>
+                          <button
+                            onClick={() => setEditingMember(member)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-sky-600 hover:bg-sky-50 transition cursor-pointer"
+                            title="Edit Member Details"
+                          >
+                            <Edit2 className="h-4 w-4" />
+                          </button>
 
-                        <button
-                          onClick={() => setDeletingMemberId(member.id)}
-                          className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                          title="Remove Member"
-                        >
-                          <Trash2 className="h-4 w-4" />
-                        </button>
-                      </div>
+                          <button
+                            onClick={() => setDeletingMemberId(member.id)}
+                            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                            title="Remove Member"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
+                        </div>
+                      ) : (
+                        <span className="text-[11px] text-slate-400 font-medium px-2 py-0.5 rounded bg-slate-50 border border-slate-200">
+                          Read Only
+                        </span>
+                      )}
                     </td>
                   </motion.tr>
                 ))}

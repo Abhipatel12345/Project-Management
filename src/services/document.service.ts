@@ -467,61 +467,53 @@ export const documentService = {
    */
   async getDocuments(params: DocumentListQueryParams = {}): Promise<DocumentListResponse> {
     const page = params.page || 1;
-    const pageSize = params.pageSize || 15;
+    const pageSize = params.pageSize || 100;
 
-    let allDocs: DocumentItem[] = [];
-
-    // Attempt ERPNext API fetch
+    // Try fetching from Project Documents API or Documents API
     try {
-      const filters: any[] = [];
+      let url = '/api/documents';
       if (params.project && params.project !== 'ALL') {
-        filters.push(['attached_to_name', '=', params.project]);
-      }
-      if (params.search) {
-        filters.push(['file_name', 'like', `%${params.search}%`]);
+        url = `/api/projects/${encodeURIComponent(params.project)}/documents`;
       }
 
-      const res = await api.get<{ data: any[] }>('/api/resource/File', {
-        params: {
-          fields: JSON.stringify(['name', 'file_name', 'file_url', 'file_size', 'attached_to_name', 'creation']),
-          filters: filters.length > 0 ? JSON.stringify(filters) : undefined,
-          limit_page_length: 100,
-        },
-      });
+      const qParams = new URLSearchParams();
+      if (params.search) qParams.append('search', params.search);
+      if (params.document_type) qParams.append('document_type', params.document_type);
+      if (params.status) qParams.append('status', params.status);
+      if (params.page) qParams.append('page', String(params.page));
+      if (params.pageSize) qParams.append('pageSize', String(params.pageSize));
 
-      if (res?.data && Array.isArray(res.data) && res.data.length > 0) {
-        const erpDocs: DocumentItem[] = res.data.map((f: any) => ({
-          name: f.name,
-          title: f.file_name || f.name,
-          project: f.attached_to_name || 'Global Vault',
-          document_type: 'Engineering',
-          version: 'v1.0',
-          uploaded_by: 'ERPNext System',
-          upload_date: f.creation ? f.creation.split(' ')[0] : '2026-08-01',
-          status: 'Approved',
-          review_status: 'Approved',
-          file_name: f.file_name || f.name,
-          file_url: f.file_url,
-          file_size: f.file_size || 1024000,
-          description: `ERPNext File record attached to ${f.attached_to_name || 'project'}.`,
-        }));
+      const fullUrl = `${url}?${qParams.toString()}`;
+      const res = await api.get<any>(fullUrl);
 
-        // Merge ERPNext docs with seed docs to ensure 30+ items available
-        const seedDocs = getLocalDocuments();
-        const existingNames = new Set(erpDocs.map((d) => d.name));
-        const merged = [...erpDocs, ...seedDocs.filter((d) => !existingNames.has(d.name))];
-        allDocs = merged;
-      } else {
-        allDocs = getLocalDocuments();
+      if (res && res.documents) {
+        return {
+          documents: res.documents,
+          totalCount: res.totalCount ?? res.documents.length,
+          page,
+          pageSize,
+          summary: res.summary || {
+            totalDocuments: res.documents.length,
+            projectDocuments: res.documents.length,
+            recentlyAdded: res.documents.length,
+            requiringReview: 0,
+          },
+        };
       }
     } catch {
-      allDocs = getLocalDocuments();
+      // fallback to local documents
     }
+
+    let allDocs: DocumentItem[] = getLocalDocuments();
 
     // Filter by project
     let filtered = [...allDocs];
     if (params.project && params.project !== 'ALL') {
-      filtered = filtered.filter((d) => d.project === params.project);
+      const normProj = params.project.toLowerCase().trim();
+      filtered = filtered.filter((d) => {
+        const dp = (d.project || '').toLowerCase().trim();
+        return dp === normProj || dp.includes(normProj) || normProj.includes(dp);
+      });
     }
 
     // Compute Base Project Scope Summary
@@ -577,10 +569,26 @@ export const documentService = {
    * Add new document to vault
    */
   async uploadDocument(doc: Partial<DocumentItem>): Promise<DocumentItem> {
+    try {
+      let targetUrl = '/api/documents';
+      if (doc.project && doc.project !== 'ALL' && doc.project !== 'Global Vault') {
+        targetUrl = `/api/projects/${encodeURIComponent(doc.project)}/documents`;
+      }
+      const res = await api.post<any>(targetUrl, doc);
+      if (res?.document) {
+        return res.document;
+      }
+      if (res?.name) {
+        return res;
+      }
+    } catch {
+      // fallback
+    }
+
     const docs = getLocalDocuments();
     const newDoc: DocumentItem = {
-      name: `DOC-2026-${String(docs.length + 1).padStart(5, '0')}`,
-      title: doc.title || 'Untitled Engineering Document',
+      name: doc.name || `DOC-2026-${String(docs.length + 1).padStart(5, '0')}`,
+      title: doc.title || doc.file_name || 'Untitled Engineering Document',
       project: doc.project || 'PROJ-0001',
       document_type: doc.document_type || 'Engineering',
       version: doc.version || 'v1.0',
@@ -613,8 +621,54 @@ export const documentService = {
   },
 
   async deleteDocument(name: string): Promise<void> {
+    try {
+      await api.delete(`/api/documents?name=${encodeURIComponent(name)}`);
+    } catch {
+      // ignore
+    }
     const docs = getLocalDocuments().filter((d) => d.name !== name);
     saveLocalDocuments(docs);
+  },
+
+  /**
+   * Download exact document attachment binary from server and trigger browser download
+   */
+  async downloadDocument(projectId?: string, docId?: string, fileName?: string): Promise<void> {
+    if (!docId) throw new Error('Document ID is required for download.');
+    const targetUrl = projectId && projectId !== 'ALL' && projectId !== 'Global Vault'
+      ? `/api/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(docId)}/download`
+      : `/api/documents/${encodeURIComponent(docId)}/download`;
+
+    const res = await fetch(targetUrl, {
+      method: 'GET',
+      credentials: 'include',
+    });
+
+    if (!res.ok) {
+      let errMessage = `Download failed with status ${res.status}`;
+      try {
+        const errJson = await res.json();
+        if (errJson._error_message) errMessage = errJson._error_message;
+        else if (errJson.message) errMessage = errJson.message;
+      } catch {
+        // response was not JSON
+      }
+      throw new Error(errMessage);
+    }
+
+    const blob = await res.blob();
+    const downloadFileName = fileName || `${docId}.pdf`;
+
+    // Trigger native browser download via temporary object URL
+    const blobUrl = window.URL.createObjectURL(blob);
+    const a = window.document.createElement('a');
+    a.style.display = 'none';
+    a.href = blobUrl;
+    a.download = downloadFileName;
+    window.document.body.appendChild(a);
+    a.click();
+    window.document.body.removeChild(a);
+    window.URL.revokeObjectURL(blobUrl);
   },
 };
 

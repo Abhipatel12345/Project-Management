@@ -36,6 +36,9 @@ export interface DocumentItem {
   file_url?: string;
   file_name?: string;
   file_size?: number;
+  file_path?: string;
+  mime_type?: string;
+  file_data?: string;
   description?: string;
   notes?: string;
   modified?: string;

@@ -116,27 +116,27 @@ export function BaselineComparisonTable({
   return (
     <div className="space-y-4 font-sans border-t border-slate-200 pt-6">
       {/* Top Banner Header & Metric Cards */}
-      <div className="bg-slate-900 text-white p-6 rounded-3xl space-y-4 shadow-md">
+      <div className="bg-white text-slate-800 p-6 rounded-3xl space-y-4 border border-slate-200 shadow-xs">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <span className="px-2.5 py-0.5 rounded-md bg-sky-500/20 text-sky-300 text-[10px] font-black uppercase tracking-wider border border-sky-500/30">
+              <span className="px-2.5 py-0.5 rounded-md bg-sky-50 text-sky-700 text-[10px] font-black uppercase tracking-wider border border-sky-200">
                 SCHEDULE VARIANCE ANALYSIS
               </span>
               <span className="text-[10px] font-bold text-slate-400">• Plan vs Actual Comparison</span>
             </div>
-            <h2 className="text-xl font-black text-white tracking-tight">
+            <h2 className="text-xl font-black text-slate-900 tracking-tight">
               {baseline.baseline_name} (Baseline #{baseline.baseline_number}) vs Current Schedule
             </h2>
-            <p className="text-xs text-slate-300 font-medium">
-              Frozen on <strong className="text-white">{baseline.snapshot_date}</strong> by <strong className="text-white">{baseline.created_by}</strong> ({baseline.task_count} Tasks captured)
+            <p className="text-xs text-slate-500 font-medium">
+              Frozen on <strong className="text-slate-800 font-bold">{baseline.snapshot_date}</strong> by <strong className="text-slate-800 font-bold">{baseline.created_by}</strong> ({baseline.task_count} Tasks captured)
             </p>
           </div>
 
           {onCloseCompareMode && (
             <button
               onClick={onCloseCompareMode}
-              className="px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs font-bold transition cursor-pointer border border-slate-700 self-start md:self-auto"
+              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer border border-slate-200 self-start md:self-auto"
             >
               Exit Comparison
             </button>
@@ -145,30 +145,30 @@ export function BaselineComparisonTable({
 
         {/* Metric Summary Cards */}
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-center">
-          <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-0.5">
-            <div className="text-[10px] text-slate-400 font-bold uppercase">Total Tasks</div>
-            <div className="text-xl font-black text-white">{total}</div>
+          <div className="p-3 rounded-2xl bg-slate-50 border border-slate-200 space-y-0.5">
+            <div className="text-[10px] text-slate-500 font-bold uppercase">Total Tasks</div>
+            <div className="text-xl font-black text-slate-900">{total}</div>
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-0.5">
-            <div className="text-[10px] text-emerald-400 font-bold uppercase flex items-center justify-center gap-1">
-              <CheckCircle2 className="h-3 w-3 text-emerald-400" /> On Time
+          <div className="p-3 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-0.5">
+            <div className="text-[10px] text-emerald-800 font-extrabold uppercase flex items-center justify-center gap-1">
+              <CheckCircle2 className="h-3 w-3 text-emerald-600" /> On Time
             </div>
-            <div className="text-xl font-black text-emerald-400">{onTimeCount}</div>
+            <div className="text-xl font-black text-emerald-700">{onTimeCount}</div>
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-0.5">
-            <div className="text-[10px] text-rose-400 font-bold uppercase flex items-center justify-center gap-1">
-              <AlertTriangle className="h-3 w-3 text-rose-400" /> Delayed
+          <div className="p-3 rounded-2xl bg-rose-50/50 border border-rose-200 space-y-0.5">
+            <div className="text-[10px] text-rose-800 font-extrabold uppercase flex items-center justify-center gap-1">
+              <AlertTriangle className="h-3 w-3 text-rose-600" /> Delayed
             </div>
-            <div className="text-xl font-black text-rose-400">{delayedCount}</div>
+            <div className="text-xl font-black text-rose-700">{delayedCount}</div>
           </div>
 
-          <div className="p-3 rounded-2xl bg-slate-800/80 border border-slate-700 space-y-0.5">
-            <div className="text-[10px] text-sky-400 font-bold uppercase flex items-center justify-center gap-1">
-              <TrendingDown className="h-3 w-3 text-sky-400" /> Ahead of Plan
+          <div className="p-3 rounded-2xl bg-sky-50/50 border border-sky-200 space-y-0.5">
+            <div className="text-[10px] text-sky-800 font-extrabold uppercase flex items-center justify-center gap-1">
+              <TrendingDown className="h-3 w-3 text-sky-600" /> Ahead of Plan
             </div>
-            <div className="text-xl font-black text-sky-400">{aheadCount}</div>
+            <div className="text-xl font-black text-sky-700">{aheadCount}</div>
           </div>
         </div>
       </div>

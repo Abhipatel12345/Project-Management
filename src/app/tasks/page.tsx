@@ -16,6 +16,8 @@ import { TaskWorkloadChart } from '@/components/tasks/task-workload-chart';
 import { TaskFormDialog } from '@/components/tasks/task-form-dialog';
 import { TaskDeleteDialog } from '@/components/tasks/task-delete-dialog';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
+import { TaskSkipApprovalsView } from '@/components/tasks/task-skip-approvals-view';
+import { useSkipRequests } from '@/hooks/use-skip-requests';
 import { IssueFormDialog, IssueFormValues } from '@/components/issues/issue-form-dialog';
 import { IssueDetailModal } from '@/components/issues/issue-detail-modal';
 import { TaskFormValues } from '@/lib/validations/task.schema';
@@ -44,6 +46,7 @@ import {
   MessageSquare,
   ShieldAlert,
   X,
+  SkipForward,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -53,10 +56,19 @@ export default function GlobalTaskManagementPage() {
   const searchParams = useSearchParams();
   const initialTabParam = searchParams ? searchParams.get('tab') : null;
 
-  // Main Tabs: 'tasks' | 'submission' | 'issues'
-  const [mainTab, setMainTab] = useState<'tasks' | 'submission' | 'issues'>(
-    initialTabParam === 'issues' ? 'issues' : initialTabParam === 'submission' ? 'submission' : 'tasks'
+  // Main Tabs: 'tasks' | 'submission' | 'issues' | 'skip-requests'
+  const [mainTab, setMainTab] = useState<'tasks' | 'submission' | 'issues' | 'skip-requests'>(
+    initialTabParam === 'issues'
+      ? 'issues'
+      : initialTabParam === 'submission'
+      ? 'submission'
+      : initialTabParam === 'skip-requests'
+      ? 'skip-requests'
+      : 'tasks'
   );
+
+  const { data: skipRequests = [] } = useSkipRequests();
+  const pendingSkipCount = skipRequests.filter((r: any) => r.status === 'PENDING').length;
 
   useEffect(() => {
     if (initialTabParam === 'issues') setMainTab('issues');
@@ -439,19 +451,21 @@ export default function GlobalTaskManagementPage() {
 
           <button
             onClick={() => setMainTab('submission')}
-            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white text-xs font-bold shadow-xs transition"
+            className="flex items-center gap-1.5 px-4 py-2.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 text-xs font-bold shadow-xs transition cursor-pointer"
           >
-            <Send className="h-4 w-4 text-sky-400" />
+            <Send className="h-4 w-4 text-sky-600" />
             <span>Task Submission</span>
           </button>
 
-          <button
-            onClick={() => setIsCreateOpen(true)}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Task</span>
-          </button>
+          {(user?.role === 'admin' || user?.role === 'projectmanager') && (
+            <button
+              onClick={() => setIsCreateOpen(true)}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Task</span>
+            </button>
+          )}
         </div>
       </div>
 
@@ -490,6 +504,21 @@ export default function GlobalTaskManagementPage() {
         >
           <AlertTriangle className="h-4 w-4" />
           <span>Task Issues ({issues.length})</span>
+        </button>
+
+        <button
+          onClick={() => setMainTab('skip-requests')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl transition cursor-pointer ${
+            mainTab === 'skip-requests' ? 'bg-amber-600 text-white shadow-xs' : 'text-slate-600 hover:bg-slate-50'
+          }`}
+        >
+          <Clock className="h-4 w-4" />
+          <span>Skip Requests ({skipRequests.length})</span>
+          {pendingSkipCount > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-black">
+              {pendingSkipCount} Pending
+            </span>
+          )}
         </button>
       </div>
 
@@ -623,23 +652,23 @@ export default function GlobalTaskManagementPage() {
       {mainTab === 'submission' && (
         <div className="space-y-6 font-sans">
           {/* Submissions Desk Banner */}
-          <div className="p-6 rounded-3xl bg-slate-900 border border-slate-800 text-white flex flex-col md:flex-row md:items-center justify-between gap-4">
+          <div className="p-6 rounded-3xl bg-white border border-slate-200 text-slate-900 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div>
               <div className="flex items-center gap-2">
-                <Send className="h-5 w-5 text-sky-400" />
-                <h2 className="text-lg font-black tracking-tight">Task Submission & Deliverable Verification</h2>
+                <Send className="h-5 w-5 text-sky-600" />
+                <h2 className="text-lg font-black tracking-tight text-slate-900">Task Submission & Deliverable Verification</h2>
               </div>
-              <p className="text-xs text-slate-400 mt-1 max-w-xl">
+              <p className="text-xs text-slate-500 mt-1 max-w-xl font-medium">
                 Submit completed work packages for review, verify deliverable criteria, or perform formal PM sign-off.
               </p>
             </div>
 
             <div className="flex items-center gap-3 text-xs font-bold">
-              <div className="px-3 py-2 rounded-xl bg-slate-800 border border-slate-700 text-slate-300">
-                <span className="text-sky-400 font-extrabold">{readyForSubmissionTasks.length}</span> Ready for Submission
+              <div className="px-3 py-2 rounded-xl bg-sky-50 border border-sky-200 text-sky-700">
+                <span className="text-sky-700 font-extrabold">{readyForSubmissionTasks.length}</span> Ready for Submission
               </div>
-              <div className="px-3 py-2 rounded-xl bg-amber-500/20 border border-amber-500/30 text-amber-300">
-                <span className="text-amber-400 font-extrabold">{pendingReviewTasks.length}</span> Pending PM Review
+              <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
+                <span className="text-amber-700 font-extrabold">{pendingReviewTasks.length}</span> Pending PM Review
               </div>
             </div>
           </div>
@@ -879,6 +908,11 @@ export default function GlobalTaskManagementPage() {
         </div>
       )}
 
+      {/* TAB 4: SKIP REQUESTS APPROVAL VIEW */}
+      {mainTab === 'skip-requests' && (
+        <TaskSkipApprovalsView onRefreshTasks={refetch} />
+      )}
+
       {/* Task Submission Modal */}
       {submittingTask && (
         <AnimatePresence>
@@ -1066,6 +1100,7 @@ export default function GlobalTaskManagementPage() {
         <TaskDetailModal
           task={viewingTask}
           onClose={() => setViewingTask(null)}
+          onRefresh={refetch}
           onEdit={(t) => {
             setViewingTask(null);
             setEditingTask(t);

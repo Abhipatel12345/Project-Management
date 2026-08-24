@@ -129,15 +129,15 @@ export default function ConnectionTestPage() {
           </span>
         </div>
 
-        <div className="bg-slate-950 text-slate-100 rounded-xl p-4 font-mono text-xs overflow-x-auto shadow-inner">
+        <div className="bg-slate-50 border border-slate-200 text-slate-800 rounded-xl p-4 font-mono text-xs overflow-x-auto shadow-inner">
           {isLoading ? (
-            <div className="text-slate-500">Testing connection to ERPNext server...</div>
+            <div className="text-slate-400">Testing connection to ERPNext server...</div>
           ) : isError ? (
-            <div className="text-rose-400 font-medium">
+            <div className="text-rose-600 font-medium">
               Error: {error instanceof Error ? error.message : 'Failed to reach ERPNext instance.'}
             </div>
           ) : (
-            <pre className="text-emerald-400 leading-relaxed">
+            <pre className="text-emerald-700 font-semibold leading-relaxed">
               {JSON.stringify(result, null, 2)}
             </pre>
           )}

@@ -30,12 +30,12 @@ export function BackButton({
     <button
       onClick={handleBack}
       className={cn(
-        'inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold transition border border-slate-200 dark:border-slate-700 cursor-pointer shadow-2xs',
+        'inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition border border-slate-200 cursor-pointer shadow-xs',
         className
       )}
       title="Navigate to previous page"
     >
-      <ArrowLeft className="h-3.5 w-3.5 text-slate-500 dark:text-slate-400" />
+      <ArrowLeft className="h-3.5 w-3.5 text-slate-500" />
       <span>{label}</span>
     </button>
   );

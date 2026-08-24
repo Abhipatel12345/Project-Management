@@ -23,33 +23,49 @@ export const teamService = {
       if (users.length > 0) {
         const members: ProjectTeamMember[] = users.map((u: any, idx: number) => {
           const normEmail = (u.user || u.email || '').toLowerCase();
+          const normName = (u.full_name || '').toLowerCase();
           let dept = 'Engineering';
           let func = 'Engineering Release';
           let roleName = 'Systems Engineer';
+          let empName = u.full_name || (u.user ? u.user.split('@')[0] : 'Team Member');
 
-          if (normEmail.includes('admin') || normEmail.includes('pm') || normEmail.includes('manager')) {
-            dept = 'Program Management';
-            func = 'Program Governance';
+          if (normEmail.includes('sarah') || normEmail.includes('jenkins') || normName.includes('sarah')) {
+            dept = 'Battery Systems';
+            func = 'Program Management';
             roleName = 'Project Manager';
-          } else if (normEmail.includes('reviewer') || normEmail.includes('quality')) {
+            empName = 'Sarah Jenkins';
+          } else if (normEmail.includes('teammember') || normName.includes('yash')) {
+            dept = 'Engineering';
+            func = 'Engineering Release';
+            roleName = 'Systems Engineer';
+            empName = 'Yash';
+          } else if (normEmail.includes('reviewer') || normEmail.includes('quality') || normName.includes('reviewer')) {
             dept = 'Quality Assurance';
             func = 'APQP Governance';
             roleName = 'Quality Lead / Gate Reviewer';
+            empName = 'Reviewer';
+          } else if (normEmail.includes('admin') || normName.includes('admin')) {
+            dept = 'Program Management';
+            func = 'Program Governance';
+            roleName = 'Project Manager';
+            empName = 'Administrator';
           } else if (normEmail.includes('warehouse') || normEmail.includes('stock')) {
             dept = 'Supply Chain';
             func = 'Logistics & Stock';
             roleName = 'Warehouse Officer';
           }
 
+          const isBoard = (idx === 0 || normEmail.includes('reviewer') || normEmail.includes('admin')) && !normEmail.includes('sarah') && !normEmail.includes('teammember');
+
           return {
             id: u.name || `TM-${projectId}-${idx + 1}`,
             project_id: projectId,
             user_email: u.user || u.email || 'user@pdm.netlink.com',
-            employee_name: u.full_name || (u.user ? u.user.split('@')[0] : 'Team Member'),
+            employee_name: empName,
             department: dept,
             function_name: func,
             role: roleName,
-            is_board_member: idx === 0 || normEmail.includes('reviewer') || normEmail.includes('admin'),
+            is_board_member: isBoard,
             status: 'Active',
             avatar_url: u.image || undefined,
           };
@@ -68,22 +84,22 @@ export const teamService = {
         {
           id: `TM-${projectId}-1`,
           project_id: projectId,
-          user_email: 'admin@example.com',
-          employee_name: 'Administrator',
-          department: 'Program Management',
-          function_name: 'Program Governance',
+          user_email: 'sarahjenkins@gmail.com',
+          employee_name: 'Sarah Jenkins',
+          department: 'Battery Systems',
+          function_name: 'Program Management',
           role: 'Project Manager',
-          is_board_member: true,
+          is_board_member: false,
           status: 'Active',
         },
         {
           id: `TM-${projectId}-2`,
           project_id: projectId,
           user_email: 'teammember@netlink.com',
-          employee_name: 'Yash (Engineer)',
-          department: 'Powertrain Engineering',
-          function_name: 'Design Release',
-          role: 'Design Engineer',
+          employee_name: 'Yash',
+          department: 'Engineering',
+          function_name: 'Engineering Release',
+          role: 'Systems Engineer',
           is_board_member: false,
           status: 'Active',
         },
@@ -91,10 +107,21 @@ export const teamService = {
           id: `TM-${projectId}-3`,
           project_id: projectId,
           user_email: 'gatereviewer@netlink.com',
-          employee_name: 'Reviewer (Quality)',
+          employee_name: 'Reviewer',
           department: 'Quality Assurance',
           function_name: 'APQP Governance',
           role: 'Gate Board Reviewer',
+          is_board_member: true,
+          status: 'Active',
+        },
+        {
+          id: `TM-${projectId}-4`,
+          project_id: projectId,
+          user_email: 'admin@example.com',
+          employee_name: 'Administrator',
+          department: 'Program Management',
+          function_name: 'Program Governance',
+          role: 'Project Manager',
           is_board_member: true,
           status: 'Active',
         },
@@ -305,7 +332,7 @@ export const teamService = {
         { name: 'Administrator', email: 'admin@example.com', full_name: 'Administrator', department: 'Executive', designation: 'Chief Engineer' },
         { name: 'gatereviewer@netlink.com', email: 'gatereviewer@netlink.com', full_name: 'Gate Reviewer', department: 'Quality Assurance', designation: 'Quality Manager' },
         { name: 'teammember@netlink.com', email: 'teammember@netlink.com', full_name: 'Yash', department: 'Powertrain', designation: 'Design Engineer' },
-        { name: 'sarahjenkins@gmail.com', email: 'sarahjenkins@gmail.com', full_name: 'Sarah Jenkins', department: 'Battery Systems', designation: 'Lead Architect' },
+        { name: 'sarahjenkins@gmail.com', email: 'sarahjenkins@gmail.com', full_name: 'Sarah Jenkins', department: 'Battery Systems', designation: 'Project Manager' },
       ];
     }
   },

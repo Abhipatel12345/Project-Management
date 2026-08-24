@@ -285,9 +285,9 @@ export function GanttChartView({
             {/* Manage Baselines Modal Trigger */}
             <button
               onClick={onOpenManageBaselines}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer shadow-2xs"
+              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition cursor-pointer shadow-xs"
             >
-              <BookmarkPlus className="h-3.5 w-3.5 text-amber-400" />
+              <BookmarkPlus className="h-3.5 w-3.5 text-sky-100" />
               <span>Manage Baselines</span>
             </button>
 

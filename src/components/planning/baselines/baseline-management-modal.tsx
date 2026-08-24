@@ -165,7 +165,7 @@ export function BaselineManagementModal({
                       {/* Left Baseline Summary Info */}
                       <div className="space-y-1">
                         <div className="flex items-center gap-2">
-                          <span className="px-2.5 py-0.5 rounded-md bg-slate-900 text-white font-mono text-[10px] font-bold">
+                          <span className="px-2.5 py-0.5 rounded-md bg-sky-50 text-sky-800 border border-sky-200 font-mono text-[10px] font-bold">
                             Baseline #{b.baseline_number}
                           </span>
                           <h3 className="text-sm font-black text-slate-900">{b.baseline_name}</h3>
@@ -312,7 +312,7 @@ export function BaselineManagementModal({
 
             <button
               onClick={onClose}
-              className="px-5 py-2 rounded-xl bg-slate-900 text-white font-bold text-xs hover:bg-slate-800 transition cursor-pointer"
+              className="px-5 py-2 rounded-xl bg-sky-600 text-white font-bold text-xs hover:bg-sky-500 transition cursor-pointer shadow-xs"
             >
               Done
             </button>

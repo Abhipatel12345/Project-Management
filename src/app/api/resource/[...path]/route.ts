@@ -1,5 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PDMUserSession } from '@/types/auth.types';
+import {
+  isUserMatch,
+  isTaskAssignedToUser,
+  isProjectManagedByUser,
+  getManagedProjectIdsForUser,
+  getAccessibleProjectIdsForTeamMember,
+  fetchAllTasksFromERP,
+} from '@/lib/server/rbac-scoping';
+
+export const dynamic = 'force-dynamic';
 
 const getErpUrl = (): string => {
   return (process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
@@ -35,8 +45,6 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
 
     const session = getSessionFromRequest(req);
     const userRole = session?.role || 'teammember';
-    const userEmail = (session?.email || '').toLowerCase().trim();
-    const username = (session?.username || '').toLowerCase().trim();
 
     // 1. IT Admin User Management Endpoint Protection
     if (docType === 'User' && (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE')) {
@@ -48,48 +56,137 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
       }
     }
 
-    // 2. Project Manager Record Scoping on GET /api/resource/Project/{id}
-    if (docType === 'Project' && recordId && userRole === 'projectmanager') {
+    // Parse body for inspection on write operations
+    let body: string | undefined = undefined;
+    let parsedBodyObj: any = null;
+    if (req.method !== 'GET' && req.method !== 'HEAD') {
       try {
-        const erpUrl = getErpUrl();
-        const checkRes = await fetch(`${erpUrl}/api/resource/Project/${encodeURIComponent(recordId)}`, {
-          headers: {
-            Authorization: `token ${getApiKey()}:${getApiSecret()}`,
-            Accept: 'application/json',
-          },
-          cache: 'no-store',
-        });
+        const text = await req.text();
+        if (text && text.trim() !== '') {
+          body = text;
+          try {
+            parsedBodyObj = JSON.parse(text);
+          } catch {
+            // non-json body
+          }
+        }
+      } catch {
+        // empty body
+      }
+    }
 
-        if (checkRes.ok) {
-          const projData = await checkRes.json();
-          const owner = (projData.data?.owner || '').toLowerCase().trim();
-          const teamUsers = (projData.data?.users || []).map((u: any) => (u.user || u.email || '').toLowerCase().trim());
+    // 2. Project Manager Role & Permission Restrictions (Inteva PM Requirement)
+    if (userRole === 'projectmanager' || !session?.permissions?.manageTeamMembers) {
+      // Restrict Changing Team Members / Board Members
+      if (docType === 'Project' && (req.method === 'PUT' || req.method === 'POST') && parsedBodyObj && 'users' in parsedBodyObj) {
+        return NextResponse.json(
+          { _error_message: '403 Forbidden: Project Managers are not authorized to add, remove, or modify Project Team Members or Steering Board composition (Inteva PM Requirement).' },
+          { status: 403 }
+        );
+      }
+    }
 
-          const isAuthorized =
-            owner === userEmail ||
-            owner === username ||
-            teamUsers.includes(userEmail) ||
-            teamUsers.includes(username);
-
-          if (!isAuthorized) {
+    if (userRole === 'projectmanager' || !session?.permissions?.manageProjectSettings) {
+      // Restrict Changing Project Settings / Deleting Project Charters
+      if (docType === 'Project') {
+        if (req.method === 'DELETE') {
+          return NextResponse.json(
+            { _error_message: '403 Forbidden: Project Managers are not authorized to delete Project Charters.' },
+            { status: 403 }
+          );
+        }
+        if (req.method === 'PUT' && parsedBodyObj) {
+          const restrictedFields = ['project_name', 'company', 'department', 'is_active', 'project_type', 'custom_project_category', 'custom_product_group'];
+          const hasRestrictedField = restrictedFields.some((f) => f in parsedBodyObj);
+          if (hasRestrictedField) {
             return NextResponse.json(
-              { _error_message: `403 Forbidden: Access Denied. Project Manager ${session?.fullName} is not assigned to Project ${recordId}.` },
+              { _error_message: '403 Forbidden: Project Managers are not authorized to modify Project Settings or Charters.' },
               { status: 403 }
             );
           }
         }
-      } catch {
-        // Fallthrough if check failed
       }
     }
 
-    // 3. Team Member Task Scoping on GET /api/resource/Task
-    let searchParams = req.nextUrl.search;
-    if (docType === 'Task' && req.method === 'GET' && userRole === 'teammember') {
-      // If team member queries task list without explicit assignment filter, inject user email filter
-      if (!searchParams.includes('_assign') && !searchParams.includes('owner') && userEmail) {
-        const filterParam = encodeURIComponent(JSON.stringify([['_assign', 'like', `%${userEmail}%`]]));
-        searchParams += searchParams ? `&filters=${filterParam}` : `?filters=${filterParam}`;
+    if (userRole === 'projectmanager' || !session?.permissions?.approveGates) {
+      // Restrict Gate Approval Decisions
+      if ((docType === 'Gate' || docType === 'Gate Review' || docType === 'GateMilestone') && (req.method === 'PUT' || req.method === 'POST')) {
+        if (parsedBodyObj && (parsedBodyObj.status === 'Approved' || parsedBodyObj.status === 'Approved with Conditions' || parsedBodyObj.approval_status === 'Approved' || parsedBodyObj.decision === 'Approved' || parsedBodyObj.decision === 'Approved with Conditions')) {
+          return NextResponse.json(
+            { _error_message: '403 Forbidden: Gate Approval decisions are restricted to Gate Reviewers and Executive Board.' },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
+    if (userRole === 'projectmanager' || !session?.permissions?.approveDesign) {
+      // Restrict Design Review Approvals
+      if ((docType === 'Design Review' || docType === 'DesignReview') && (req.method === 'PUT' || req.method === 'POST')) {
+        if (parsedBodyObj && (parsedBodyObj.approval_status === 'Approved' || parsedBodyObj.approval_status === 'Approved with Conditions' || parsedBodyObj.approval_status === 'Rejected')) {
+          return NextResponse.json(
+            { _error_message: '403 Forbidden: Design Review Approvals are restricted to Quality / Gate Reviewers and PMO Administrators.' },
+            { status: 403 }
+          );
+        }
+      }
+    }
+
+    // 3. Write Operation Scoping for Tasks
+    if (docType === 'Task') {
+      if (req.method === 'POST') {
+        if (userRole === 'teammember') {
+          return NextResponse.json(
+            { _error_message: '403 Forbidden: Team Members are not authorized to create project tasks directly.' },
+            { status: 403 }
+          );
+        }
+        // Project Managers and PMO Admins can create tasks for ANY project
+      }
+
+      if (req.method === 'PUT' && recordId && session) {
+        if (userRole === 'teammember') {
+          // Fetch existing task to verify assignment using list query to get _assign
+          const erpUrl = getErpUrl();
+          const taskRes = await fetch(
+            `${erpUrl}/api/resource/Task?filters=[["name","=","${encodeURIComponent(recordId)}"]]&fields=["name","subject","project","status","priority","_assign","owner"]`,
+            {
+              headers: { Authorization: `token ${getApiKey()}:${getApiSecret()}` },
+              cache: 'no-store',
+            }
+          );
+          if (taskRes.ok) {
+            const taskDataList = (await taskRes.json()).data;
+            const taskData = Array.isArray(taskDataList) && taskDataList.length > 0 ? taskDataList[0] : null;
+            if (!taskData || !isTaskAssignedToUser(taskData, session)) {
+              return NextResponse.json(
+                { _error_message: '403 Forbidden: Access Denied. You are not assigned to this task.' },
+                { status: 403 }
+              );
+            }
+            if (parsedBodyObj?.assigned_to && !isUserMatch(parsedBodyObj.assigned_to, session)) {
+              return NextResponse.json(
+                { _error_message: '403 Forbidden: Team Members cannot reassign tasks to other users.' },
+                { status: 403 }
+              );
+            }
+            if (parsedBodyObj?.project && parsedBodyObj.project !== taskData.project) {
+              return NextResponse.json(
+                { _error_message: '403 Forbidden: Team Members cannot change task project assignment.' },
+                { status: 403 }
+              );
+            }
+          }
+        }
+      }
+
+      if (req.method === 'DELETE' && recordId && session) {
+        if (userRole === 'teammember') {
+          return NextResponse.json(
+            { _error_message: '403 Forbidden: Team Members cannot delete tasks.' },
+            { status: 403 }
+          );
+        }
       }
     }
 
@@ -103,7 +200,8 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
       }
     }
 
-    // Proxy request directly to ERPNext VM
+    // Forward request to ERPNext VM
+    const searchParams = req.nextUrl.search;
     const erpUrl = getErpUrl();
     const targetUrl = `${erpUrl}/api/resource/${path ? path.join('/') : ''}${searchParams}`;
 
@@ -114,18 +212,6 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
     };
 
     const method = req.method;
-    let body: string | undefined = undefined;
-
-    if (method !== 'GET' && method !== 'HEAD') {
-      try {
-        const text = await req.text();
-        if (text && text.trim() !== '') {
-          body = text;
-        }
-      } catch {
-        // empty body
-      }
-    }
 
     const erpRes = await fetch(targetUrl, {
       method,
@@ -140,6 +226,121 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
       resJson = JSON.parse(resText);
     } catch {
       resJson = resText;
+    }
+
+    // 5. READ OPERATION RBAC & DATA-SCOPING INTERCEPTOR (GET)
+    if (req.method === 'GET' && session && typeof resJson === 'object' && resJson !== null) {
+      // 5A. Project Scoping
+      if (docType === 'Project') {
+        if (recordId && resJson.data) {
+          // Single Project Detail Check
+          if (userRole === 'teammember') {
+            const accessibleIds = await getAccessibleProjectIdsForTeamMember(session);
+            const isAuthorized =
+              accessibleIds.has(recordId) ||
+              (resJson.data.project_name && accessibleIds.has(resJson.data.project_name)) ||
+              isProjectManagedByUser(resJson.data, session);
+
+            if (!isAuthorized) {
+              return NextResponse.json(
+                { _error_message: `403 Forbidden: Access Denied. You do not have assigned tasks or membership in Project "${recordId}".` },
+                { status: 403 }
+              );
+            }
+          }
+          // PM & Admin have universal project access
+        } else if (!recordId && Array.isArray(resJson.data)) {
+          // Project List Collection Filtering
+          if (userRole === 'teammember') {
+            const accessibleIds = await getAccessibleProjectIdsForTeamMember(session);
+            const filteredProjects = resJson.data.filter((p: any) =>
+              accessibleIds.has(p.name) ||
+              (p.project_name && accessibleIds.has(p.project_name)) ||
+              isProjectManagedByUser(p, session)
+            );
+            return NextResponse.json({ data: filteredProjects }, { status: 200 });
+          }
+          // PM & Admin see ALL projects
+        }
+      }
+
+      // 5B. Task Scoping
+      if (docType === 'Task') {
+        if (recordId && resJson.data) {
+          // Attach _assign if missing in single document payload
+          if (!resJson.data._assign) {
+            try {
+              const assignRes = await fetch(
+                `${erpUrl}/api/resource/Task?filters=[["name","=","${encodeURIComponent(recordId)}"]]&fields=["name","_assign"]`,
+                {
+                  headers: { Authorization: `token ${getApiKey()}:${getApiSecret()}` },
+                  cache: 'no-store',
+                }
+              );
+              if (assignRes.ok) {
+                const assignData = await assignRes.json();
+                if (assignData.data && assignData.data.length > 0) {
+                  resJson.data._assign = assignData.data[0]._assign;
+                }
+              }
+            } catch {
+              // ignore
+            }
+          }
+
+          // Single Task Detail Check
+          if (userRole === 'teammember') {
+            if (!isTaskAssignedToUser(resJson.data, session)) {
+              return NextResponse.json(
+                { _error_message: `403 Forbidden: Access Denied. Task "${recordId}" is not assigned to you.` },
+                { status: 403 }
+              );
+            }
+          }
+          // PM & Admin see all task details
+        } else if (!recordId && Array.isArray(resJson.data)) {
+          // Task List Collection Filtering
+          if (userRole === 'teammember') {
+            const filteredTasks = resJson.data.filter((t: any) => isTaskAssignedToUser(t, session));
+            return NextResponse.json({ data: filteredTasks }, { status: 200 });
+          }
+          // PM & Admin see ALL tasks
+        }
+      }
+
+      // 5C. Issue Scoping
+      if (docType === 'Issue') {
+        if (recordId && resJson.data) {
+          if (userRole === 'teammember') {
+            const myTasks = (await fetchAllTasksFromERP()).filter((t) => isTaskAssignedToUser(t, session));
+            const myTaskIds = new Set(myTasks.map((t) => t.name));
+            const isAuthorized =
+              (resJson.data.task && myTaskIds.has(resJson.data.task)) ||
+              isUserMatch(resJson.data.raised_by, session) ||
+              isUserMatch(resJson.data.assigned_to, session);
+
+            if (!isAuthorized) {
+              return NextResponse.json(
+                { _error_message: `403 Forbidden: Access Denied. You are not authorized to view Issue "${recordId}".` },
+                { status: 403 }
+              );
+            }
+          }
+          // PM & Admin see all issues
+        } else if (!recordId && Array.isArray(resJson.data)) {
+          if (userRole === 'teammember') {
+            const myTasks = (await fetchAllTasksFromERP()).filter((t) => isTaskAssignedToUser(t, session));
+            const myTaskIds = new Set(myTasks.map((t) => t.name));
+            const filteredIssues = resJson.data.filter((iss: any) =>
+              (iss.task && myTaskIds.has(iss.task)) ||
+              isUserMatch(iss.raised_by, session) ||
+              isUserMatch(iss.assigned_to, session)
+            );
+            return NextResponse.json({ data: filteredIssues }, { status: 200 });
+          }
+          // PM & Admin see all issues
+        }
+      }
     }
 
     if (typeof resJson === 'object' && resJson !== null) {

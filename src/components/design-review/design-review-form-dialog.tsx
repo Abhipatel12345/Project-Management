@@ -8,6 +8,7 @@ import {
 } from '@/types/design-review.types';
 import { Project } from '@/types/project.types';
 import { useProjects } from '@/hooks/use-projects';
+import { useAuth } from '@/providers/auth-context';
 import { X, Loader2, ClipboardList } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -39,6 +40,8 @@ export function DesignReviewFormDialog({
   initialData,
   defaultProjectId,
 }: DesignReviewFormDialogProps) {
+  const { hasPermission } = useAuth();
+  const canApproveDesign = hasPermission('approveDesign');
   const isEditing = !!initialData;
   const { data: projectsData } = useProjects({ page: 1, pageSize: 50 });
   const projects: Project[] = projectsData?.projects || [];
@@ -227,10 +230,19 @@ export function DesignReviewFormDialog({
                 >
                   <option value="Pending">Pending Sign-off</option>
                   <option value="Under Review">Under Review</option>
-                  <option value="Approved">Approved</option>
-                  <option value="Approved with Conditions">Approved with Conditions</option>
-                  <option value="Rejected">Rejected</option>
+                  {canApproveDesign && (
+                    <>
+                      <option value="Approved">Approved</option>
+                      <option value="Approved with Conditions">Approved with Conditions</option>
+                      <option value="Rejected">Rejected</option>
+                    </>
+                  )}
                 </select>
+                {!canApproveDesign && (
+                  <p className="text-[10px] text-slate-400 font-medium">
+                    Formal Approval is restricted to Quality / Gate Reviewers and PMO Admins.
+                  </p>
+                )}
               </div>
 
               <div className="space-y-1.5">

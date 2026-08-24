@@ -88,9 +88,9 @@ export function GanttHeaderSummary({
           {onOpenManageBaselines && (
             <button
               onClick={onOpenManageBaselines}
-              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-slate-900 hover:bg-slate-800 text-white font-bold text-xs transition cursor-pointer shadow-2xs shrink-0"
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition cursor-pointer shadow-xs shrink-0"
             >
-              <BookmarkPlus className="h-4 w-4 text-amber-400" />
+              <BookmarkPlus className="h-4 w-4 text-sky-100" />
               <span>Manage Baselines</span>
             </button>
           )}

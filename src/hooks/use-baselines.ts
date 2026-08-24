@@ -21,10 +21,19 @@ export function useCreateBaseline() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ input, currentTasks }: { input: CreateBaselineInput; currentTasks: Task[] }) =>
-      baselineService.createBaseline(input, currentTasks),
-    onSuccess: (_: ProjectBaseline, variables: { input: CreateBaselineInput; currentTasks: Task[] }) => {
-      queryClient.invalidateQueries({ queryKey: BASELINE_KEYS.project(variables.input.project_id) });
+    mutationFn: (args: { input: CreateBaselineInput; currentTasks: Task[] } | (CreateBaselineInput & { tasks?: Task[] })) => {
+      if ('input' in args && 'currentTasks' in args) {
+        return baselineService.createBaseline(args.input, args.currentTasks);
+      }
+      const { tasks, ...input } = args as any;
+      return baselineService.createBaseline(input, tasks || []);
+    },
+    onSuccess: (_: ProjectBaseline, variables: any) => {
+      const projectId = variables?.input?.project_id || variables?.project_id;
+      if (projectId) {
+        queryClient.invalidateQueries({ queryKey: BASELINE_KEYS.project(projectId) });
+      }
+      queryClient.invalidateQueries({ queryKey: BASELINE_KEYS.all });
     },
   });
 }

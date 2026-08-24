@@ -162,55 +162,55 @@ function ITAdminDashboard() {
   return (
     <div className="space-y-6 pb-20 font-sans text-slate-800">
       {/* IT Admin Banner */}
-      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-xl space-y-4 text-white">
+      <div className="rounded-3xl bg-white border border-slate-200 p-6 shadow-xs space-y-4 text-slate-900">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold tracking-tight">
+              <h1 className="text-xl font-bold tracking-tight text-slate-900">
                 {user?.fullName || 'IT Administrator'}
               </h1>
-              <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20">
+              <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-md bg-sky-50 text-sky-700 border border-sky-200">
                 {user?.roleLabel || 'PDM User Administrator'}
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               User & Access Administration Desk • ERPNext Account Security Engine
             </p>
           </div>
 
           <button
             onClick={() => setAddUserModalOpen(true)}
-            className="px-4 py-2.5 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-2 shadow-lg shadow-sky-600/20 cursor-pointer self-start sm:self-auto"
+            className="px-4 py-2.5 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-2 shadow-xs cursor-pointer self-start sm:self-auto"
           >
             <UserPlus className="h-4 w-4" /> + Add User
           </button>
         </div>
 
         {/* Identity Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-800/80 text-xs">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 pt-3 border-t border-slate-200 text-xs">
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <User className="h-3 w-3 text-slate-400" /> Logged Account
             </div>
-            <div className="font-bold text-white truncate">{user?.username}</div>
+            <div className="font-bold text-slate-900 truncate">{user?.username}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <FileText className="h-3 w-3 text-slate-400" /> Email
             </div>
-            <div className="font-bold text-slate-200 truncate">{user?.email}</div>
+            <div className="font-bold text-slate-700 truncate">{user?.email}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3 text-sky-400" /> Security Authority
+              <ShieldCheck className="h-3 w-3 text-sky-600" /> Security Authority
             </div>
-            <div className="font-bold text-sky-400">IT User & Account Administration</div>
+            <div className="font-bold text-sky-700">IT User & Account Administration</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <Clock className="h-3 w-3 text-slate-400" /> Session Status
             </div>
-            <div className="font-bold text-emerald-400">Active Token Session</div>
+            <div className="font-bold text-emerald-600">Active Token Session</div>
           </div>
         </div>
       </div>
@@ -287,13 +287,13 @@ function ITAdminDashboard() {
               const el = document.getElementById('user-table-section');
               if (el) el.scrollIntoView({ behavior: 'smooth' });
             }}
-            className="p-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-left transition shadow-xs space-y-1 cursor-pointer"
+            className="p-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-left transition shadow-xs space-y-1 cursor-pointer"
           >
             <div className="flex items-center justify-between font-extrabold text-xs">
               <span>User Management</span>
-              <Users className="h-4 w-4 text-sky-400" />
+              <Users className="h-4 w-4 text-sky-600" />
             </div>
-            <p className="text-[11px] text-slate-400">View user directory and toggle account status.</p>
+            <p className="text-[11px] text-slate-500">View user directory and toggle account status.</p>
           </button>
 
           <Link
@@ -310,16 +310,16 @@ function ITAdminDashboard() {
       </div>
 
       {/* Registered Users Management Table */}
-      <div id="user-table-section" className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-4 font-sans text-white">
+      <div id="user-table-section" className="bg-white border border-slate-200 rounded-3xl p-5 space-y-4 font-sans text-slate-800 shadow-xs">
         <div className="flex items-center justify-between">
-          <h3 className="text-sm font-bold text-white flex items-center gap-2">
-            <UserCheck className="h-4 w-4 text-sky-400" /> System User Directory ({usersList.length})
+          <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
+            <UserCheck className="h-4 w-4 text-sky-600" /> System User Directory ({usersList.length})
           </h3>
         </div>
-        <div className="overflow-x-auto border border-slate-800 rounded-2xl">
+        <div className="overflow-x-auto border border-slate-200 rounded-2xl">
           <table className="w-full text-left text-xs">
             <thead>
-              <tr className="bg-slate-950 text-slate-400 uppercase text-[10px] font-bold border-b border-slate-800">
+              <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-200">
                 <th className="py-3 px-4">User Name</th>
                 <th className="py-3 px-4">Email / ID</th>
                 <th className="py-3 px-4">Function</th>
@@ -328,24 +328,24 @@ function ITAdminDashboard() {
                 <th className="py-3 px-4 text-right">Action</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-800/80 text-slate-300">
+            <tbody className="divide-y divide-slate-100 text-slate-700">
               {usersList.map((u) => (
-                <tr key={u.email} className="hover:bg-slate-800/40 transition">
-                  <td className="py-3 px-4 font-bold text-white">{u.fullName}</td>
-                  <td className="py-3 px-4 font-mono text-slate-400">{u.email} ({u.employeeId || 'N/A'})</td>
-                  <td className="py-3 px-4 font-semibold text-slate-300">{u.functionName || u.department}</td>
+                <tr key={u.email} className="hover:bg-slate-50 transition">
+                  <td className="py-3 px-4 font-bold text-slate-900">{u.fullName}</td>
+                  <td className="py-3 px-4 font-mono text-slate-500">{u.email} ({u.employeeId || 'N/A'})</td>
+                  <td className="py-3 px-4 font-semibold text-slate-700">{u.functionName || u.department}</td>
                   <td className="py-3 px-4">
-                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-sky-500/10 text-sky-400 border border-sky-500/20">
+                    <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
                       {u.roleLabel}
                     </span>
                   </td>
                   <td className="py-3 px-4">
                     {u.isActive ? (
-                      <span className="inline-flex items-center gap-1 text-emerald-400 font-bold text-[11px]">
+                      <span className="inline-flex items-center gap-1 text-emerald-600 font-bold text-[11px]">
                         <UserCheck className="h-3 w-3" /> Active
                       </span>
                     ) : (
-                      <span className="inline-flex items-center gap-1 text-rose-400 font-bold text-[11px]">
+                      <span className="inline-flex items-center gap-1 text-rose-600 font-bold text-[11px]">
                         <UserX className="h-3 w-3" /> Inactive
                       </span>
                     )}
@@ -357,7 +357,7 @@ function ITAdminDashboard() {
                         await loadLocalData();
                         showToast(`User status toggled for ${u.fullName}!`, 'info');
                       }}
-                      className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition cursor-pointer"
+                      className="px-2.5 py-1 text-[10px] font-bold rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 border border-slate-200 transition cursor-pointer"
                     >
                       Toggle Status
                     </button>
@@ -399,97 +399,92 @@ function ITAdminDashboard() {
 
       {/* Add User Modal */}
       {addUserModalOpen && (
-        <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleCreateUserSubmit} className="bg-slate-900 border border-slate-800 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-              <h2 className="text-base font-bold text-white flex items-center gap-2">
-                <UserPlus className="h-5 w-5 text-sky-400" /> IT Admin — Onboard System User
+        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
+          <form onSubmit={handleCreateUserSubmit} className="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
+            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
+              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
+                <UserPlus className="h-5 w-5 text-sky-600" /> IT Admin — Onboard System User
               </h2>
               <button
                 type="button"
                 onClick={() => setAddUserModalOpen(false)}
-                className="text-slate-400 hover:text-white"
+                className="text-slate-400 hover:text-slate-600 cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>
             </div>
             <div className="grid grid-cols-2 gap-3 text-xs">
               <div className="space-y-1">
-                <label className="font-bold text-slate-300">Full Name</label>
+                <label className="font-bold text-slate-700">Full Name</label>
                 <input
                   type="text"
                   required
                   placeholder="e.g. Sarah Connor"
                   value={newFullName}
                   onChange={(e) => setNewFullName(e.target.value)}
-                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-500"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white"
                 />
               </div>
               <div className="space-y-1">
-                <label className="font-bold text-slate-300">Email Address</label>
+                <label className="font-bold text-slate-700">Email Address</label>
                 <input
                   type="email"
                   required
                   placeholder="sarah@pdm.netlink.com"
                   value={newEmail}
                   onChange={(e) => setNewEmail(e.target.value)}
-                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-500"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white"
                 />
               </div>
               <div className="space-y-1">
-                <label className="font-bold text-slate-300">Employee ID</label>
+                <label className="font-bold text-slate-700">Employee ID</label>
                 <input
                   type="text"
                   placeholder="EMP-501"
                   value={newEmpId}
                   onChange={(e) => setNewEmpId(e.target.value)}
-                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-500"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white"
                 />
               </div>
               <div className="space-y-1">
-                <label className="font-bold text-slate-300">Function</label>
-                <select
+                <label className="font-bold text-slate-700">Function</label>
+                <input
+                  type="text"
+                  placeholder="Engineering"
                   value={newFunction}
                   onChange={(e) => setNewFunction(e.target.value)}
-                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-500"
-                >
-                  <option value="Engineering">Engineering</option>
-                  <option value="Quality">Quality</option>
-                  <option value="Purchasing">Purchasing</option>
-                  <option value="Warehouse">Warehouse</option>
-                  <option value="Program Management">Program Management</option>
-                  <option value="IT">IT</option>
-                </select>
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white"
+                />
               </div>
               <div className="space-y-1 col-span-2">
-                <label className="font-bold text-slate-300">Assigned PDM Application Role</label>
+                <label className="font-bold text-slate-700">Assigned PDM Role</label>
                 <select
                   value={newRole}
                   onChange={(e) => setNewRole(e.target.value as any)}
-                  className="w-full p-2.5 bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none focus:border-sky-500 font-bold"
+                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:outline-none focus:border-sky-500 focus:bg-white cursor-pointer"
                 >
-                  <option value="projectmanager">Project Manager (PM)</option>
-                  <option value="teammember">Team Member (Engineer)</option>
-                  <option value="gate_reviewer">Gate Reviewer / Board Member</option>
-                  <option value="warehouse_user">Warehouse User</option>
-                  <option value="admin">PDM Administrator (PMO)</option>
-                  <option value="it_admin">PDM User Administrator (IT Admin)</option>
+                  <option value="projectmanager">Project Manager (PMO Portfolio Leader)</option>
+                  <option value="teammember">Team Member (Design / Project Engineer)</option>
+                  <option value="gate_reviewer">Gate Reviewer (Executive Gate Sign-off Board)</option>
+                  <option value="warehouse_user">Warehouse User (Materials & Stock Specialist)</option>
+                  <option value="admin">PDM Administrator (PMO / Business System Admin)</option>
+                  <option value="it_admin">IT Administrator (User & Identity Admin)</option>
                 </select>
               </div>
             </div>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-800">
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
               <button
                 type="button"
                 onClick={() => setAddUserModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-800 text-slate-300 hover:bg-slate-700 cursor-pointer"
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                className="px-4 py-2 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white shadow-lg cursor-pointer"
+                className="px-4 py-2 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white shadow-xs transition"
               >
-                Create User Account
+                Create User
               </button>
             </div>
           </form>
@@ -514,18 +509,18 @@ function PDMAdminDashboard() {
   return (
     <div className="space-y-6 pb-20 font-sans text-slate-800">
       {/* Session Header Banner */}
-      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-xl space-y-4">
+      <div className="rounded-3xl bg-white border border-slate-200 p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-white tracking-tight">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                 {user?.fullName || 'PDM Administrator'}
               </h1>
-              <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-md bg-rose-500/10 text-rose-400 border border-rose-500/20">
+              <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-md bg-rose-50 text-rose-700 border border-rose-200">
                 {user?.roleLabel || 'PDM Administrator'}
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               Product Development System Administration & PMO Governance • Integrated ERPNext Engine
             </p>
           </div>
@@ -533,13 +528,13 @@ function PDMAdminDashboard() {
             <button
               onClick={() => refetch()}
               disabled={isFetching}
-              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} /> Refresh
             </button>
             <Link
               href="/projects"
-              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-1.5 shadow-md shadow-sky-600/20"
+              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-1.5 shadow-xs"
             >
               <FolderKanban className="h-3.5 w-3.5" /> Project Portfolio
             </Link>
@@ -547,36 +542,36 @@ function PDMAdminDashboard() {
         </div>
 
         {/* Identity Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-3 border-t border-slate-800/80 text-xs">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-3 border-t border-slate-200 text-xs">
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <User className="h-3 w-3 text-slate-400" /> Logged Account
             </div>
-            <div className="font-bold text-white truncate">{user?.username}</div>
+            <div className="font-bold text-slate-900 truncate">{user?.username}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <FileText className="h-3 w-3 text-slate-400" /> Email
             </div>
-            <div className="font-bold text-slate-200 truncate">{user?.email}</div>
+            <div className="font-bold text-slate-700 truncate">{user?.email}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <Building2 className="h-3 w-3 text-slate-400" /> Department / Function
             </div>
-            <div className="font-bold text-slate-200">{user?.department || 'PMO / Engineering'}</div>
+            <div className="font-bold text-slate-700">{user?.department || 'PMO / Engineering'}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3 text-rose-400" /> Role Authority
+              <ShieldCheck className="h-3 w-3 text-rose-600" /> Role Authority
             </div>
-            <div className="font-bold text-rose-400">PDM Business System Admin</div>
+            <div className="font-bold text-rose-700">PDM Business System Admin</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <Clock className="h-3 w-3 text-slate-400" /> Session Security
             </div>
-            <div className="font-bold text-sky-400">Isolated Cookie Active</div>
+            <div className="font-bold text-sky-700">Isolated Cookie Active</div>
           </div>
         </div>
       </div>
@@ -753,18 +748,18 @@ function ProjectManagerDashboard() {
   return (
     <div className="space-y-6 pb-20 font-sans text-slate-800">
       {/* Session Banner */}
-      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-xl space-y-4">
+      <div className="rounded-3xl bg-white border border-slate-200 p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-white tracking-tight">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                 {user?.fullName || 'Project Manager Workspace'}
               </h1>
-              <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20">
+              <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-md bg-sky-50 text-sky-700 border border-sky-200">
                 {user?.roleLabel || 'Project Manager'}
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               Executive Project Portfolio Management & Governance • Integrated ERPNext Engine
             </p>
           </div>
@@ -772,13 +767,13 @@ function ProjectManagerDashboard() {
             <button
               onClick={() => refetch()}
               disabled={isFetching}
-              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} /> Refresh
             </button>
             <Link
               href="/projects"
-              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-1.5 shadow-md shadow-sky-600/20"
+              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-1.5 shadow-xs"
             >
               <FolderKanban className="h-3.5 w-3.5" /> Managed Projects
             </Link>
@@ -786,49 +781,49 @@ function ProjectManagerDashboard() {
         </div>
 
         {/* Identity Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-3 border-t border-slate-800/80 text-xs">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-3 border-t border-slate-200 text-xs">
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <User className="h-3 w-3 text-slate-400" /> Logged Account
             </div>
-            <div className="font-bold text-white truncate">{user?.username}</div>
+            <div className="font-bold text-slate-900 truncate">{user?.username}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <FileText className="h-3 w-3 text-slate-400" /> Email
             </div>
-            <div className="font-bold text-slate-200 truncate">{user?.email}</div>
+            <div className="font-bold text-slate-700 truncate">{user?.email}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <Building2 className="h-3 w-3 text-slate-400" /> Department / Function
             </div>
-            <div className="font-bold text-slate-200">{user?.department || 'Program Management'}</div>
+            <div className="font-bold text-slate-700">{user?.department || 'Program Management'}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3 text-sky-400" /> Role Authority
+              <ShieldCheck className="h-3 w-3 text-sky-600" /> Role Authority
             </div>
-            <div className="font-bold text-sky-400">Project Portfolio Authority</div>
+            <div className="font-bold text-sky-700">Project Portfolio Authority</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <Clock className="h-3 w-3 text-slate-400" /> Session Security
             </div>
-            <div className="font-bold text-emerald-400">Isolated Cookie Active</div>
+            <div className="font-bold text-emerald-600">Isolated Cookie Active</div>
           </div>
         </div>
       </div>
 
       {/* APQP Executive Gate Banner */}
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex items-center justify-between">
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 flex items-center justify-between shadow-xs">
         <div>
-          <h2 className="text-base font-bold text-white">APQP Stage-Gate Execution & Readiness Desk</h2>
-          <p className="text-xs text-slate-400">Monitor Gate deliverables, KGD criteria readiness, baseline schedules, and team assignments.</p>
+          <h2 className="text-base font-bold text-slate-900">APQP Stage-Gate Execution & Readiness Desk</h2>
+          <p className="text-xs text-slate-500">Monitor Gate deliverables, KGD criteria readiness, baseline schedules, and team assignments.</p>
         </div>
         <Link
           href="/gates/review"
-          className="px-4 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-2 shadow-lg shadow-emerald-600/20"
+          className="px-4 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-2 shadow-xs"
         >
           <Lock className="h-4 w-4" /> Open Gate Review Desk <ArrowRight className="h-4 w-4" />
         </Link>
@@ -1001,19 +996,19 @@ function GateReviewerDashboard() {
   const { user } = useAuth();
   return (
     <div className="space-y-6 pb-20 font-sans text-slate-800">
-      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 text-white space-y-2">
+      <div className="rounded-3xl bg-white border border-slate-200 p-6 text-slate-900 space-y-2 shadow-xs">
         <h1 className="text-xl font-bold">{user?.fullName || 'Gate Reviewer'} — Review Board</h1>
-        <p className="text-xs text-slate-400">Evaluate APQP Stage Gate readiness formulas, KGD compliance, and perform sign-offs.</p>
+        <p className="text-xs text-slate-500">Evaluate APQP Stage Gate readiness formulas, KGD compliance, and perform sign-offs.</p>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex items-center justify-between">
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 flex items-center justify-between shadow-xs">
         <div>
-          <h2 className="text-base font-bold text-white">Executive Gate Review Board</h2>
-          <p className="text-xs text-slate-400">Review APQP Gate Readiness, evaluate KGDs & critical issues, and approve gate milestones.</p>
+          <h2 className="text-base font-bold text-slate-900">Executive Gate Review Board</h2>
+          <p className="text-xs text-slate-500">Review APQP Gate Readiness, evaluate KGDs & critical issues, and approve gate milestones.</p>
         </div>
         <Link
           href="/gates/review"
-          className="px-4 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-2 shadow-lg shadow-emerald-600/20"
+          className="px-4 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-2 shadow-xs"
         >
           <Lock className="h-4 w-4" /> Open Gate Review Board <ArrowRight className="h-4 w-4" />
         </Link>
@@ -1031,46 +1026,46 @@ function WarehouseDashboard() {
 
   return (
     <div className="space-y-6 pb-20 font-sans text-slate-800">
-      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 text-white space-y-2">
+      <div className="rounded-3xl bg-white border border-slate-200 p-6 text-slate-900 space-y-2 shadow-xs">
         <h1 className="text-xl font-bold">{user?.fullName || 'Warehouse User'} — Stock & Requisitions Desk</h1>
-        <p className="text-xs text-slate-400">Manage material requisitions, reserve stock, and process component fulfillments.</p>
+        <p className="text-xs text-slate-500">Manage material requisitions, reserve stock, and process component fulfillments.</p>
       </div>
 
       <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-1">
+        <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-1 shadow-xs">
           <div className="text-[10px] font-bold text-slate-500 uppercase">Pending Requisitions</div>
-          <div className="text-2xl font-black text-amber-400">
+          <div className="text-2xl font-black text-amber-600">
             {matRequests.filter((r) => r.status === 'REQUESTED' || r.status === 'WAREHOUSE_REVIEW').length}
           </div>
         </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-1">
+        <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-1 shadow-xs">
           <div className="text-[10px] font-bold text-slate-500 uppercase">Reserved Stock</div>
-          <div className="text-2xl font-black text-cyan-400">
+          <div className="text-2xl font-black text-sky-600">
             {matRequests.filter((r) => r.status === 'RESERVED').length}
           </div>
         </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-1">
+        <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-1 shadow-xs">
           <div className="text-[10px] font-bold text-slate-500 uppercase">Issued Materials</div>
-          <div className="text-2xl font-black text-emerald-400">
+          <div className="text-2xl font-black text-emerald-600">
             {matRequests.filter((r) => r.status === 'ISSUED' || r.status === 'RECEIVED' || r.status === 'CLOSED').length}
           </div>
         </div>
-        <div className="bg-slate-900 border border-slate-800 rounded-3xl p-5 space-y-1">
+        <div className="bg-white border border-slate-200 rounded-3xl p-5 space-y-1 shadow-xs">
           <div className="text-[10px] font-bold text-slate-500 uppercase">Stock Shortages</div>
-          <div className="text-2xl font-black text-rose-400">
+          <div className="text-2xl font-black text-rose-600">
             {matRequests.filter((r) => r.status === 'STOCK_NOT_AVAILABLE' || r.status === 'PROCUREMENT_REQUIRED').length}
           </div>
         </div>
       </div>
 
-      <div className="bg-slate-900 border border-slate-800 rounded-3xl p-6 flex items-center justify-between">
+      <div className="bg-white border border-slate-200 rounded-3xl p-6 flex items-center justify-between shadow-xs">
         <div>
-          <h2 className="text-base font-bold text-white">Warehouse Requisition Desk</h2>
-          <p className="text-xs text-slate-400">Inspect material requests, reserve bin inventory, issue components, or log shortages.</p>
+          <h2 className="text-base font-bold text-slate-900">Warehouse Requisition Desk</h2>
+          <p className="text-xs text-slate-500">Inspect material requests, reserve bin inventory, issue components, or log shortages.</p>
         </div>
         <Link
           href="/warehouse"
-          className="px-4 py-2.5 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-2 shadow-lg shadow-sky-600/20"
+          className="px-4 py-2.5 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-2 shadow-xs"
         >
           <Boxes className="h-4 w-4" /> Open Warehouse Depot <ArrowRight className="h-4 w-4" />
         </Link>
@@ -1417,18 +1412,18 @@ function TeamMemberDashboard() {
   return (
     <div className="space-y-6 pb-20 font-sans text-slate-800">
       {/* 1. Header Banner */}
-      <div className="rounded-3xl bg-slate-900 border border-slate-800 p-6 shadow-xl space-y-4">
+      <div className="rounded-3xl bg-white border border-slate-200 p-6 shadow-xs space-y-4">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div className="space-y-1">
             <div className="flex items-center gap-2">
-              <h1 className="text-xl font-bold text-white tracking-tight">
+              <h1 className="text-xl font-bold text-slate-900 tracking-tight">
                 {user?.fullName || 'User Dashboard'}
               </h1>
-              <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-md bg-sky-500/10 text-sky-400 border border-sky-500/20">
+              <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-md bg-sky-50 text-sky-700 border border-sky-200">
                 {user?.roleLabel || 'Team Member'}
               </span>
             </div>
-            <p className="text-xs text-slate-400">
+            <p className="text-xs text-slate-500">
               Personalized Task Execution Dashboard • Inteva Enterprise PDM Engine
             </p>
           </div>
@@ -1442,50 +1437,50 @@ function TeamMemberDashboard() {
                 refetchIssues();
               }}
               disabled={isFetchingTasks}
-              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700 transition flex items-center gap-1.5 cursor-pointer"
+              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-200 transition flex items-center gap-1.5 cursor-pointer shadow-xs"
             >
               <RefreshCw className={cn('h-3.5 w-3.5', isFetchingTasks && 'animate-spin')} /> Refresh
             </button>
             <Link
               href="/connection-test"
-              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-1.5 shadow-md shadow-sky-600/20"
+              className="px-3.5 py-2 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-1.5 shadow-xs"
             >
-              <Activity className="h-3.5 w-3.5 text-emerald-300" /> API Test
+              <Activity className="h-3.5 w-3.5 text-sky-100" /> API Test
             </Link>
           </div>
         </div>
 
         {/* Identity Grid */}
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-3 border-t border-slate-800/80 text-xs">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-4 pt-3 border-t border-slate-200 text-xs">
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <User className="h-3 w-3 text-slate-400" /> Logged Account
             </div>
-            <div className="font-bold text-white truncate">{user?.username}</div>
+            <div className="font-bold text-slate-900 truncate">{user?.username}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <FileText className="h-3 w-3 text-slate-400" /> Email
             </div>
-            <div className="font-bold text-slate-200 truncate">{user?.email}</div>
+            <div className="font-bold text-slate-700 truncate">{user?.email}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <Building2 className="h-3 w-3 text-slate-400" /> Department / Function
             </div>
-            <div className="font-bold text-slate-200">{user?.department || 'Engineering'}</div>
+            <div className="font-bold text-slate-700">{user?.department || 'Engineering'}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
-              <ShieldCheck className="h-3 w-3 text-emerald-400" /> Application Role
+              <ShieldCheck className="h-3 w-3 text-emerald-600" /> Application Role
             </div>
-            <div className="font-bold text-emerald-400">{user?.roleLabel}</div>
+            <div className="font-bold text-emerald-600">{user?.roleLabel}</div>
           </div>
           <div className="space-y-0.5">
             <div className="text-[10px] font-bold text-slate-500 uppercase flex items-center gap-1">
               <Clock className="h-3 w-3 text-slate-400" /> Authorized Scoping
             </div>
-            <div className="font-bold text-sky-400">Scoped to User Access</div>
+            <div className="font-bold text-sky-700">Scoped to User Access</div>
           </div>
         </div>
       </div>
@@ -1821,13 +1816,13 @@ function TeamMemberDashboard() {
 
             <Link
               href="/tasks?tab=submission"
-              className="p-4 rounded-2xl bg-slate-900 hover:bg-slate-800 text-white text-left transition shadow-sm space-y-1 block"
+              className="p-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-left transition shadow-xs space-y-1 block"
             >
               <div className="flex items-center justify-between font-extrabold text-xs">
                 <span>Task Submission</span>
-                <Send className="h-4 w-4 text-sky-400" />
+                <Send className="h-4 w-4 text-sky-600" />
               </div>
-              <p className="text-[11px] text-slate-400">Submit completed task deliverables for review or PM sign-off.</p>
+              <p className="text-[11px] text-slate-500">Submit completed task deliverables for review or PM sign-off.</p>
             </Link>
           </div>
         </div>
@@ -2070,13 +2065,13 @@ function TeamMemberDashboard() {
         {!botOpen ? (
           <button
             onClick={() => setBotOpen(true)}
-            className="relative h-14 w-14 rounded-full bg-gradient-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center shadow-2xl hover:scale-105 transition-transform cursor-pointer"
+            className="relative h-14 w-14 rounded-full bg-linear-to-tr from-sky-500 to-blue-600 text-white flex items-center justify-center shadow-2xl hover:scale-105 transition-transform cursor-pointer"
           >
             <Bot className="h-7 w-7" />
             <span className="absolute -top-1 -right-1 h-3.5 w-3.5 rounded-full bg-emerald-400 ring-2 ring-white animate-pulse" />
           </button>
         ) : (
-          <div className="w-80 sm:w-96 rounded-3xl bg-slate-900 border border-slate-800 shadow-2xl overflow-hidden flex flex-col font-sans text-white">
+          <div className="w-80 sm:w-96 rounded-3xl bg-white border border-slate-200 shadow-2xl overflow-hidden flex flex-col font-sans text-slate-800">
             <div className="p-4 bg-sky-600 text-white flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <Sparkles className="h-4 w-4" />
@@ -2086,28 +2081,28 @@ function TeamMemberDashboard() {
                 <X className="h-4 w-4" />
               </button>
             </div>
-            <div className="p-4 h-64 overflow-y-auto space-y-3 bg-slate-950 text-xs">
+            <div className="p-4 h-64 overflow-y-auto space-y-3 bg-slate-50 text-xs">
               {botMessages.map((msg, idx) => (
                 <div
                   key={idx}
                   className={cn(
                     'p-3 rounded-2xl max-w-[85%] text-xs',
-                    msg.sender === 'user' ? 'bg-sky-600 text-white ml-auto' : 'bg-slate-900 border border-slate-800 text-slate-200 mr-auto'
+                    msg.sender === 'user' ? 'bg-sky-600 text-white ml-auto' : 'bg-white border border-slate-200 text-slate-800 mr-auto shadow-2xs'
                   )}
                 >
                   {msg.text}
                 </div>
               ))}
             </div>
-            <form onSubmit={handleSendChat} className="p-3 bg-slate-900 border-t border-slate-800 flex gap-2">
+            <form onSubmit={handleSendChat} className="p-3 bg-white border-t border-slate-200 flex gap-2">
               <input
                 type="text"
                 placeholder="Ask assistant..."
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                className="flex-1 px-3 py-2 text-xs bg-slate-950 border border-slate-800 rounded-xl text-white focus:outline-none"
+                className="flex-1 px-3 py-2 text-xs bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:bg-white focus:border-sky-500"
               />
-              <button type="submit" className="p-2 rounded-xl bg-sky-600 text-white cursor-pointer">
+              <button type="submit" className="p-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white cursor-pointer transition">
                 <Send className="h-4 w-4" />
               </button>
             </form>

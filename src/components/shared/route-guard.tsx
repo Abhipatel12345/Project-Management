@@ -28,12 +28,12 @@ export function RouteGuard({ children }: RouteGuardProps) {
 
   if (isLoading && !isPublicPath) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center space-y-4 font-sans">
-        <div className="h-12 w-12 rounded-2xl bg-sky-500/10 border border-sky-500/20 text-sky-400 flex items-center justify-center shadow-lg shadow-sky-500/10">
+      <div className="min-h-screen bg-[#F7F9FC] flex flex-col items-center justify-center space-y-4 font-sans text-slate-800">
+        <div className="h-12 w-12 rounded-2xl bg-sky-50 border border-sky-200 text-sky-600 flex items-center justify-center shadow-xs">
           <Loader2 className="h-6 w-6 animate-spin" />
         </div>
         <div className="text-center space-y-1">
-          <div className="text-sm font-semibold text-white">Verifying ERPNext Session...</div>
+          <div className="text-sm font-semibold text-slate-900">Verifying ERPNext Session...</div>
           <div className="text-xs text-slate-500">Checking authenticated session and role permissions</div>
         </div>
       </div>
@@ -42,11 +42,11 @@ export function RouteGuard({ children }: RouteGuardProps) {
 
   if (!isAuthenticated && !isPublicPath) {
     return (
-      <div className="min-h-screen bg-slate-950 flex flex-col items-center justify-center p-4 font-sans">
-        <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 text-center space-y-3 max-w-sm">
-          <ShieldAlert className="h-8 w-8 text-amber-400 mx-auto" />
-          <h2 className="text-base font-bold text-white">Authentication Required</h2>
-          <p className="text-xs text-slate-400">
+      <div className="min-h-screen bg-[#F7F9FC] flex flex-col items-center justify-center p-4 font-sans text-slate-800">
+        <div className="p-6 rounded-3xl bg-white border border-slate-200 text-center space-y-3 max-w-sm shadow-md">
+          <ShieldAlert className="h-8 w-8 text-amber-500 mx-auto" />
+          <h2 className="text-base font-bold text-slate-900">Authentication Required</h2>
+          <p className="text-xs text-slate-500">
             Please sign in with your ERPNext account to access protected system routes.
           </p>
         </div>

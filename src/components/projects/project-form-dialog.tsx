@@ -50,8 +50,8 @@ interface ProjectFormDialogProps {
 }
 
 const AVAILABLE_PROJECT_MANAGERS = [
-  { name: 'Sarah Jenkins', email: 'sarah.jenkins@inteva.com', title: 'Senior Program Manager' },
-  { name: 'Administrator', email: 'administrator@pdm.netlink.com', title: 'System Manager' },
+  { name: 'Sarah Jenkins', email: 'sarahjenkins@gmail.com', title: 'Senior Program Manager' },
+  { name: 'Administrator', email: 'admin@pdm.netlink.com', title: 'System Manager' },
   { name: 'Sarah Connor', email: 'sarah@pdm.netlink.com', title: 'Engineering Manager' },
   { name: 'Quality Lead', email: 'quality@netlink.com', title: 'APQP Quality Director' },
   { name: 'Robert Sterling', email: 'robert@pdm.netlink.com', title: 'Warehouse Specialist' },
@@ -170,14 +170,14 @@ export function ProjectFormDialog({
   const onFormSubmit = async (data: ProjectFormValues) => {
     try {
       setFormError(null);
-      await onSubmit(data, attachedFiles);
+      const createdProj: any = await onSubmit(data, attachedFiles);
 
-      // Save attached files directly into document store linked to the Project Name
-      const targetProjectName = data.project_name || 'NEW-PROJECT';
+      // Save attached files directly into document store linked to the Canonical Project ID & Name
+      const targetProjectId = createdProj?.name || createdProj?.project_name || data.project_name || 'NEW-PROJECT';
       for (const attFile of attachedFiles) {
         await documentService.uploadDocument({
           title: attFile.name,
-          project: targetProjectName,
+          project: targetProjectId,
           document_type: 'Engineering',
           version: 'v1.0',
           uploaded_by: user?.fullName || 'Administrator',
@@ -186,7 +186,7 @@ export function ProjectFormDialog({
           file_url: attFile.dataUrl,
           status: 'Approved',
           review_status: 'Approved',
-          description: `Uploaded during project creation for ${targetProjectName}`,
+          description: `Uploaded during project creation for ${data.project_name || targetProjectId}`,
         });
 
         auditService.logAction(
@@ -194,7 +194,7 @@ export function ProjectFormDialog({
           'Uploaded Document',
           'Document',
           attFile.name,
-          `Attached ${attFile.name} to Project "${targetProjectName}" during project setup.`
+          `Attached ${attFile.name} to Project "${targetProjectId}" during project setup.`
         );
       }
 

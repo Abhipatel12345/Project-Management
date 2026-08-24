@@ -39,6 +39,7 @@ const FUNCTIONS = [
 ];
 
 const ROLES = [
+  'Project Manager',
   'Chief Program Engineer',
   'Program Lead',
   'Lead Architect',

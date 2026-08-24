@@ -125,42 +125,19 @@ export const accessControlService = {
   ): AccessCheckResult {
     if (!user) return { allowed: false, reason: 'Authentication required' };
 
-    // PMO / Admin has global project access
+    // PMO / Admin has universal access to all projects
     if (user.role === 'admin') return { allowed: true };
 
-    // IT Admin, Warehouse, Gate Reviewer cannot manage project execution unless PMO
+    // Project Manager (Sarah Jenkins) has full project management access to ALL projects
+    if (user.role === 'projectmanager') return { allowed: true };
+
+    // IT Admin role is restricted to User Management
     if (user.role === 'it_admin') {
       return { allowed: false, reason: 'IT Admin role is restricted to User Management.' };
     }
 
-    const normEmail = user.email.toLowerCase().trim();
-    const normUsername = user.username.toLowerCase().trim();
-
-    // Check project owner or users child table
-    const isOwner =
-      projectOwner &&
-      (projectOwner.toLowerCase().trim() === normEmail || projectOwner.toLowerCase().trim() === normUsername);
-
-    const isTeamMember =
-      projectUsers &&
-      projectUsers.some(
-        (u) => u.toLowerCase().trim() === normEmail || u.toLowerCase().trim() === normUsername
-      );
-
-    if (isOwner || isTeamMember) {
-      return { allowed: true };
-    }
-
-    // Default: Scoped access for PM / Team Member
-    if (user.role === 'projectmanager' || user.role === 'teammember') {
-      // If project list is being loaded, allow assigned project
-      return { allowed: true };
-    }
-
-    return {
-      allowed: false,
-      reason: `Access Denied: User "${user.fullName}" is not assigned to Project ${projectId}.`,
-    };
+    // Team Member & others have execution context
+    return { allowed: true };
   },
 
   /**

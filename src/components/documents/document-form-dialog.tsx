@@ -17,6 +17,8 @@ export interface DocumentFormValues {
   description?: string;
   notes?: string;
   file_name?: string;
+  file_size?: number;
+  file_data?: string;
 }
 
 interface DocumentFormDialogProps {
@@ -38,6 +40,7 @@ export function DocumentFormDialog({
   const { data: projectsData } = useProjects({ page: 1, pageSize: 50 });
   const projects: Project[] = projectsData?.projects || [];
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [fileDataUrl, setFileDataUrl] = useState<string | null>(null);
 
   const {
     register,
@@ -73,6 +76,8 @@ export function DocumentFormDialog({
         notes: initialData.notes || '',
         file_name: initialData.file_name || '',
       });
+      setFileDataUrl(null);
+      setSelectedFile(null);
     } else {
       reset({
         title: '',
@@ -86,6 +91,8 @@ export function DocumentFormDialog({
         notes: '',
         file_name: '',
       });
+      setFileDataUrl(null);
+      setSelectedFile(null);
     }
   }, [initialData, reset, isOpen, defaultProjectId, projects]);
 
@@ -97,6 +104,11 @@ export function DocumentFormDialog({
       if (!initialData?.title) {
         (setValue as any)('title', file.name.replace(/\.[^/.]+$/, ''));
       }
+      const reader = new FileReader();
+      reader.onload = (loadEvt) => {
+        setFileDataUrl(loadEvt.target?.result as string);
+      };
+      reader.readAsDataURL(file);
     }
   };
 
@@ -105,6 +117,8 @@ export function DocumentFormDialog({
       await onSubmit({
         ...values,
         file_name: selectedFile?.name || values.file_name || 'document_attachment.pdf',
+        file_size: selectedFile?.size,
+        file_data: fileDataUrl || undefined,
       });
       onClose();
     } catch {

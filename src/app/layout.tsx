@@ -26,8 +26,8 @@ export default function RootLayout({
   children: React.ReactNode;
 }) {
   return (
-    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${mono.variable}`}>
-      <body className="font-sans antialiased bg-slate-950 text-slate-100 min-h-screen">
+    <html lang="en" suppressHydrationWarning className={`${inter.variable} ${mono.variable} h-full`}>
+      <body className="font-sans antialiased bg-[#F7F9FC] text-slate-900 h-full overflow-hidden selection:bg-sky-500 selection:text-white">
         <AppProvider>
           <DashboardLayout>{children}</DashboardLayout>
         </AppProvider>

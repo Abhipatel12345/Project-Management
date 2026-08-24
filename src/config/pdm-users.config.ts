@@ -4,10 +4,13 @@ export const PDM_ROLE_PERMISSIONS: Record<PDMRole, { label: string; permissions:
   admin: {
     label: 'PMO / Administrator',
     permissions: {
-      manageUsers: true,
+      manageUsers: false,
       manageProjects: true,
       manageTasks: true,
       manageDeliverables: true,
+      manageTeamMembers: true,
+      manageBoardMembers: true,
+      manageProjectSettings: true,
       reviewGates: true,
       approveGates: true,
       reviewDesign: true,
@@ -23,6 +26,9 @@ export const PDM_ROLE_PERMISSIONS: Record<PDMRole, { label: string; permissions:
       manageProjects: false,
       manageTasks: false,
       manageDeliverables: false,
+      manageTeamMembers: false,
+      manageBoardMembers: false,
+      manageProjectSettings: false,
       reviewGates: false,
       approveGates: false,
       reviewDesign: false,
@@ -35,9 +41,12 @@ export const PDM_ROLE_PERMISSIONS: Record<PDMRole, { label: string; permissions:
     label: 'Project Manager',
     permissions: {
       manageUsers: false,
-      manageProjects: true,
+      manageProjects: false,
       manageTasks: true,
       manageDeliverables: true,
+      manageTeamMembers: false,
+      manageBoardMembers: false,
+      manageProjectSettings: false,
       reviewGates: true,
       approveGates: false,
       reviewDesign: true,
@@ -53,6 +62,9 @@ export const PDM_ROLE_PERMISSIONS: Record<PDMRole, { label: string; permissions:
       manageProjects: false,
       manageTasks: true,
       manageDeliverables: true,
+      manageTeamMembers: false,
+      manageBoardMembers: false,
+      manageProjectSettings: false,
       reviewGates: false,
       approveGates: false,
       reviewDesign: false,
@@ -68,6 +80,9 @@ export const PDM_ROLE_PERMISSIONS: Record<PDMRole, { label: string; permissions:
       manageProjects: false,
       manageTasks: false,
       manageDeliverables: false,
+      manageTeamMembers: false,
+      manageBoardMembers: false,
+      manageProjectSettings: false,
       reviewGates: true,
       approveGates: true,
       reviewDesign: true,
@@ -83,6 +98,9 @@ export const PDM_ROLE_PERMISSIONS: Record<PDMRole, { label: string; permissions:
       manageProjects: false,
       manageTasks: false,
       manageDeliverables: false,
+      manageTeamMembers: false,
+      manageBoardMembers: false,
+      manageProjectSettings: false,
       reviewGates: false,
       approveGates: false,
       reviewDesign: false,
@@ -95,9 +113,9 @@ export const PDM_ROLE_PERMISSIONS: Record<PDMRole, { label: string; permissions:
 
 export const STANDARD_PDM_USERS: Record<string, Omit<PDMUserSession, 'permissions'>> = {
   admin: {
-    username: 'admin',
-    email: 'admin@pdm.netlink.com',
-    fullName: 'PMO Director (Admin)',
+    username: 'Administrator',
+    email: 'admin@example.com',
+    fullName: 'Administrator',
     role: 'admin',
     roleLabel: 'PMO / Administrator',
     department: 'PMO & Enterprise Governance',
@@ -117,34 +135,34 @@ export const STANDARD_PDM_USERS: Record<string, Omit<PDMUserSession, 'permission
     roles: ['System Administrator', 'User Manager'],
   },
   projectmanager: {
-    username: 'projectmanager',
-    email: 'pm@pdm.netlink.com',
-    fullName: 'Alex Morgan (Project Manager)',
+    username: 'sarahjenkins@gmail.com',
+    email: 'sarahjenkins@gmail.com',
+    fullName: 'Sarah Jenkins',
     role: 'projectmanager',
     roleLabel: 'Project Manager',
-    department: 'Automotive Vehicle Programs',
+    department: 'Battery Systems',
     functionName: 'Program Management',
     employeeId: 'EMP-101',
     roles: ['Projects Manager', 'PDM PM'],
   },
   teammember: {
-    username: 'teammember',
-    email: 'engineer@pdm.netlink.com',
-    fullName: 'David Vance (Design Engineer)',
+    username: 'teammember@netlink.com',
+    email: 'teammember@netlink.com',
+    fullName: 'Yash',
     role: 'teammember',
     roleLabel: 'Team Member',
-    department: 'Powertrain & Battery Engineering',
+    department: 'Engineering',
     functionName: 'Engineering',
     employeeId: 'EMP-204',
     roles: ['Employee', 'Engineer'],
   },
   gate_reviewer: {
-    username: 'gate_reviewer',
-    email: 'reviewer@pdm.netlink.com',
-    fullName: 'Elena Rostova (Gate Board Chair)',
+    username: 'gatereviewer@netlink.com',
+    email: 'gatereviewer@netlink.com',
+    fullName: 'Reviewer',
     role: 'gate_reviewer',
     roleLabel: 'Gate Reviewer / Board Member',
-    department: 'Executive Engineering Board',
+    department: 'Quality Assurance',
     functionName: 'Quality',
     employeeId: 'EMP-305',
     roles: ['Gate Approver', 'Chief Engineer'],
@@ -163,8 +181,8 @@ export const STANDARD_PDM_USERS: Record<string, Omit<PDMUserSession, 'permission
 };
 
 /**
-  * Match username/email to PDM Role and return full User Session object
-  */
+ * Match username/email to PDM Role and return full User Session object
+ */
 export function getPDMUserSession(usrInput: string): PDMUserSession {
   const normalized = usrInput.trim().toLowerCase();
 
@@ -174,13 +192,13 @@ export function getPDMUserSession(usrInput: string): PDMUserSession {
     matchedKey = 'it_admin';
   } else if (normalized.includes('warehouse') || normalized.includes('store')) {
     matchedKey = 'warehouse_user';
-  } else if (normalized.includes('reviewer') || normalized.includes('approver') || normalized.includes('board') || normalized.includes('gate_reviewer')) {
+  } else if (normalized.includes('reviewer') || normalized.includes('approver') || normalized.includes('board') || normalized.includes('gate_reviewer') || normalized.includes('gatereviewer')) {
     matchedKey = 'gate_reviewer';
-  } else if (normalized.includes('projectmanager') || normalized.includes('pm') || normalized.includes('manager')) {
+  } else if (normalized.includes('sarah') || normalized.includes('jenkins') || normalized === 'projectmanager' || normalized.includes('pm')) {
     matchedKey = 'projectmanager';
-  } else if (normalized.includes('teammember') || normalized.includes('team') || normalized.includes('engineer') || normalized.includes('member')) {
+  } else if (normalized.includes('teammember') || normalized.includes('yash') || normalized.includes('engineer') || normalized.includes('member')) {
     matchedKey = 'teammember';
-  } else if (normalized === 'admin' || normalized.includes('pmo') || normalized.includes('administrator')) {
+  } else if (normalized === 'admin' || normalized.includes('pmo') || normalized === 'administrator') {
     matchedKey = 'admin';
   }
 

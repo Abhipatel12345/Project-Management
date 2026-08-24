@@ -26,40 +26,27 @@ export function DocumentViewerModal({ document: doc, isOpen, onClose }: Document
   const isImage = ['png', 'jpg', 'jpeg', 'svg', 'webp', 'gif'].includes(fileExt) || fileUrl.startsWith('data:image/');
   const isText = ['txt', 'csv', 'json', 'md', 'xml'].includes(fileExt);
 
-  const handleDownload = () => {
-    auditService.logAction(
-      user?.fullName || 'User',
-      'Downloaded Document',
-      'Document',
-      doc.name,
-      `Downloaded attachment ${fileName} for project ${doc.project || 'Global'}`
-    );
+  const handleDownload = async () => {
+    try {
+      auditService.logAction(
+        user?.fullName || 'User',
+        'Downloaded Document',
+        'Document',
+        doc.name,
+        `Downloaded attachment ${fileName} for project ${doc.project || 'Global'}`
+      );
 
-    if (fileUrl) {
-      const a = window.document.createElement('a');
-      a.href = fileUrl;
-      a.download = fileName;
-      window.document.body.appendChild(a);
-      a.click();
-      window.document.body.removeChild(a);
-    } else {
-      // Synthetic fallback download if no raw blob dataUrl is available
-      const content = `PDM Project Document\nDocument ID: ${doc.name}\nTitle: ${doc.title}\nProject: ${doc.project}\nVersion: ${doc.version}\nUploaded By: ${doc.uploaded_by}\n\nDescription: ${doc.description || 'N/A'}`;
-      const blob = new Blob([content], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = window.document.createElement('a');
-      a.href = url;
-      a.download = fileName.endsWith('.txt') ? fileName : `${fileName}.txt`;
-      window.document.body.appendChild(a);
-      a.click();
-      window.document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      const { documentService } = await import('@/services/document.service');
+      await documentService.downloadDocument(doc.project, doc.name, fileName);
+    } catch (err: any) {
+      console.error('Download error:', err);
+      alert(err.message || 'Unable to download this document because the file is no longer available.');
     }
   };
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs font-sans">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs font-sans">
         <motion.div
           initial={{ opacity: 0, scale: 0.96 }}
           animate={{ opacity: 1, scale: 1 }}
@@ -67,35 +54,35 @@ export function DocumentViewerModal({ document: doc, isOpen, onClose }: Document
           className="relative w-full max-w-4xl bg-white border border-slate-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col h-[85vh]"
         >
           {/* Header */}
-          <div className="flex items-center justify-between px-6 py-4 bg-slate-900 text-white border-b border-slate-800 shrink-0">
+          <div className="flex items-center justify-between px-6 py-4 bg-white text-slate-900 border-b border-slate-200 shrink-0">
             <div className="flex items-center gap-3">
-              <div className="p-2 rounded-xl bg-sky-500/20 text-sky-400 border border-sky-500/30">
+              <div className="p-2 rounded-xl bg-sky-50 text-sky-600 border border-sky-200">
                 <FileText className="h-5 w-5" />
               </div>
               <div>
                 <div className="flex items-center gap-2 text-xs">
-                  <span className="font-mono text-sky-400 font-bold">{doc.name}</span>
-                  <span className="px-2 py-0.5 rounded bg-slate-800 text-slate-300 font-mono text-[10px]">
+                  <span className="font-mono text-sky-700 font-bold">{doc.name}</span>
+                  <span className="px-2 py-0.5 rounded bg-slate-100 text-slate-700 font-mono text-[10px] border border-slate-200">
                     {doc.version}
                   </span>
-                  <span className="px-2 py-0.5 rounded bg-emerald-500/20 text-emerald-300 font-bold text-[10px]">
+                  <span className="px-2 py-0.5 rounded bg-emerald-50 text-emerald-700 font-bold text-[10px] border border-emerald-200">
                     {doc.status}
                   </span>
                 </div>
-                <h3 className="text-sm font-bold text-white truncate max-w-md">{doc.title}</h3>
+                <h3 className="text-sm font-bold text-slate-900 truncate max-w-md">{doc.title}</h3>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={handleDownload}
-                className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-sm cursor-pointer"
+                className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition flex items-center gap-1.5 shadow-xs cursor-pointer"
               >
                 <Download className="h-4 w-4" /> Download
               </button>
               <button
                 onClick={onClose}
-                className="p-1.5 rounded-xl text-slate-400 hover:text-white hover:bg-slate-800 transition cursor-pointer"
+                className="p-1.5 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
               >
                 <X className="h-5 w-5" />
               </button>

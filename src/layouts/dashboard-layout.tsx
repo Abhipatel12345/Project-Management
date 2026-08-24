@@ -74,40 +74,54 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   // Clean auth layout for login page
   if (isAuthPage) {
-    return <main className="min-h-screen bg-slate-950 text-slate-100">{children}</main>;
+    return <main className="h-screen w-screen overflow-y-auto bg-[#F7F9FC] text-slate-900">{children}</main>;
   }
 
   return (
     <RouteGuard>
-      <div className="min-h-screen bg-slate-50 text-slate-900 flex font-sans antialiased selection:bg-sky-500 selection:text-white">
-        {/* Left Dark Navy Sidebar */}
+      <div className="h-screen w-screen overflow-hidden bg-[#F7F9FC] text-slate-900 flex font-sans antialiased selection:bg-sky-500 selection:text-white">
+        {/* Mobile Backdrop Overlay */}
+        <AnimatePresence>
+          {sidebarOpen && (
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              exit={{ opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              onClick={() => setSidebarOpen(false)}
+              className="fixed inset-0 z-40 bg-slate-900/40 backdrop-blur-xs lg:hidden"
+            />
+          )}
+        </AnimatePresence>
+
+        {/* Left White Light Sidebar - Permanently Fixed Viewport Height */}
         <aside
           className={cn(
-            'fixed inset-y-0 left-0 z-40 w-64 bg-[#090E1A] text-slate-300 border-r border-slate-800/80 flex flex-col transition-transform duration-300 ease-in-out lg:static lg:translate-x-0',
+            'fixed inset-y-0 left-0 z-50 w-64 h-screen max-h-screen bg-white text-slate-700 border-r border-slate-200 flex flex-col shrink-0 transition-transform duration-300 ease-in-out lg:static lg:translate-x-0',
             sidebarOpen ? 'translate-x-0' : '-translate-x-full'
           )}
         >
           {/* Netlink Brand Header */}
-          <div className="h-16 px-5 flex items-center gap-3 border-b border-slate-800/60 bg-[#070B15]">
-            <div className="h-9 w-9 rounded-lg bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center font-black text-lg text-white shadow-md shadow-sky-500/20 shrink-0">
+          <div className="h-16 px-5 flex items-center gap-3 border-b border-slate-200 bg-white shrink-0">
+            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center font-black text-lg text-white shadow-md shadow-sky-500/20 shrink-0">
               N
             </div>
             <div className="flex flex-col">
-              <span className="font-extrabold text-sm tracking-wide text-white uppercase font-sans">
+              <span className="font-extrabold text-sm tracking-wide text-slate-900 uppercase font-sans">
                 NETLINK
               </span>
-              <span className="text-[10px] font-semibold text-sky-400 tracking-wider uppercase">
+              <span className="text-[10px] font-bold text-[#0B74DE] tracking-wider uppercase">
                 PROCUREMENT & PDM
               </span>
             </div>
           </div>
 
-          {/* Sidebar Nav Items */}
+          {/* Sidebar Nav Items (Scrolls Internally If Items Exceed Viewport) */}
           <div className="flex-1 overflow-y-auto px-3 py-4 space-y-5 custom-scrollbar">
             {navSections.map((section, idx) => (
               <div key={idx} className="space-y-1">
                 {section.title && (
-                  <h3 className="px-3 text-[10px] font-bold uppercase tracking-widest text-slate-400 mb-2">
+                  <h3 className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-400 mb-2">
                     {section.title}
                   </h3>
                 )}
@@ -126,20 +140,20 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                           <button
                             onClick={() => toggleAccordion(item.title)}
                             className={cn(
-                              'w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition-all duration-150 group',
+                              'w-full flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition-all duration-150 group cursor-pointer',
                               isParentActive
-                                ? 'bg-slate-800/90 text-white shadow-sm'
-                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                                ? 'bg-sky-50 text-[#0B74DE] font-bold border border-sky-100 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
                             )}
                           >
                             <div className="flex items-center gap-3">
-                              <Icon className={cn('h-4 w-4 text-slate-400 group-hover:text-slate-200')} />
+                              <Icon className={cn('h-4 w-4 text-slate-400 group-hover:text-slate-600', isParentActive && 'text-[#0B74DE]')} />
                               <span>{item.title}</span>
                             </div>
                             <ChevronDown
                               className={cn(
                                 'h-3.5 w-3.5 text-slate-400 transition-transform duration-200',
-                                isOpen && 'rotate-180 text-sky-400'
+                                isOpen && 'rotate-180 text-sky-600'
                               )}
                             />
                           </button>
@@ -150,12 +164,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                             className={cn(
                               'flex items-center justify-between px-3 py-2 text-xs font-semibold rounded-xl transition-all duration-150 group',
                               pathname === item.href
-                                ? 'bg-sky-600 text-white font-bold shadow-md shadow-sky-600/30'
-                                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
+                                ? 'bg-[#EAF4FF] text-[#0B74DE] font-bold border border-sky-200/80 shadow-xs'
+                                : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
                             )}
                           >
                             <div className="flex items-center gap-3">
-                              <Icon className="h-4 w-4 text-slate-400 group-hover:text-slate-200" />
+                              <Icon className={cn('h-4 w-4 text-slate-400 group-hover:text-slate-600', pathname === item.href && 'text-[#0B74DE]')} />
                               <span>{item.title}</span>
                             </div>
                           </Link>
@@ -163,7 +177,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
                         {/* Collapsible Sub-Items */}
                         {hasChildren && isOpen && (
-                          <div className="pl-9 pr-2 py-1 space-y-1 border-l-2 border-slate-800/80 ml-4 my-1">
+                          <div className="pl-9 pr-2 py-1 space-y-1 border-l-2 border-slate-200 ml-4 my-1">
                             {item.children?.map((child) => {
                               const isChildActive = pathname === child.href;
                               return (
@@ -174,8 +188,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                                   className={cn(
                                     'block px-2.5 py-1.5 text-[11px] font-medium rounded-lg transition-all duration-150',
                                     isChildActive
-                                      ? 'bg-sky-500/10 text-sky-400 font-bold border border-sky-500/20'
-                                      : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/40'
+                                      ? 'bg-[#EAF4FF] text-[#0B74DE] font-bold border border-sky-200/80'
+                                      : 'text-slate-600 hover:text-slate-900 hover:bg-slate-100/70'
                                   )}
                                 >
                                   {child.title}
@@ -193,24 +207,25 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           </div>
 
           {/* Footer User Badge */}
-          <div className="p-3 border-t border-slate-800/80 bg-[#070B15]">
-            <div className="flex items-center justify-between text-xs text-slate-400 px-2 py-1">
-              <span className="text-[11px] font-medium text-slate-400">
+          <div className="p-3 border-t border-slate-200 bg-slate-50/70 shrink-0">
+            <div className="flex items-center justify-between text-xs text-slate-500 px-2 py-1">
+              <span className="text-[11px] font-medium text-slate-600">
                 PDM Session ({user?.roleLabel || 'Active'})
               </span>
-              <span className="h-2 w-2 rounded-full bg-emerald-400 animate-pulse" />
+              <span className="h-2 w-2 rounded-full bg-emerald-500" />
             </div>
           </div>
         </aside>
 
-        {/* Main Content Area */}
-        <div className="flex-1 flex flex-col min-w-0 bg-[#F4F7FA]">
-          {/* Top Bar for Mobile & Profile */}
-          <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shadow-xs sticky top-0 z-30">
+        {/* Right Main Content Area - Scrollable Container */}
+        <div className="flex-1 flex flex-col h-screen min-w-0 overflow-hidden bg-[#F7F9FC]">
+          {/* Top Bar for Mobile & Profile - Fixed at Top */}
+          <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shadow-xs shrink-0 z-30">
             <div className="flex items-center gap-3">
               <button
                 onClick={() => setSidebarOpen(!sidebarOpen)}
-                className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition"
+                className="lg:hidden p-2 rounded-lg text-slate-600 hover:bg-slate-100 transition cursor-pointer"
+                aria-label="Toggle navigation menu"
               >
                 {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
@@ -229,7 +244,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
             <div className="flex items-center gap-3">
               {/* Notifications */}
-              <button className="relative p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition">
+              <button className="relative p-2 rounded-xl border border-slate-200 bg-slate-50 text-slate-600 hover:bg-slate-100 transition cursor-pointer">
                 <Bell className="h-4 w-4" />
                 <span className="absolute top-1 right-1 h-2 w-2 rounded-full bg-sky-500 ring-2 ring-white" />
               </button>
@@ -239,7 +254,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 <div className="relative" ref={menuRef}>
                   <button
                     onClick={() => setUserMenuOpen(!userMenuOpen)}
-                    className="flex items-center gap-2 p-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition"
+                    className="flex items-center gap-2 p-1.5 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 transition cursor-pointer"
                   >
                     <div className="h-7 w-7 rounded-lg bg-sky-600 font-bold text-xs text-white flex items-center justify-center">
                       {user.fullName.charAt(0).toUpperCase()}
@@ -279,7 +294,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                         <button
                           onClick={handleLogout}
                           disabled={isLoggingOut}
-                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-xl text-rose-600 hover:bg-rose-50 transition text-left"
+                          className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold rounded-xl text-rose-600 hover:bg-rose-50 transition text-left cursor-pointer"
                         >
                           <LogOut className="h-4 w-4 text-rose-500" />
                           <span>Sign Out</span>
@@ -292,8 +307,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           </header>
 
-          {/* Scrollable Page Body */}
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6 lg:p-8">
+          {/* Dedicated Scrollable Main Content Container */}
+          <main className="flex-1 overflow-y-auto custom-scrollbar p-4 sm:p-6 lg:p-8">
             <AnimatePresence mode="wait">
               <motion.div
                 key={pathname}
@@ -312,4 +327,3 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
     </RouteGuard>
   );
 }
-

@@ -29,9 +29,44 @@ const TASK_FIELDS = [
   'modified',
   'modified_by',
   'owner',
+  '_assign',
 ];
 
 const todayStr = new Date().toISOString().split('T')[0];
+
+export const resolveUserDisplayName = (userStr: string | null | undefined): string => {
+  if (!userStr || userStr === 'Unassigned' || userStr === 'none') return 'Unassigned';
+  const clean = userStr.trim();
+  const lower = clean.toLowerCase();
+
+  if (lower === 'teammember@netlink.com' || lower === 'teammember' || lower.includes('yash')) return 'Yash';
+  if (lower === 'sarahjenkins@gmail.com' || lower.includes('sarah.jenkins') || lower.includes('sarahjenkins') || lower === 'sarah') return 'Sarah Jenkins';
+  if (lower === 'gatereviewer@netlink.com' || lower.includes('gatereviewer') || lower === 'reviewer') return 'Reviewer';
+  if (lower === 'patilabhay717@gmail.com') return 'Abhay Patil';
+  if (lower === 'aditya@netlink.com') return 'Aditya';
+  if (lower === 'admin@example.com' || lower === 'administrator' || lower === 'admin') return 'Administrator';
+
+  if (clean.includes('@')) {
+    const prefix = clean.split('@')[0];
+    return prefix.charAt(0).toUpperCase() + prefix.slice(1);
+  }
+
+  return clean;
+};
+
+export const resolveUserEmail = (userStr: string | null | undefined): string | undefined => {
+  if (!userStr || userStr === 'Unassigned') return undefined;
+  const clean = userStr.trim();
+  const lower = clean.toLowerCase();
+
+  if (clean.includes('@')) return clean;
+  if (lower.includes('yash') || lower === 'teammember') return 'teammember@netlink.com';
+  if (lower.includes('sarah') || lower === 'projectmanager') return 'sarahjenkins@gmail.com';
+  if (lower.includes('reviewer') || lower === 'gatereviewer') return 'gatereviewer@netlink.com';
+  if (lower === 'administrator' || lower === 'admin') return 'admin@example.com';
+
+  return undefined;
+};
 
 const calculateOverdue = (expEndDate?: string, status?: string): { is_overdue: boolean; overdue_days: number } => {
   if (!expEndDate || status === 'Completed' || status === 'Cancelled') {
@@ -78,16 +113,24 @@ const normalizeTask = (t: any): Task => {
   const { is_overdue, overdue_days } = calculateOverdue(cleanExpEnd, t.status);
   
   // Extract assigned user from _assign if present
-  let assignedTo = t.assigned_to || t.owner || 'Unassigned';
+  let assignedEmail = '';
+  let assignedName = '';
+
   if (t._assign) {
     try {
       const arr = typeof t._assign === 'string' ? JSON.parse(t._assign) : t._assign;
-      if (Array.isArray(arr) && arr.length > 0) {
-        assignedTo = arr[0];
+      if (Array.isArray(arr) && arr.length > 0 && arr[0]) {
+        assignedEmail = arr[0];
+        assignedName = resolveUserDisplayName(arr[0]);
       }
     } catch {
       // fallback
     }
+  }
+
+  if (!assignedEmail && t.assigned_to && t.assigned_to !== 'Unassigned' && t.assigned_to !== 'Administrator') {
+    assignedEmail = resolveUserEmail(t.assigned_to) || t.assigned_to;
+    assignedName = resolveUserDisplayName(t.assigned_to);
   }
 
   // Parse RASIC and Skip Reason from description metadata block if present
@@ -119,6 +162,9 @@ const normalizeTask = (t: any): Task => {
     }
   }
 
+  const finalAssignedTo = assignedEmail || 'Unassigned';
+  const finalAssignedName = assignedName || (assignedEmail ? resolveUserDisplayName(assignedEmail) : 'Unassigned');
+
   return {
     ...t,
     exp_start_date: cleanExpStart,
@@ -129,7 +175,8 @@ const normalizeTask = (t: any): Task => {
     status: t.status || 'Open',
     priority: t.priority || 'Medium',
     progress: typeof t.progress === 'number' ? t.progress : t.status === 'Completed' ? 100 : 0,
-    assigned_to: assignedTo,
+    assigned_to: finalAssignedTo,
+    assigned_employee_name: finalAssignedName,
     rasic,
     skip_reason: skipReason,
     is_overdue,
@@ -336,15 +383,18 @@ export const taskService = {
       const response = await api.post<{ data: any }>('/api/resource/Task', payload);
       const task = normalizeTask(response.data);
 
-      if (data.assigned_to && data.assigned_to !== 'Unassigned' && data.assigned_to.includes('@')) {
+      const targetEmail = resolveUserEmail(data.assigned_to);
+      if (targetEmail) {
         try {
           await api.post('/api/method/frappe.desk.form.assign_to.add', {
             doctype: 'Task',
             name: task.name,
-            assign_to: JSON.stringify([data.assigned_to]),
+            assign_to: JSON.stringify([targetEmail]),
           });
-        } catch {
-          // Non-blocking fallback
+          task.assigned_to = targetEmail;
+          task.assigned_employee_name = resolveUserDisplayName(targetEmail);
+        } catch (err) {
+          console.warn('[Task Assignment Warning]', err);
         }
       }
 
@@ -376,15 +426,16 @@ export const taskService = {
         payload
       );
 
-      if (data.assigned_to && data.assigned_to !== 'Unassigned' && data.assigned_to.includes('@')) {
+      const targetEmail = resolveUserEmail(data.assigned_to);
+      if (targetEmail) {
         try {
           await api.post('/api/method/frappe.desk.form.assign_to.add', {
             doctype: 'Task',
             name: name,
-            assign_to: JSON.stringify([data.assigned_to]),
+            assign_to: JSON.stringify([targetEmail]),
           });
-        } catch {
-          // Non-blocking fallback
+        } catch (err) {
+          console.warn('[Task Assignment Warning]', err);
         }
       }
 
@@ -401,15 +452,16 @@ export const taskService = {
           }
         );
 
-        if (data.assigned_to && data.assigned_to !== 'Unassigned' && data.assigned_to.includes('@')) {
+        const targetEmail = resolveUserEmail(data.assigned_to);
+        if (targetEmail) {
           try {
             await api.post('/api/method/frappe.desk.form.assign_to.add', {
               doctype: 'Task',
               name: name,
-              assign_to: JSON.stringify([data.assigned_to]),
+              assign_to: JSON.stringify([targetEmail]),
             });
-          } catch {
-            // Non-blocking fallback
+          } catch (err) {
+            console.warn('[Task Assignment Warning]', err);
           }
         }
 

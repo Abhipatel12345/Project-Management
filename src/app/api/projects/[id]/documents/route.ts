@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PDMUserSession } from '@/types/auth.types';
 import { accessControlService } from '@/services/access-control.service';
-import documentService from '@/services/document.service';
+import { getDocumentsByProject, saveDocument } from '@/lib/server/document-store';
 
 /**
  * Safely extract authenticated PDM user session from cookie
@@ -43,14 +43,28 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
       );
     }
 
-    // Fetch documents linked to project
-    const res = await documentService.getDocuments({ project: projectId, pageSize: 100 });
+    const { searchParams } = new URL(req.url);
+    const search = searchParams.get('search') || undefined;
+    const document_type = searchParams.get('document_type') || undefined;
+    const status = searchParams.get('status') || undefined;
+    const page = parseInt(searchParams.get('page') || '1', 10);
+    const pageSize = parseInt(searchParams.get('pageSize') || '100', 10);
+
+    // Fetch documents linked to project from persistent server store
+    const res = getDocumentsByProject(projectId, {
+      search,
+      document_type,
+      status,
+      page,
+      pageSize,
+    });
 
     return NextResponse.json({
       success: true,
       projectId,
       documents: res.documents,
       totalCount: res.totalCount,
+      summary: res.summary,
     });
   } catch (error: any) {
     return NextResponse.json(
@@ -87,10 +101,10 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     }
 
     const body = await req.json();
-    const doc = await documentService.uploadDocument({
+    const doc = saveDocument({
       ...body,
       project: projectId,
-      uploaded_by: session.fullName,
+      uploaded_by: session.fullName || body.uploaded_by || 'Administrator',
     });
 
     return NextResponse.json({

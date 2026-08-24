@@ -30,6 +30,7 @@ export const projectFormSchema = z.object({
   estimated_cost: preprocessNumber(undefined),
   company: z.string().optional(),
   department: z.string().optional(),
+  owner: z.string().optional(),
   notes: z.string().max(2000, 'Notes cannot exceed 2000 characters').optional(),
 });
 

@@ -68,7 +68,7 @@ export function IssueFormDialog({
   });
 
   const selectedProjectId = watch('project') || defaultProjectId;
-  const { data: teamMembers = [] } = useProjectTeam(selectedProjectId);
+  const { data: teamMembers = [] } = useProjectTeam(selectedProjectId || '');
 
   useEffect(() => {
     if (initialData) {

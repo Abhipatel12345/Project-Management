@@ -1,15 +1,17 @@
 import { NextRequest, NextResponse } from 'next/server';
 
+export const dynamic = 'force-dynamic';
+
 const getErpUrl = (): string => {
-  return (process.env.NEXT_PUBLIC_ERP_URL || 'http://localhost:8080').replace(/\/$/, '');
+  return (process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
 };
 
 const getApiKey = (): string => {
-  return process.env.NEXT_PUBLIC_API_KEY || '';
+  return process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
 };
 
 const getApiSecret = (): string => {
-  return process.env.NEXT_PUBLIC_API_SECRET || '';
+  return process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
 };
 
 async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: string[] }>) {

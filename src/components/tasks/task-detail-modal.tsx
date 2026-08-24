@@ -9,6 +9,8 @@ import { useIssues, useCreateIssue } from '@/hooks/use-issues';
 import { IssueFormDialog, IssueFormValues } from '@/components/issues/issue-form-dialog';
 import { Issue } from '@/types/issue.types';
 import { useToast } from '@/providers/toast-context';
+import { useSkipRequests, useCreateSkipRequest } from '@/hooks/use-skip-requests';
+import { TaskSkipDialog } from './task-skip-dialog';
 import {
   X,
   Layers,
@@ -25,6 +27,7 @@ import {
   AlertCircle,
   CheckCircle2,
   FolderKanban,
+  SkipForward,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -33,18 +36,31 @@ interface TaskDetailModalProps {
   onClose: () => void;
   onEdit: (task: Task) => void;
   activeBaseline?: ProjectBaseline | null;
+  onRefresh?: () => void;
 }
 
-export function TaskDetailModal({ task, onClose, onEdit, activeBaseline }: TaskDetailModalProps) {
+export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefresh }: TaskDetailModalProps) {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<
     'overview' | 'issues' | 'baseline' | 'assignment' | 'rasic' | 'dependencies' | 'comments' | 'attachments'
   >('overview');
   const [isCreateIssueOpen, setIsCreateIssueOpen] = useState(false);
+  const [isSkipDialogOpen, setIsSkipDialogOpen] = useState(false);
 
   const taskName = task?.name || '';
   const { data: comments = [] } = useTaskComments(taskName);
   const { data: attachments = [] } = useTaskAttachments(taskName);
+
+  // Fetch skip requests for project
+  const { data: skipRequests = [], refetch: refetchSkipRequests } = useSkipRequests(task?.project);
+  const createSkipRequestMutation = useCreateSkipRequest();
+
+  const pendingSkipRequest = skipRequests.find(
+    (r: any) => r.task_id === taskName && r.status === 'PENDING'
+  );
+  const rejectedSkipRequest = skipRequests.find(
+    (r: any) => r.task_id === taskName && r.status === 'REJECTED'
+  );
 
   // Fetch issues linked to this project/task
   const { data: issueListData, refetch: refetchIssues } = useIssues({
@@ -87,6 +103,24 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline }: TaskD
     }
   };
 
+  const handleSkipRequestSubmit = async (t: Task, reason: string, comment?: string) => {
+    try {
+      await createSkipRequestMutation.mutateAsync({
+        task_id: t.name,
+        task_subject: t.subject,
+        project_id: t.project || 'Global Project',
+        skip_reason: reason,
+        additional_comment: comment,
+      });
+      showToast(`Skip request submitted for PM approval!`, 'success');
+      setIsSkipDialogOpen(false);
+      refetchSkipRequests();
+      if (onRefresh) onRefresh();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to submit skip request', 'error');
+    }
+  };
+
   if (!task) return null;
 
   // Baseline comparison for current task
@@ -103,6 +137,8 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline }: TaskD
   const endVar = baseEnd !== 'N/A' && curEnd !== 'N/A' ? calculateDayDiff(baseEnd, curEnd) : 0;
   const durVar = curDuration - baseDuration;
 
+  const isCompletedOrSkipped = task.status === 'Completed' || task.status === 'Skipped';
+
   return (
     <AnimatePresence>
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto font-sans">
@@ -115,12 +151,20 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline }: TaskD
           {/* Header Banner */}
           <div className="p-6 bg-[#EBF5FF] border-b border-sky-200 flex flex-col md:flex-row md:items-center justify-between gap-4">
             <div className="space-y-1">
-              <div className="flex items-center gap-2">
+              <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] font-mono font-bold text-sky-800 bg-white px-2.5 py-0.5 rounded-full border border-sky-200">
                   {task.name}
                 </span>
                 <TaskStatusBadge status={task.status} />
                 <TaskPriorityBadge priority={task.priority} />
+
+                {pendingSkipRequest && (
+                  <span className="px-2.5 py-0.5 rounded-full bg-amber-100 text-amber-800 border border-amber-300 text-[10px] font-black flex items-center gap-1">
+                    <Clock className="h-3 w-3 text-amber-600" />
+                    Skip Requested (Pending PM)
+                  </span>
+                )}
+
                 {taskIssues.length > 0 && (
                   <span className="px-2.5 py-0.5 rounded-full bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold flex items-center gap-1">
                     <AlertTriangle className="h-3 w-3 text-rose-500" />
@@ -135,6 +179,17 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline }: TaskD
             </div>
 
             <div className="flex flex-wrap items-center gap-2 self-start md:self-auto">
+              {!isCompletedOrSkipped && !pendingSkipRequest && (
+                <button
+                  onClick={() => setIsSkipDialogOpen(true)}
+                  className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                  title="Request to skip this task work package"
+                >
+                  <SkipForward className="h-4 w-4" />
+                  <span>Request Skip</span>
+                </button>
+              )}
+
               <button
                 onClick={() => setIsCreateIssueOpen(true)}
                 className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
@@ -233,6 +288,52 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline }: TaskD
           <div className="p-6 space-y-6 max-h-[65vh] overflow-y-auto">
             {activeTab === 'overview' && (
               <div className="space-y-6">
+                {/* Skip Request Notice / Status Banner */}
+                {pendingSkipRequest && (
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-2">
+                    <div className="flex items-center gap-2 font-black">
+                      <Clock className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span>Task Skip Request Pending Project Manager Review</span>
+                    </div>
+                    <div className="bg-white/80 p-3 rounded-xl border border-amber-200/60 space-y-1">
+                      <div className="text-[10px] uppercase font-bold text-amber-800">
+                        Reason provided by {pendingSkipRequest.requested_by_name || pendingSkipRequest.requested_by}:
+                      </div>
+                      <p className="text-slate-800 font-medium">{pendingSkipRequest.skip_reason}</p>
+                    </div>
+                    <p className="text-[11px] text-amber-700 font-medium">
+                      The task remains active and assigned. It will only be marked as Skipped once approved by the Project Manager.
+                    </p>
+                  </div>
+                )}
+
+                {rejectedSkipRequest && (
+                  <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 text-rose-900 text-xs space-y-2">
+                    <div className="flex items-center gap-2 font-black text-rose-700">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>Task Skip Request Rejected (Task Remains Active)</span>
+                    </div>
+                    <div className="bg-white/80 p-3 rounded-xl border border-rose-200/60 space-y-1">
+                      <div className="text-[10px] uppercase font-bold text-rose-800">
+                        Rejection Reason from Project Manager:
+                      </div>
+                      <p className="text-slate-800 font-medium">{rejectedSkipRequest.rejection_reason}</p>
+                    </div>
+                  </div>
+                )}
+
+                {task.status === 'Skipped' && (
+                  <div className="p-4 rounded-2xl bg-purple-50 border border-purple-200 text-purple-900 text-xs space-y-2">
+                    <div className="flex items-center gap-2 font-black text-purple-800">
+                      <CheckCircle2 className="h-4 w-4 text-purple-600 shrink-0" />
+                      <span>Work Package Status: Skipped</span>
+                    </div>
+                    <p className="text-[11px] text-purple-700">
+                      This task work package has been formally approved as Skipped. Baseline comparisons and historical project records have been preserved.
+                    </p>
+                  </div>
+                )}
+
                 {/* Progress Card */}
                 <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-2">
                   <div className="flex justify-between items-center text-xs font-bold">
@@ -483,6 +584,16 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline }: TaskD
             defaultProjectId={task.project}
             defaultTaskId={task.name}
             defaultTaskSubject={task.subject}
+          />
+        )}
+
+        {/* Request Task Skip Modal for this Task */}
+        {isSkipDialogOpen && (
+          <TaskSkipDialog
+            isOpen={isSkipDialogOpen}
+            task={task}
+            onClose={() => setIsSkipDialogOpen(false)}
+            onSubmitSkipRequest={handleSkipRequestSubmit}
           />
         )}
       </div>

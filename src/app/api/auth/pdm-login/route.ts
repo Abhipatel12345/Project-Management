@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PDMRole, PDMPermissions, PDMUserSession } from '@/types/auth.types';
 
+export const dynamic = 'force-dynamic';
+
 const ERP_URL = process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083';
 const API_KEY = process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
 const API_SECRET = process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
@@ -15,14 +17,42 @@ function derivePersonaFromERPNextRoles(
   const normUser = username.toLowerCase().trim();
   const roleSet = new Set(erpRoles.map((r) => r.trim()));
 
-  // 1. IT Admin / PDM User Administrator Persona
+  // 1. PDM Administrator Persona (Super Admin / PMO Director - Full Governance & Access)
+  if (
+    normUser === 'administrator' ||
+    normUser === 'admin' ||
+    normUser.includes('admin@example.com') ||
+    normUser.includes('pdm.admin') ||
+    normUser.includes('pmo')
+  ) {
+    return {
+      role: 'admin',
+      roleLabel: 'PMO / Administrator',
+      permissions: {
+        manageUsers: false, // IT Admin manages accounts
+        manageProjects: true,
+        manageTasks: true,
+        manageDeliverables: true,
+        manageTeamMembers: true,
+        manageBoardMembers: true,
+        manageProjectSettings: true,
+        reviewGates: true,
+        approveGates: true,
+        reviewDesign: true,
+        approveDesign: true,
+        manageWarehouse: true,
+        viewReports: true,
+      },
+    };
+  }
+
+  // 2. IT Admin / PDM User Administrator Persona
   if (
     normUser.includes('it.admin') ||
     normUser.includes('it_admin') ||
+    normUser.includes('itadmin') ||
     normUser.includes('pdm.useradmin') ||
-    normUser.includes('useradmin') ||
-    roleSet.has('PDM User Administrator') ||
-    roleSet.has('User Manager')
+    normUser.includes('useradmin')
   ) {
     return {
       role: 'it_admin',
@@ -32,6 +62,9 @@ function derivePersonaFromERPNextRoles(
         manageProjects: false,
         manageTasks: false,
         manageDeliverables: false,
+        manageTeamMembers: false,
+        manageBoardMembers: false,
+        manageProjectSettings: false,
         reviewGates: false,
         approveGates: false,
         reviewDesign: false,
@@ -42,51 +75,56 @@ function derivePersonaFromERPNextRoles(
     };
   }
 
-  // 2. PDM Administrator Persona (Business/PMO Administrator - NO user creation/management)
+  // 3. Team Member / Projects User (Yash - teammember@netlink.com - Restricted Execution Access)
   if (
-    normUser.includes('pdm.admin') ||
-    roleSet.has('PDM Administrator') ||
-    roleSet.has('System Manager') ||
-    roleSet.has('Administrator') ||
-    normUser === 'administrator'
+    normUser.includes('teammember') ||
+    normUser.includes('yash') ||
+    normUser === 'teammember@netlink.com'
   ) {
     return {
-      role: 'admin',
-      roleLabel: 'PDM Administrator',
+      role: 'teammember',
+      roleLabel: 'Team Member',
       permissions: {
-        manageUsers: false, // Security Rule: PDM Administrator cannot create/manage user accounts
-        manageProjects: true,
+        manageUsers: false,
+        manageProjects: false,
         manageTasks: true,
         manageDeliverables: true,
-        reviewGates: true,
-        approveGates: true,
-        reviewDesign: true,
-        approveDesign: true,
-        manageWarehouse: true,
-        viewReports: true,
+        manageTeamMembers: false,
+        manageBoardMembers: false,
+        manageProjectSettings: false,
+        reviewGates: false,
+        approveGates: false,
+        reviewDesign: false,
+        approveDesign: false,
+        manageWarehouse: false,
+        viewReports: false,
       },
     };
   }
 
-  // 3. Warehouse User Persona
+  // 4. Project Manager Persona (Sarah Jenkins / Project Manager - Full PM access, All Projects)
   if (
-    normUser.includes('warehouse') ||
-    normUser.includes('store') ||
-    roleSet.has('Stock Manager') ||
-    roleSet.has('Stock User') ||
-    roleSet.has('Material Manager')
+    normUser.includes('sarah') ||
+    normUser.includes('jenkins') ||
+    normUser.includes('sarahjenkins') ||
+    normUser.includes('sarah.jenkins') ||
+    normUser.includes('pdm.pm') ||
+    normUser === 'projectmanager'
   ) {
     return {
-      role: 'warehouse_user',
-      roleLabel: 'Stock Manager / Warehouse Officer',
+      role: 'projectmanager',
+      roleLabel: 'Project Manager',
       permissions: {
         manageUsers: false,
-        manageProjects: false,
-        manageTasks: false,
-        manageDeliverables: false,
-        reviewGates: false,
-        approveGates: false,
-        reviewDesign: false,
+        manageProjects: true, // Full project management visibility
+        manageTasks: true,
+        manageDeliverables: true,
+        manageTeamMembers: false, // PM cannot alter core team assignments
+        manageBoardMembers: false,
+        manageProjectSettings: false,
+        reviewGates: true, // Can prepare and submit gates
+        approveGates: false, // MUST NOT approve own gates
+        reviewDesign: true,
         approveDesign: false,
         manageWarehouse: true,
         viewReports: true,
@@ -94,12 +132,13 @@ function derivePersonaFromERPNextRoles(
     };
   }
 
-  // 4. Quality Reviewer / Gate Reviewer Persona
+  // 5. Quality Reviewer / Gate Reviewer Persona
   if (
     normUser.includes('reviewer') ||
-    normUser.includes('approver') ||
     normUser.includes('gatereviewer') ||
-    roleSet.has('Quality Manager')
+    normUser.includes('approver') ||
+    normUser.includes('board') ||
+    normUser === 'gate_reviewer'
   ) {
     return {
       role: 'gate_reviewer',
@@ -109,6 +148,9 @@ function derivePersonaFromERPNextRoles(
         manageProjects: false,
         manageTasks: false,
         manageDeliverables: false,
+        manageTeamMembers: false,
+        manageBoardMembers: false,
+        manageProjectSettings: false,
         reviewGates: true,
         approveGates: true,
         reviewDesign: true,
@@ -119,24 +161,50 @@ function derivePersonaFromERPNextRoles(
     };
   }
 
-  // 5. Project Manager Persona
+  // 6. Warehouse User Persona
   if (
-    normUser.includes('pdm.pm') ||
-    normUser.includes('projectmanager') ||
-    normUser.includes('pm') ||
-    roleSet.has('Projects Manager')
+    normUser.includes('warehouse') ||
+    normUser.includes('store') ||
+    normUser.includes('stock') ||
+    normUser === 'warehouse_user'
   ) {
     return {
-      role: 'projectmanager',
-      roleLabel: 'Projects Manager',
+      role: 'warehouse_user',
+      roleLabel: 'Stock Manager / Warehouse Officer',
       permissions: {
         manageUsers: false,
-        manageProjects: true,
-        manageTasks: true,
-        manageDeliverables: true,
-        reviewGates: true,
+        manageProjects: false,
+        manageTasks: false,
+        manageDeliverables: false,
+        manageTeamMembers: false,
+        manageBoardMembers: false,
+        manageProjectSettings: false,
+        reviewGates: false,
         approveGates: false,
-        reviewDesign: true,
+        reviewDesign: false,
+        approveDesign: false,
+        manageWarehouse: true,
+        viewReports: true,
+      },
+    };
+  }
+
+  // --- ROLE FALLBACKS FOR GENERIC ACCOUNTS ---
+  if (roleSet.has('PDM User Administrator') || roleSet.has('User Manager')) {
+    return {
+      role: 'it_admin',
+      roleLabel: 'PDM User Administrator',
+      permissions: {
+        manageUsers: true,
+        manageProjects: false,
+        manageTasks: false,
+        manageDeliverables: false,
+        manageTeamMembers: false,
+        manageBoardMembers: false,
+        manageProjectSettings: false,
+        reviewGates: false,
+        approveGates: false,
+        reviewDesign: false,
         approveDesign: false,
         manageWarehouse: false,
         viewReports: true,
@@ -144,21 +212,112 @@ function derivePersonaFromERPNextRoles(
     };
   }
 
-  // 6. Team Member / Projects User / Design Engineer Persona
+  if (roleSet.has('Projects Manager')) {
+    return {
+      role: 'projectmanager',
+      roleLabel: 'Project Manager',
+      permissions: {
+        manageUsers: false,
+        manageProjects: true,
+        manageTasks: true,
+        manageDeliverables: true,
+        manageTeamMembers: false,
+        manageBoardMembers: false,
+        manageProjectSettings: false,
+        reviewGates: true,
+        approveGates: false,
+        reviewDesign: true,
+        approveDesign: false,
+        manageWarehouse: true,
+        viewReports: true,
+      },
+    };
+  }
+
+  if (roleSet.has('Quality Manager')) {
+    return {
+      role: 'gate_reviewer',
+      roleLabel: 'Quality Manager / Gate Board Reviewer',
+      permissions: {
+        manageUsers: false,
+        manageProjects: false,
+        manageTasks: false,
+        manageDeliverables: false,
+        manageTeamMembers: false,
+        manageBoardMembers: false,
+        manageProjectSettings: false,
+        reviewGates: true,
+        approveGates: true,
+        reviewDesign: true,
+        approveDesign: true,
+        manageWarehouse: false,
+        viewReports: true,
+      },
+    };
+  }
+
+  if (roleSet.has('Stock Manager') || roleSet.has('Stock User') || roleSet.has('Material Manager')) {
+    return {
+      role: 'warehouse_user',
+      roleLabel: 'Stock Manager / Warehouse Officer',
+      permissions: {
+        manageUsers: false,
+        manageProjects: false,
+        manageTasks: false,
+        manageDeliverables: false,
+        manageTeamMembers: false,
+        manageBoardMembers: false,
+        manageProjectSettings: false,
+        reviewGates: false,
+        approveGates: false,
+        reviewDesign: false,
+        approveDesign: false,
+        manageWarehouse: true,
+        viewReports: true,
+      },
+    };
+  }
+
+  if (roleSet.has('PDM Administrator') || roleSet.has('System Manager') || roleSet.has('Administrator')) {
+    return {
+      role: 'admin',
+      roleLabel: 'PMO / Administrator',
+      permissions: {
+        manageUsers: false,
+        manageProjects: true,
+        manageTasks: true,
+        manageDeliverables: true,
+        manageTeamMembers: true,
+        manageBoardMembers: true,
+        manageProjectSettings: true,
+        reviewGates: true,
+        approveGates: true,
+        reviewDesign: true,
+        approveDesign: true,
+        manageWarehouse: true,
+        viewReports: true,
+      },
+    };
+  }
+
+  // Default Fallback: Team Member
   return {
     role: 'teammember',
-    roleLabel: 'Projects User / Design Engineer',
+    roleLabel: 'Team Member',
     permissions: {
       manageUsers: false,
       manageProjects: false,
       manageTasks: true,
       manageDeliverables: true,
+      manageTeamMembers: false,
+      manageBoardMembers: false,
+      manageProjectSettings: false,
       reviewGates: false,
       approveGates: false,
       reviewDesign: false,
       approveDesign: false,
       manageWarehouse: false,
-      viewReports: true,
+      viewReports: false,
     },
   };
 }
