@@ -25,8 +25,6 @@ import { TaskFormValues } from '@/lib/validations/task.schema';
 import { BackButton } from '@/components/shared/back-button';
 import { ImportExportControls } from '@/components/shared/import-export-controls';
 import { useToast } from '@/providers/toast-context';
-import { useGates } from '@/hooks/use-gates';
-import { isGateReviewer } from '@/utils/user-matcher';
 import { GateReviewerDashboard } from '@/components/dashboard/gate-reviewer-dashboard';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import {
@@ -68,39 +66,28 @@ import {
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
-// MAIN ROLE & ASSIGNMENT-BASED DASHBOARD ROUTER
+// MAIN ROLE-BASED DASHBOARD ROUTER
 export default function DashboardRouter() {
-  const { user, role, hasPermission } = useAuth();
-  const { data: gatesData } = useGates({ pageSize: 100 });
+  const { role, hasPermission } = useAuth();
 
-  // Filter gates where current user is the assigned Gate Reviewer
-  const allGates: Gate[] = (gatesData?.gates as Gate[]) || [];
-  const assignedGates = useMemo(() => {
-    if (!user) return [];
-    return allGates.filter((g: Gate) => isGateReviewer(g, user));
-  }, [allGates, user]);
-
-  const isAssignedGateReviewer = assignedGates.length > 0 || role === 'gate_reviewer';
-
-  // 1. DEDICATED GATE REVIEWER DASHBOARD:
-  // Appears when the logged-in user is assigned as Gate Reviewer for any active gate
-  if (isAssignedGateReviewer) {
-    return <GateReviewerDashboard assignedGates={assignedGates} />;
-  }
-
-  // 2. IT Admin / PDM User Administrator
+  // 1. IT Admin / PDM User Administrator
   if (role === 'it_admin' || (hasPermission('manageUsers') && !hasPermission('manageProjects'))) {
     return <ITAdminDashboard />;
   }
 
-  // 3. PDM Administrator (PMO / Business System Admin)
+  // 2. PDM Administrator (PMO / Business System Admin)
   if (role === 'admin') {
     return <PDMAdminDashboard />;
   }
 
-  // 4. Project Manager
+  // 3. Project Manager (e.g. Sarah Jenkins)
   if (role === 'projectmanager') {
     return <ProjectManagerDashboard />;
+  }
+
+  // 4. Dedicated Gate Reviewer (System Role: Gate Reviewer)
+  if (role === 'gate_reviewer') {
+    return <GateReviewerDashboard />;
   }
 
   // 5. Warehouse User
@@ -108,7 +95,7 @@ export default function DashboardRouter() {
     return <WarehouseDashboard />;
   }
 
-  // 6. Team Member / Projects User / Design Engineer
+  // 6. Team Member / Projects User / Design Engineer (e.g. Yash)
   return <TeamMemberDashboard />;
 }
 
