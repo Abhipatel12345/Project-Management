@@ -45,6 +45,8 @@ import {
   Network,
   Boxes,
   ArrowRight,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -64,6 +66,78 @@ export default function ProjectDetailPage() {
   const [activeTab, setActiveTab] = useState<
     'overview' | 'team' | 'tasks' | 'planning' | 'documents' | 'reviews' | 'gates' | 'issues' | 'activity' | 'connections' | 'materials'
   >('overview');
+
+  // Horizontal Tab Scroll & Overflow Management
+  const tabsContainerRef = React.useRef<HTMLDivElement>(null);
+  const tabRefs = React.useRef<Record<string, HTMLButtonElement | null>>({});
+  const [canScrollLeft, setCanScrollLeft] = useState(false);
+  const [canScrollRight, setCanScrollRight] = useState(false);
+
+  const updateScrollState = React.useCallback(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+    const { scrollLeft, scrollWidth, clientWidth } = el;
+    setCanScrollLeft(scrollLeft > 4);
+    setCanScrollRight(scrollLeft + clientWidth < scrollWidth - 4);
+  }, []);
+
+  React.useEffect(() => {
+    const el = tabsContainerRef.current;
+    if (!el) return;
+
+    updateScrollState();
+    el.addEventListener('scroll', updateScrollState, { passive: true });
+
+    let resizeObserver: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined') {
+      resizeObserver = new ResizeObserver(() => {
+        updateScrollState();
+      });
+      resizeObserver.observe(el);
+    }
+
+    window.addEventListener('resize', updateScrollState);
+
+    return () => {
+      el.removeEventListener('scroll', updateScrollState);
+      if (resizeObserver) resizeObserver.disconnect();
+      window.removeEventListener('resize', updateScrollState);
+    };
+  }, [updateScrollState]);
+
+  // Automatically scroll active tab into view if needed
+  React.useEffect(() => {
+    const activeEl = tabRefs.current[activeTab];
+    const container = tabsContainerRef.current;
+    if (activeEl && container) {
+      const containerRect = container.getBoundingClientRect();
+      const tabRect = activeEl.getBoundingClientRect();
+
+      if (tabRect.left < containerRect.left + 35 || tabRect.right > containerRect.right - 35) {
+        activeEl.scrollIntoView({
+          behavior: 'smooth',
+          block: 'nearest',
+          inline: 'center',
+        });
+      }
+    }
+    const timer = setTimeout(updateScrollState, 350);
+    return () => clearTimeout(timer);
+  }, [activeTab, updateScrollState]);
+
+  const handleScrollLeft = () => {
+    if (tabsContainerRef.current) {
+      tabsContainerRef.current.scrollBy({ left: -320, behavior: 'smooth' });
+      setTimeout(updateScrollState, 350);
+    }
+  };
+
+  const handleScrollRight = () => {
+    if (tabsContainerRef.current) {
+      tabsContainerRef.current.scrollBy({ left: 320, behavior: 'smooth' });
+      setTimeout(updateScrollState, 350);
+    }
+  };
 
   const { data: project, isLoading, isError, error, refetch } = useProject(projectId);
   const { data: tasksData } = useTasks({ project: projectId, pageSize: 100 });
@@ -298,150 +372,217 @@ export default function ProjectDetailPage() {
         </div>
       </div>
 
-      {/* 7 Workspace Tabs Bar */}
-      <div className="border-b border-slate-200 flex items-center gap-2 overflow-x-auto text-xs font-semibold scrollbar-none bg-white p-1 rounded-xl shadow-2xs">
-        {/* Tab 1: Overview */}
-        <button
-          onClick={() => setActiveTab('overview')}
-          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'overview'
-              ? 'bg-sky-600 text-white font-bold shadow-2xs'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <FileText className="h-4 w-4" />
-          <span>Overview</span>
-        </button>
+      {/* Workspace Tabs Bar with Horizontal Overflow Navigation */}
+      <div className="relative group/tabs flex items-center bg-white p-1 rounded-xl shadow-2xs border border-slate-200">
+        {/* Left Scroll Arrow */}
+        {canScrollLeft && (
+          <button
+            type="button"
+            onClick={handleScrollLeft}
+            className="absolute left-1.5 z-20 flex items-center justify-center h-8 w-8 rounded-lg bg-white/95 backdrop-blur-xs border border-slate-200 shadow-md text-slate-700 hover:text-sky-600 hover:bg-sky-50 transition cursor-pointer shrink-0"
+            aria-label="Scroll tabs left"
+            title="Scroll tabs left"
+          >
+            <ChevronLeft className="h-4 w-4 stroke-[2.5]" />
+          </button>
+        )}
 
-        {/* Tab 2: Team */}
-        <button
-          onClick={() => setActiveTab('team')}
-          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'team'
-              ? 'bg-sky-600 text-white font-bold shadow-2xs'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
+        {/* Scrollable Tabs Row */}
+        <div
+          ref={tabsContainerRef}
+          className={`flex items-center gap-2 overflow-x-auto text-xs font-semibold scrollbar-none scroll-smooth w-full transition-all ${
+            canScrollLeft ? 'pl-9' : 'pl-1'
+          } ${canScrollRight ? 'pr-9' : 'pr-1'}`}
         >
-          <Users className="h-4 w-4" />
-          <span>Team</span>
-        </button>
+          {/* Tab 1: Overview */}
+          <button
+            ref={(el) => {
+              tabRefs.current['overview'] = el;
+            }}
+            onClick={() => setActiveTab('overview')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 ${
+              activeTab === 'overview'
+                ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <FileText className="h-4 w-4" />
+            <span>Overview</span>
+          </button>
 
-        {/* Tab 3: Tasks */}
-        <button
-          onClick={() => setActiveTab('tasks')}
-          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'tasks'
-              ? 'bg-sky-600 text-white font-bold shadow-2xs'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <Layers className="h-4 w-4" />
-          <span>Tasks</span>
-        </button>
+          {/* Tab 2: Team */}
+          <button
+            ref={(el) => {
+              tabRefs.current['team'] = el;
+            }}
+            onClick={() => setActiveTab('team')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 ${
+              activeTab === 'team'
+                ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Users className="h-4 w-4" />
+            <span>Team</span>
+          </button>
 
-        {/* Tab 4: Planning */}
-        <button
-          onClick={() => setActiveTab('planning')}
-          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'planning'
-              ? 'bg-sky-600 text-white font-bold shadow-2xs'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <CalendarDays className="h-4 w-4" />
-          <span>Planning</span>
-        </button>
+          {/* Tab 3: Tasks */}
+          <button
+            ref={(el) => {
+              tabRefs.current['tasks'] = el;
+            }}
+            onClick={() => setActiveTab('tasks')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 ${
+              activeTab === 'tasks'
+                ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Layers className="h-4 w-4" />
+            <span>Tasks</span>
+          </button>
 
-        {/* Tab 5: Documents */}
-        <button
-          onClick={() => setActiveTab('documents')}
-          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'documents'
-              ? 'bg-sky-600 text-white font-bold shadow-2xs'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <Folder className="h-4 w-4" />
-          <span>Documents</span>
-        </button>
+          {/* Tab 4: Planning */}
+          <button
+            ref={(el) => {
+              tabRefs.current['planning'] = el;
+            }}
+            onClick={() => setActiveTab('planning')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 ${
+              activeTab === 'planning'
+                ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <CalendarDays className="h-4 w-4" />
+            <span>Planning</span>
+          </button>
 
-        {/* Tab 6: Design Reviews */}
-        <button
-          onClick={() => setActiveTab('reviews')}
-          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'reviews'
-              ? 'bg-indigo-600 text-white font-bold shadow-2xs'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <FileText className="h-4 w-4" />
-          <span>Design Reviews</span>
-        </button>
+          {/* Tab 5: Documents */}
+          <button
+            ref={(el) => {
+              tabRefs.current['documents'] = el;
+            }}
+            onClick={() => setActiveTab('documents')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 ${
+              activeTab === 'documents'
+                ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Folder className="h-4 w-4" />
+            <span>Documents</span>
+          </button>
 
-        {/* Tab 7: Stage Gates */}
-        <button
-          onClick={() => setActiveTab('gates')}
-          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'gates'
-              ? 'bg-emerald-600 text-white font-bold shadow-2xs'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <FolderKanban className="h-4 w-4" />
-          <span>Stage Gates</span>
-        </button>
+          {/* Tab 6: Design Reviews */}
+          <button
+            ref={(el) => {
+              tabRefs.current['reviews'] = el;
+            }}
+            onClick={() => setActiveTab('reviews')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 ${
+              activeTab === 'reviews'
+                ? 'bg-indigo-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <FileText className="h-4 w-4" />
+            <span>Design Reviews</span>
+          </button>
 
-        {/* Tab 8: Issues */}
-        <button
-          onClick={() => setActiveTab('issues')}
-          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'issues'
-              ? 'bg-sky-600 text-white font-bold shadow-2xs'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <ShieldAlert className="h-4 w-4" />
-          <span>Issues</span>
-        </button>
+          {/* Tab 7: Stage Gates */}
+          <button
+            ref={(el) => {
+              tabRefs.current['gates'] = el;
+            }}
+            onClick={() => setActiveTab('gates')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 ${
+              activeTab === 'gates'
+                ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <FolderKanban className="h-4 w-4" />
+            <span>Stage Gates</span>
+          </button>
 
-        {/* Tab 9: Activity */}
-        <button
-          onClick={() => setActiveTab('activity')}
-          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'activity'
-              ? 'bg-sky-600 text-white font-bold shadow-2xs'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <Activity className="h-4 w-4" />
-          <span>Activity Log</span>
-        </button>
+          {/* Tab 8: Issues */}
+          <button
+            ref={(el) => {
+              tabRefs.current['issues'] = el;
+            }}
+            onClick={() => setActiveTab('issues')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 ${
+              activeTab === 'issues'
+                ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <ShieldAlert className="h-4 w-4" />
+            <span>Issues</span>
+          </button>
 
-        {/* Tab 10: Connections */}
-        <button
-          onClick={() => setActiveTab('connections')}
-          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'connections'
-              ? 'bg-sky-600 text-white font-bold shadow-2xs'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <Network className="h-4 w-4" />
-          <span>Connections</span>
-        </button>
+          {/* Tab 9: Activity */}
+          <button
+            ref={(el) => {
+              tabRefs.current['activity'] = el;
+            }}
+            onClick={() => setActiveTab('activity')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 ${
+              activeTab === 'activity'
+                ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Activity className="h-4 w-4" />
+            <span>Activity Log</span>
+          </button>
 
-        {/* Tab 11: Material Requisitions */}
-        <button
-          onClick={() => setActiveTab('materials')}
-          className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap ${
-            activeTab === 'materials'
-              ? 'bg-amber-600 text-white font-bold shadow-2xs'
-              : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-          }`}
-        >
-          <Boxes className="h-4 w-4" />
-          <span>Material Requisitions</span>
-        </button>
+          {/* Tab 10: Connections */}
+          <button
+            ref={(el) => {
+              tabRefs.current['connections'] = el;
+            }}
+            onClick={() => setActiveTab('connections')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 ${
+              activeTab === 'connections'
+                ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Network className="h-4 w-4" />
+            <span>Connections</span>
+          </button>
+
+          {/* Tab 11: Material Requisitions */}
+          <button
+            ref={(el) => {
+              tabRefs.current['materials'] = el;
+            }}
+            onClick={() => setActiveTab('materials')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 ${
+              activeTab === 'materials'
+                ? 'bg-amber-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Boxes className="h-4 w-4" />
+            <span>Material Requisitions</span>
+          </button>
+        </div>
+
+        {/* Right Scroll Arrow */}
+        {canScrollRight && (
+          <button
+            type="button"
+            onClick={handleScrollRight}
+            className="absolute right-1.5 z-20 flex items-center justify-center h-8 w-8 rounded-lg bg-white/95 backdrop-blur-xs border border-slate-200 shadow-md text-slate-700 hover:text-sky-600 hover:bg-sky-50 transition cursor-pointer shrink-0"
+            aria-label="Scroll tabs right"
+            title="Scroll tabs right"
+          >
+            <ChevronRight className="h-4 w-4 stroke-[2.5]" />
+          </button>
+        )}
       </div>
 
       {/* Tab 1: OVERVIEW */}
