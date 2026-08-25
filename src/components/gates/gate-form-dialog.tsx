@@ -4,7 +4,7 @@ import { Gate, GateType, GateStatus, GateApprovalStatus } from '@/types/gate.typ
 import { Project } from '@/types/project.types';
 import { useProjects } from '@/hooks/use-projects';
 import { useAvailableEmployees } from '@/hooks/use-project-team';
-import { X, Loader2, Lock, User } from 'lucide-react';
+import { X, Loader2, Lock, User, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 export interface GateFormValues {
@@ -14,6 +14,9 @@ export interface GateFormValues {
   planned_date?: string;
   actual_date?: string;
   gate_owner: string;
+  gate_owner_id?: string;
+  gate_reviewer: string;
+  reviewer_user_id?: string;
   status: GateStatus;
   approval_status: GateApprovalStatus;
   description?: string;
@@ -39,13 +42,21 @@ export function GateFormDialog({
   const { data: employees = [] } = useAvailableEmployees('');
   const projects: Project[] = projectsData?.projects || [];
 
-  const defaultOwner =
+  const defaultOwnerName =
     employees.length > 0 ? employees[0].full_name || employees[0].name : 'Sarah Jenkins';
+  const defaultOwnerId = employees.length > 0 ? employees[0].email || employees[0].name : 'sarahjenkins@gmail.com';
+
+  const defaultReviewerName =
+    employees.length > 1 ? employees[1].full_name || employees[1].name : defaultOwnerName;
+  const defaultReviewerId =
+    employees.length > 1 ? employees[1].email || employees[1].name : defaultOwnerId;
 
   const {
     register,
     handleSubmit,
     reset,
+    setValue,
+    watch,
     formState: { errors, isSubmitting },
   } = useForm<GateFormValues>({
     defaultValues: {
@@ -54,7 +65,10 @@ export function GateFormDialog({
       gate_type: 'Concept & Charter',
       planned_date: new Date().toISOString().split('T')[0],
       actual_date: '',
-      gate_owner: defaultOwner,
+      gate_owner: defaultOwnerName,
+      gate_owner_id: defaultOwnerId,
+      gate_reviewer: defaultReviewerName,
+      reviewer_user_id: defaultReviewerId,
       status: 'Not Started',
       approval_status: 'Pending',
       description: '',
@@ -69,7 +83,10 @@ export function GateFormDialog({
         gate_type: initialData.gate_type || 'Concept & Charter',
         planned_date: initialData.planned_date || new Date().toISOString().split('T')[0],
         actual_date: initialData.actual_date || '',
-        gate_owner: initialData.gate_owner || 'Program Director',
+        gate_owner: initialData.gate_owner || defaultOwnerName,
+        gate_owner_id: initialData.gate_owner_id || defaultOwnerId,
+        gate_reviewer: initialData.gate_reviewer || initialData.gate_owner || defaultReviewerName,
+        reviewer_user_id: initialData.reviewer_user_id || initialData.gate_owner_id || defaultReviewerId,
         status: initialData.status || 'Not Started',
         approval_status: initialData.approval_status || 'Pending',
         description: initialData.description || '',
@@ -81,7 +98,10 @@ export function GateFormDialog({
         gate_type: 'Concept & Charter',
         planned_date: new Date().toISOString().split('T')[0],
         actual_date: '',
-        gate_owner: 'Program Director',
+        gate_owner: defaultOwnerName,
+        gate_owner_id: defaultOwnerId,
+        gate_reviewer: defaultReviewerName,
+        reviewer_user_id: defaultReviewerId,
         status: 'Not Started',
         approval_status: 'Pending',
         description: '',
@@ -125,7 +145,7 @@ export function GateFormDialog({
                 {isEditing ? `Edit Stage-Gate (${initialData?.name})` : 'Create New APQP Stage-Gate'}
               </h2>
               <p className="text-xs text-slate-500 font-medium">
-                Set up product lifecycle gates, sign-off criteria, and deliverable checklists in ERPNext.
+                Set up product lifecycle gates, sign-off criteria, and assign designated Gate Reviewer authority.
               </p>
             </div>
           </div>
@@ -139,10 +159,12 @@ export function GateFormDialog({
               <input
                 type="text"
                 {...register('gate_name', { required: 'Gate name is required' })}
-                placeholder="e.g. Gate 2: APQP Stage-Gate & Design Freeze Sign-off"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
+                placeholder="e.g., Gate 2: EV Battery Pack DFM Release"
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 transition"
               />
-              {errors.gate_name && <p className="text-[11px] font-bold text-rose-500">{errors.gate_name.message}</p>}
+              {errors.gate_name && (
+                <p className="text-[11px] font-bold text-rose-500">{errors.gate_name.message}</p>
+              )}
             </div>
 
             {/* Project & Gate Type */}
@@ -180,12 +202,20 @@ export function GateFormDialog({
               </div>
             </div>
 
-            {/* Owner & Dates */}
-            <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+            {/* Owner & Reviewer Assignment */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700">Gate Owner / Lead</label>
                 <select
                   {...register('gate_owner')}
+                  onChange={(e) => {
+                    const selectedName = e.target.value;
+                    const matched = employees.find((emp: any) => (emp.full_name || emp.name) === selectedName);
+                    setValue('gate_owner', selectedName);
+                    if (matched) {
+                      setValue('gate_owner_id', matched.email || matched.name);
+                    }
+                  }}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 transition cursor-pointer"
                 >
                   {employees.length > 0 ? (
@@ -196,15 +226,52 @@ export function GateFormDialog({
                     ))
                   ) : (
                     <>
+                      <option value="Program Director">Program Director (Program Director)</option>
                       <option value="Sarah Jenkins">Sarah Jenkins (Project Manager)</option>
                       <option value="Yash">Yash (Team Member)</option>
                       <option value="Administrator">Administrator (PMO / Administrator)</option>
-                      <option value="Quality Manager">Quality Manager (Gate Reviewer)</option>
                     </>
                   )}
                 </select>
               </div>
 
+              <div className="space-y-1.5">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1">
+                  <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                  <span>Assigned Gate Reviewer</span>
+                </label>
+                <select
+                  {...register('gate_reviewer')}
+                  onChange={(e) => {
+                    const selectedName = e.target.value;
+                    const matched = employees.find((emp: any) => (emp.full_name || emp.name) === selectedName);
+                    setValue('gate_reviewer', selectedName);
+                    if (matched) {
+                      setValue('reviewer_user_id', matched.email || matched.name);
+                    }
+                  }}
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-emerald-50/50 border border-emerald-200 text-slate-900 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 transition cursor-pointer"
+                >
+                  {employees.length > 0 ? (
+                    employees.map((emp: any) => (
+                      <option key={emp.name || emp.email} value={emp.full_name || emp.name}>
+                        {emp.full_name || emp.name} ({emp.designation || 'Gate Reviewer'})
+                      </option>
+                    ))
+                  ) : (
+                    <>
+                      <option value="Sarah Jenkins">Sarah Jenkins (Gate Reviewer)</option>
+                      <option value="Gate Reviewer">Gate Reviewer (Quality Manager)</option>
+                      <option value="Administrator">Administrator (PMO)</option>
+                      <option value="Yash">Yash (Team Member)</option>
+                    </>
+                  )}
+                </select>
+              </div>
+            </div>
+
+            {/* Dates */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700">Planned Gate Date</label>
                 <input

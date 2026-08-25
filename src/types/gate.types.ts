@@ -93,6 +93,9 @@ export interface Gate {
   actual_date?: string;
   status: GateStatus;
   gate_owner: string;
+  gate_owner_id?: string;
+  gate_reviewer?: string;
+  reviewer_user_id?: string;
   approval_status: GateApprovalStatus;
   completion_percentage: number;
   readiness_percentage: number;

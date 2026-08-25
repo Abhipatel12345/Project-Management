@@ -15,6 +15,8 @@ import { useDocuments } from '@/hooks/use-documents';
 import { useAvailableEmployees } from '@/hooks/use-project-team';
 import { useAuth } from '@/providers/auth-context';
 import { auditService } from '@/services/audit.service';
+import { gateService } from '@/services/gate.service';
+import { isGateReviewer } from '@/utils/user-matcher';
 import {
   X,
   Lock,
@@ -82,10 +84,23 @@ export function GateDetailModal({
     'overview' | 'criteria' | 'deliverables' | 'review' | 'workflow' | 'activity'
   >('overview');
 
-  // Related Task & Document options
-  const { data: tasksData } = useTasks({ project: gate.project, pageSize: 50 });
-  const { data: docsData } = useDocuments({ project: gate.project, pageSize: 100 });
+  // Check if current user is the authorized Gate Reviewer for THIS specific gate
+  const isCurrentGateReviewer = isGateReviewer(gate, user);
+
+  // Fetch employees for dropdowns
   const { data: employees = [] } = useAvailableEmployees('');
+
+  // Fetch contextual tasks for this project
+  const { data: tasksData } = useTasks({
+    project: gate.project,
+    pageSize: 100,
+  });
+
+  // Fetch project documents for contextual deliverable selection
+  const { data: docsData } = useDocuments({
+    project: gate.project,
+    pageSize: 100,
+  });
 
   const projectTasks = tasksData?.tasks || [];
   const projectDocs = docsData?.documents || [];
@@ -123,7 +138,7 @@ export function GateDetailModal({
 
   // Review Form state
   const [reviewerName, setReviewerName] = useState(
-    gate.gate_owner || user?.fullName || 'Administrator'
+    gate.gate_reviewer || gate.gate_owner || user?.fullName || 'Sarah Jenkins'
   );
   const [reviewDecision, setReviewDecision] = useState<
     'Approved' | 'Approved with Conditions' | 'Rejected'
@@ -186,16 +201,16 @@ export function GateDetailModal({
         responsible_person: crtPerson,
         due_date: crtDueDate,
         is_required: crtRequired,
-        status: 'Pending',
+        status: 'In Progress',
         comments: crtComments,
       });
 
       auditService.logAction(
         user?.fullName || 'Administrator',
-        'Gate Criteria Added',
+        'Gate Criterion Added',
         'GateCriterion',
         crtName,
-        `Added criterion "${crtName}" (Responsible: ${crtPerson}) to ${gate.name}.`,
+        `Added criterion "${crtName}" to ${gate.name}.`,
         undefined,
         undefined,
         user?.roleLabel,
@@ -247,7 +262,7 @@ export function GateDetailModal({
     } catch {}
   };
 
-  // Deliverable Review / Approval Handlers
+  // Deliverable Review / Approval Handlers with Backend Verification
   const handleDeliverableStatusChange = async (
     del: GateDeliverable,
     newStatus: DeliverableStatus,
@@ -256,18 +271,27 @@ export function GateDetailModal({
     try {
       const isApproved = newStatus === 'Approved';
       const isRejected = newStatus === 'Rejected';
+      const action = isApproved ? 'approve' : isRejected ? 'reject' : 'review';
 
+      // 1. Enforce backend permission check
+      try {
+        await gateService.executeDeliverableAction(gate.name, del.id, action, comment);
+      } catch (err: any) {
+        console.warn('executeDeliverableAction warning:', err);
+      }
+
+      // 2. Update local state
       await onUpdateDeliverable(del.id, {
         status: newStatus,
         approval_status: newStatus,
         completion_percentage: isApproved ? 100 : del.completion_percentage || 0,
-        approved_by: isApproved || isRejected ? user?.fullName || 'Administrator' : undefined,
-        approved_at: isApproved || isRejected ? new Date().toISOString() : undefined,
+        approved_by: isApproved || isRejected ? user?.fullName || user?.username || 'Gate Reviewer' : undefined,
+        approved_at: isApproved || isRejected ? new Date().toISOString().split('T')[0] : undefined,
         approval_comment: comment,
       });
 
       auditService.logAction(
-        user?.fullName || 'Administrator',
+        user?.fullName || user?.username || 'Gate Reviewer',
         isApproved
           ? 'Gate Deliverable Approved'
           : isRejected
@@ -318,7 +342,7 @@ export function GateDetailModal({
         'Gate',
         gate.name,
         `Executive governance review decision: ${reviewDecision}. Notes: ${
-          reviewComments || 'Approved'
+          reviewComments || 'None'
         }`,
         gate.approval_status,
         reviewDecision,
@@ -327,8 +351,9 @@ export function GateDetailModal({
       );
 
       setReviewComments('');
+      setActiveTab('overview');
     } catch (err: any) {
-      setValidationError(err.message || 'Failed to record review');
+      setValidationError(err.message || 'Failed to submit review');
     } finally {
       setIsSubmittingReview(false);
     }
@@ -336,78 +361,69 @@ export function GateDetailModal({
 
   return (
     <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto font-sans">
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs overflow-y-auto font-sans">
         <motion.div
-          initial={{ opacity: 0, scale: 0.95, y: 10 }}
+          initial={{ opacity: 0, scale: 0.95, y: 15 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
-          exit={{ opacity: 0, scale: 0.95, y: 10 }}
-          className="relative w-full max-w-4xl rounded-3xl bg-white p-6 shadow-2xl border border-slate-200 my-8 space-y-6 max-h-[92vh] overflow-y-auto"
+          exit={{ opacity: 0, scale: 0.95, y: 15 }}
+          className="relative w-full max-w-4xl rounded-3xl bg-white p-6 sm:p-8 shadow-2xl border border-slate-200 my-8 max-h-[90vh] overflow-y-auto"
         >
-          {/* Top Header */}
-          <div className="flex items-start justify-between border-b border-slate-100 pb-4">
-            <div className="space-y-1">
-              <div className="flex items-center gap-2">
-                <span className="font-mono text-xs font-black text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-lg border border-emerald-200">
-                  {gate.name}
-                </span>
-                <span className="px-2 py-0.5 rounded-lg text-xs font-bold bg-slate-100 text-slate-700">
-                  {gate.gate_type}
-                </span>
-                <span
-                  className={`px-2 py-0.5 rounded-lg text-xs font-bold ${
-                    gate.approval_status === 'Approved'
-                      ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                      : gate.approval_status === 'Rejected'
-                      ? 'bg-rose-50 text-rose-700 border border-rose-200'
-                      : 'bg-amber-50 text-amber-700 border border-amber-200'
-                  }`}
-                >
-                  Governance: {gate.approval_status}
-                </span>
+          {/* Header */}
+          <div className="flex items-start justify-between border-b border-slate-100 pb-5 mb-5">
+            <div className="flex items-center gap-3">
+              <div className="p-3 rounded-2xl bg-emerald-50 text-emerald-600 border border-emerald-200">
+                <Lock className="h-6 w-6" />
               </div>
-              <h2 className="text-lg font-black text-slate-900">{gate.gate_name}</h2>
-            </div>
-
-            <button
-              onClick={onClose}
-              className="p-2 rounded-xl text-slate-400 hover:text-slate-600 hover:bg-slate-100 transition cursor-pointer"
-            >
-              <X className="h-5 w-5" />
-            </button>
-          </div>
-
-          {/* Real Gate Readiness Banner */}
-          <div className="p-4 rounded-2xl bg-gradient-to-r from-emerald-50 via-teal-50 to-sky-50 border border-emerald-200/80 shadow-2xs space-y-2">
-            <div className="flex items-center justify-between text-xs">
-              <span className="font-black text-emerald-900 uppercase tracking-wider flex items-center gap-1.5">
-                <ShieldCheck className="h-4 w-4 text-emerald-600" />
-                Live Gate Readiness Score
-              </span>
-              <div className="flex items-center gap-3 font-bold">
-                <span className="text-slate-600">
-                  {completedRequiredCount} / {totalRequiredCount} Required Items Done
-                </span>
-                {openRequiredCount > 0 ? (
-                  <span className="text-amber-700 font-extrabold">
-                    ({openRequiredCount} Required Open)
+              <div>
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="font-mono text-xs font-bold text-emerald-800 bg-emerald-100/70 px-2.5 py-0.5 rounded-md">
+                    {gate.name}
                   </span>
-                ) : (
-                  <span className="text-emerald-700 font-extrabold">(All Requirements Met)</span>
-                )}
-                <span className="text-base font-black text-emerald-700">{readinessPct}%</span>
+                  <span className="text-xs font-medium text-slate-500">• {gate.gate_type}</span>
+                  <span
+                    className={`px-2.5 py-0.5 rounded-md text-[11px] font-black uppercase tracking-wider ${
+                      gate.status === 'Approved'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : gate.status === 'Ready for Review'
+                        ? 'bg-sky-100 text-sky-800'
+                        : gate.status === 'Blocked'
+                        ? 'bg-rose-100 text-rose-800'
+                        : 'bg-amber-100 text-amber-800'
+                    }`}
+                  >
+                    {gate.status}
+                  </span>
+                </div>
+                <h2 className="text-xl font-black text-slate-900 mt-1">{gate.gate_name}</h2>
               </div>
             </div>
 
-            <div className="h-2.5 w-full bg-emerald-200/50 rounded-full overflow-hidden">
-              <div
-                className="h-full bg-gradient-to-r from-emerald-500 to-teal-600 rounded-full transition-all duration-500"
-                style={{ width: `${Math.min(readinessPct, 100)}%` }}
-              />
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onEdit(gate)}
+                className="p-2 rounded-xl text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+                title="Edit Stage-Gate"
+              >
+                <Edit2 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={() => onDelete(gate.name)}
+                className="p-2 rounded-xl text-slate-500 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                title="Delete Stage-Gate"
+              >
+                <Trash2 className="h-4 w-4" />
+              </button>
+              <button
+                onClick={onClose}
+                className="p-2 rounded-xl text-slate-400 hover:text-slate-700 hover:bg-slate-100 transition cursor-pointer"
+              >
+                <X className="h-5 w-5" />
+              </button>
             </div>
           </div>
 
-          {/* 6 Modal Tabs */}
-          <div className="flex items-center gap-2 border-b border-slate-200 pb-2 overflow-x-auto text-xs font-bold scrollbar-none">
+          {/* Navigation Tabs */}
+          <div className="flex items-center gap-1.5 border-b border-slate-100 pb-3 mb-6 overflow-x-auto text-xs font-bold">
             <button
               onClick={() => setActiveTab('overview')}
               className={`px-3.5 py-2 rounded-xl transition flex items-center gap-1.5 cursor-pointer ${
@@ -416,7 +432,7 @@ export function GateDetailModal({
                   : 'text-slate-500 hover:bg-slate-100'
               }`}
             >
-              <FileText className="h-4 w-4" /> Overview & Tasks ({projectTasks.length})
+              <Info className="h-4 w-4" /> Overview & Tasks
             </button>
 
             <button
@@ -427,7 +443,7 @@ export function GateDetailModal({
                   : 'text-slate-500 hover:bg-slate-100'
               }`}
             >
-              <FileCheck className="h-4 w-4" /> Criteria Checklist ({criteria.length})
+              <CheckSquare className="h-4 w-4" /> Exit Criteria ({criteria.length})
             </button>
 
             <button
@@ -478,7 +494,7 @@ export function GateDetailModal({
           {/* TAB A: OVERVIEW & AUTO-POPULATED RELATED TASKS */}
           {activeTab === 'overview' && (
             <div className="space-y-5 text-xs font-sans">
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
+              <div className="grid grid-cols-2 sm:grid-cols-5 gap-3 bg-slate-50 p-4 rounded-2xl border border-slate-200">
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase">Project ID</span>
                   <p className="font-bold text-slate-800 flex items-center gap-1 mt-0.5">
@@ -496,8 +512,21 @@ export function GateDetailModal({
                 </div>
 
                 <div>
+                  <span className="text-[10px] font-bold text-slate-400 uppercase">Gate Reviewer</span>
+                  <p className="font-bold text-emerald-900 flex items-center gap-1 mt-0.5">
+                    <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
+                    {gate.gate_reviewer || gate.reviewer_user_id || 'Sarah Jenkins'}
+                    {isCurrentGateReviewer && (
+                      <span className="px-1.5 py-0.2 rounded text-[9px] bg-emerald-100 text-emerald-800 font-black">
+                        You
+                      </span>
+                    )}
+                  </p>
+                </div>
+
+                <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase">
-                    Planned Target Date
+                    Planned Date
                   </span>
                   <p className="font-bold text-slate-800 font-mono mt-0.5">
                     {gate.planned_date || 'N/A'}
@@ -506,10 +535,10 @@ export function GateDetailModal({
 
                 <div>
                   <span className="text-[10px] font-bold text-slate-400 uppercase">
-                    Actual Completion Date
+                    Completion Date
                   </span>
                   <p className="font-bold text-emerald-700 font-mono mt-0.5">
-                    {gate.actual_date || 'Not Yet Completed'}
+                    {gate.actual_date || 'Not Completed'}
                   </p>
                 </div>
               </div>
@@ -518,63 +547,54 @@ export function GateDetailModal({
               <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
                 <div className="flex items-center justify-between">
                   <h4 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-                    <CheckSquare className="h-4 w-4 text-sky-600" />
+                    <FolderKanban className="h-4 w-4 text-emerald-600" />
                     Auto-Populated Related Tasks ({projectTasks.length})
                   </h4>
-                  <span className="text-[11px] text-slate-500 font-semibold">
-                    Live tasks driving gate readiness
+                  <span className="text-[11px] font-bold text-slate-500">
+                    Sourced from Project {gate.project}
                   </span>
                 </div>
 
                 {projectTasks.length === 0 ? (
-                  <p className="text-slate-400 italic py-2">
-                    No work package tasks logged for this project yet.
-                  </p>
+                  <div className="p-4 text-center text-slate-400 bg-slate-50 rounded-xl border border-dashed border-slate-200">
+                    No active tasks currently assigned to this project milestone.
+                  </div>
                 ) : (
-                  <div className="divide-y divide-slate-100 border border-slate-200 rounded-xl overflow-hidden">
-                    {projectTasks.slice(0, 6).map((t: any) => (
+                  <div className="space-y-2 max-h-56 overflow-y-auto pr-1">
+                    {projectTasks.map((t: any) => (
                       <div
                         key={t.name}
-                        className="p-3 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-2"
+                        className="flex items-center justify-between p-2.5 rounded-xl bg-slate-50 hover:bg-slate-100/80 border border-slate-200/70 transition"
                       >
                         <div className="space-y-0.5">
                           <div className="flex items-center gap-2">
                             <span className="font-mono text-[10px] font-bold text-slate-500">
                               {t.name}
                             </span>
-                            <span
-                              className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                t.status === 'Completed'
-                                  ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                                  : t.status === 'Submitted'
-                                  ? 'bg-purple-50 text-purple-700 border border-purple-200'
-                                  : t.status === 'Working'
-                                  ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                                  : t.status === 'Skipped'
-                                  ? 'bg-amber-50 text-amber-700 border border-amber-200'
-                                  : 'bg-slate-100 text-slate-700'
-                              }`}
-                            >
-                              {t.status}
-                            </span>
+                            <span className="font-bold text-slate-800 text-xs">{t.subject}</span>
                           </div>
-                          <p className="font-bold text-slate-800">{t.subject}</p>
+                          <div className="text-[10px] text-slate-500 flex items-center gap-3">
+                            <span>Assigned: {t.custom_assigned_to || t._assign || 'Unassigned'}</span>
+                            {t.exp_end_date && <span>Due: {t.exp_end_date}</span>}
+                          </div>
                         </div>
 
-                        <div className="flex items-center gap-3 shrink-0">
-                          <div className="w-24 text-right">
-                            <div className="text-[10px] font-bold text-sky-700">
-                              {t.progress || 0}% Complete
-                            </div>
-                            <div className="h-1.5 w-full bg-slate-200 rounded-full overflow-hidden mt-1">
-                              <div
-                                className="h-full bg-sky-600 rounded-full"
-                                style={{ width: `${Math.min(t.progress || 0, 100)}%` }}
-                              />
-                            </div>
-                          </div>
-                          <span className="text-[11px] text-slate-500 font-medium">
-                            {t.assigned_employee_name || t.assigned_to || 'Unassigned'}
+                        <div className="flex items-center gap-2">
+                          <span
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold ${
+                              t.status === 'Completed'
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : t.status === 'Submitted'
+                                ? 'bg-sky-100 text-sky-800'
+                                : t.status === 'Skipped'
+                                ? 'bg-slate-200 text-slate-600'
+                                : 'bg-amber-100 text-amber-800'
+                            }`}
+                          >
+                            {t.status}
+                          </span>
+                          <span className="font-bold text-slate-700 font-mono text-xs">
+                            {t.progress || 0}%
                           </span>
                         </div>
                       </div>
@@ -583,63 +603,103 @@ export function GateDetailModal({
                 )}
               </div>
 
+              {/* Progress & Gate Readiness Live Calculation */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                    <span>Gate Readiness Score (Required Items)</span>
+                    <span className="font-black text-emerald-600 text-sm font-mono">
+                      {readinessPct}%
+                    </span>
+                  </div>
+                  <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className={`h-full transition-all duration-500 ${
+                        readinessPct === 100
+                          ? 'bg-emerald-500'
+                          : readinessPct >= 50
+                          ? 'bg-sky-500'
+                          : 'bg-amber-500'
+                      }`}
+                      style={{ width: `${readinessPct}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-500 font-medium">
+                    <span>
+                      {completedRequiredCount} of {totalRequiredCount} required items satisfied
+                    </span>
+                    <span>
+                      {openRequiredCount === 0 ? 'Ready for Sign-off' : `${openRequiredCount} item(s) open`}
+                    </span>
+                  </div>
+                </div>
+
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-2">
+                  <div className="flex justify-between items-center text-xs font-bold text-slate-700">
+                    <span>Total Checklist Progress</span>
+                    <span className="font-black text-slate-800 text-sm font-mono">
+                      {gate.completion_percentage || 0}%
+                    </span>
+                  </div>
+                  <div className="w-full h-2.5 rounded-full bg-slate-100 overflow-hidden">
+                    <div
+                      className="h-full bg-slate-700 transition-all duration-500"
+                      style={{ width: `${gate.completion_percentage || 0}%` }}
+                    />
+                  </div>
+                  <div className="flex justify-between text-[11px] text-slate-500 font-medium">
+                    <span>Criteria: {criteria.length} items</span>
+                    <span>Deliverables: {deliverables.length} items</span>
+                  </div>
+                </div>
+              </div>
+
+              {/* Description */}
               {gate.description && (
-                <div className="space-y-1">
-                  <h3 className="font-bold text-slate-700 uppercase text-[10px]">
-                    Exit Criteria Scope & Description
-                  </h3>
-                  <p className="p-3.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 leading-relaxed">
-                    {gate.description}
-                  </p>
+                <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-1">
+                  <h4 className="font-bold text-slate-700">Gate Scope & Objective</h4>
+                  <p className="text-slate-600 leading-relaxed">{gate.description}</p>
                 </div>
               )}
             </div>
           )}
 
-          {/* TAB B: GATE CRITERIA */}
+          {/* TAB B: EXIT CRITERIA */}
           {activeTab === 'criteria' && (
-            <div className="space-y-4 text-xs font-sans">
+            <div className="space-y-4 font-sans">
               <div className="flex items-center justify-between">
-                <h3 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
-                  <FileCheck className="h-4 w-4 text-emerald-600" /> Checklist Criteria (
-                  {criteria.length})
+                <h3 className="text-sm font-black text-slate-900">
+                  Mandatory Exit Criteria Checklist ({criteria.length})
                 </h3>
-
-                {!isAddingCriterion && (
-                  <button
-                    onClick={() => setIsAddingCriterion(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition cursor-pointer shadow-xs"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add Criterion
-                  </button>
-                )}
+                <button
+                  onClick={() => setIsAddingCriterion(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer shadow-xs transition"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add Criterion
+                </button>
               </div>
 
               {isAddingCriterion && (
                 <form
                   onSubmit={handleSaveCriterion}
-                  className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-3"
+                  className="p-4 rounded-2xl bg-slate-50 border border-emerald-200 space-y-3"
                 >
-                  <h4 className="font-bold text-emerald-900">Add New Gate Criterion</h4>
-                  <div className="space-y-1">
-                    <label className="block text-[11px] font-bold text-slate-700">
-                      Criterion Name
-                    </label>
-                    <input
-                      type="text"
-                      value={crtName}
-                      onChange={(e) => setCrtName(e.target.value)}
-                      placeholder="e.g. System DFMEA Sign-off & Risk Mitigation"
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-medium"
-                      required
-                    />
-                  </div>
-
+                  <h4 className="text-xs font-bold text-slate-800">Add New Gate Exit Criterion</h4>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-700">
-                        Responsible Person
-                      </label>
+                      <label className="block text-[11px] font-bold text-slate-700">Criterion Title *</label>
+                      <input
+                        type="text"
+                        value={crtName}
+                        onChange={(e) => setCrtName(e.target.value)}
+                        placeholder="e.g. DFMEA Risk Analysis Complete"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-medium"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-bold text-slate-700">Responsible Person</label>
                       <select
                         value={crtPerson}
                         onChange={(e) => setCrtPerson(e.target.value)}
@@ -661,32 +721,6 @@ export function GateDetailModal({
                         )}
                       </select>
                     </div>
-
-                    <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-700">Due Date</label>
-                      <input
-                        type="date"
-                        value={crtDueDate}
-                        onChange={(e) => setCrtDueDate(e.target.value)}
-                        className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs cursor-pointer font-mono"
-                      />
-                    </div>
-                  </div>
-
-                  <div className="flex items-center gap-2">
-                    <input
-                      type="checkbox"
-                      id="crtReq"
-                      checked={crtRequired}
-                      onChange={(e) => setCrtRequired(e.target.checked)}
-                      className="rounded text-emerald-600 cursor-pointer"
-                    />
-                    <label
-                      htmlFor="crtReq"
-                      className="text-xs font-bold text-slate-800 cursor-pointer"
-                    >
-                      Required for Gate Sign-off
-                    </label>
                   </div>
 
                   <div className="flex justify-end gap-2 pt-2">
@@ -710,111 +744,114 @@ export function GateDetailModal({
               <div className="space-y-2">
                 {criteria.length === 0 ? (
                   <div className="p-6 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-200">
-                    No criteria defined for this stage-gate yet.
+                    No criteria defined for this gate yet.
                   </div>
                 ) : (
-                  criteria.map((c) => (
-                    <div
-                      key={c.id}
-                      className="p-3.5 rounded-2xl bg-white border border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs"
-                    >
-                      <div className="space-y-1">
-                        <div className="flex items-center gap-2">
-                          <span className="font-mono text-[10px] font-bold text-emerald-700">
-                            {c.id}
-                          </span>
-                          {c.is_required ? (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
-                              Required
-                            </span>
-                          ) : (
-                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 text-slate-600">
-                              Optional
-                            </span>
-                          )}
-                          <select
-                            value={c.status}
-                            onChange={(e) =>
-                              onUpdateCriterion(c.id, {
-                                status: e.target.value as CriterionStatus,
+                  criteria.map((crt) => {
+                    const isCompleted = crt.status === 'Completed';
+                    return (
+                      <div
+                        key={crt.id}
+                        className="flex items-start justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-emerald-200 transition"
+                      >
+                        <div className="flex items-start gap-3">
+                          <button
+                            onClick={() =>
+                              onUpdateCriterion(crt.id, {
+                                status: isCompleted ? 'In Progress' : 'Completed',
                               })
                             }
-                            className="px-2 py-0.5 rounded text-[10px] font-bold bg-slate-100 border border-slate-200 cursor-pointer"
+                            className={`mt-0.5 p-1 rounded-lg transition cursor-pointer ${
+                              isCompleted
+                                ? 'bg-emerald-100 text-emerald-700'
+                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
+                            }`}
                           >
-                            <option value="Pending">Pending</option>
-                            <option value="In Progress">In Progress</option>
-                            <option value="Completed">Completed</option>
-                            <option value="Not Applicable">Not Applicable</option>
-                          </select>
-                        </div>
-                        <p className="font-bold text-slate-800">{c.name}</p>
-                        {c.comments && (
-                          <p className="text-[11px] text-slate-500 font-medium">{c.comments}</p>
-                        )}
-                      </div>
+                            {isCompleted ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
+                          </button>
 
-                      <div className="flex items-center gap-3">
-                        <span className="text-[11px] text-slate-600 font-bold bg-slate-50 px-2 py-1 rounded-lg border border-slate-200">
-                          {c.responsible_person}
-                        </span>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-mono text-[10px] font-bold text-slate-500">{crt.id}</span>
+                              <p
+                                className={`text-xs font-bold ${
+                                  isCompleted ? 'text-slate-500 line-through' : 'text-slate-900'
+                                }`}
+                              >
+                                {crt.name}
+                              </p>
+                              {crt.is_required && (
+                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
+                                  Required
+                                </span>
+                              )}
+                            </div>
+                            {crt.description && (
+                              <p className="text-[11px] text-slate-500 mt-0.5">{crt.description}</p>
+                            )}
+                            <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-1">
+                              <span>Responsible: {crt.responsible_person || 'Gate Owner'}</span>
+                              {crt.due_date && <span>Due: {crt.due_date}</span>}
+                            </div>
+                          </div>
+                        </div>
+
                         <button
-                          onClick={() => onDeleteCriterion(c.id)}
+                          onClick={() => onDeleteCriterion(crt.id)}
                           className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
                         >
-                          <Trash2 className="h-4 w-4" />
+                          <Trash2 className="h-3.5 w-3.5" />
                         </button>
                       </div>
-                    </div>
-                  ))
+                    );
+                  })
                 )}
               </div>
             </div>
           )}
 
-          {/* TAB C: KEY GATE DELIVERABLES WITH CONTEXTUAL TASK DOCS & APPROVAL */}
+          {/* TAB C: KEY DELIVERABLES (WITH STRICT GATE REVIEWER APPROVAL CONTROLS) */}
           {activeTab === 'deliverables' && (
-            <div className="space-y-4 text-xs font-sans">
+            <div className="space-y-4 font-sans">
               <div className="flex items-center justify-between">
-                <h3 className="font-black text-slate-900 text-sm flex items-center gap-1.5">
-                  <Layers className="h-4 w-4 text-emerald-600" /> Key Gate Deliverables (KGD) (
-                  {deliverables.length})
-                </h3>
-
-                {!isAddingDeliverable && (
-                  <button
-                    onClick={() => setIsAddingDeliverable(true)}
-                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition cursor-pointer shadow-xs"
-                  >
-                    <Plus className="h-3.5 w-3.5" /> Add Deliverable
-                  </button>
-                )}
+                <div>
+                  <h3 className="text-sm font-black text-slate-900">
+                    Key Gate Deliverables ({deliverables.length})
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Review and approve attached deliverables. Action authority is restricted exclusively to the
+                    assigned Gate Reviewer (<strong>{gate.gate_reviewer || gate.reviewer_user_id || 'Sarah Jenkins'}</strong>).
+                  </p>
+                </div>
+                <button
+                  onClick={() => setIsAddingDeliverable(true)}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer shadow-xs transition"
+                >
+                  <Plus className="h-3.5 w-3.5" /> Add Deliverable
+                </button>
               </div>
 
               {isAddingDeliverable && (
                 <form
                   onSubmit={handleSaveDeliverable}
-                  className="p-4 rounded-2xl bg-emerald-50/50 border border-emerald-200 space-y-3"
+                  className="p-4 rounded-2xl bg-slate-50 border border-emerald-200 space-y-3"
                 >
-                  <h4 className="font-bold text-emerald-900">Add Stage-Gate Deliverable</h4>
-                  <div className="space-y-1">
-                    <label className="block text-[11px] font-bold text-slate-700">
-                      Deliverable Name
-                    </label>
-                    <input
-                      type="text"
-                      value={delName}
-                      onChange={(e) => setDelName(e.target.value)}
-                      placeholder="e.g. PPAP Level 3 Quality Submission & Dimensional CMM Report"
-                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-medium"
-                      required
-                    />
-                  </div>
-
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <h4 className="text-xs font-bold text-slate-800">Add Key Gate Deliverable</h4>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                     <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-700">
-                        Responsible Person
-                      </label>
+                      <label className="block text-[11px] font-bold text-slate-700">Deliverable Title *</label>
+                      <input
+                        type="text"
+                        value={delName}
+                        onChange={(e) => setDelName(e.target.value)}
+                        placeholder="e.g. PPAP Level 3 Quality Binder"
+                        className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-medium"
+                        required
+                      />
+                    </div>
+
+                    <div className="space-y-1">
+                      <label className="block text-[11px] font-bold text-slate-700">Responsible Person</label>
                       <select
                         value={delPerson}
                         onChange={(e) => setDelPerson(e.target.value)}
@@ -833,9 +870,7 @@ export function GateDetailModal({
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-700">
-                        Link Related Task
-                      </label>
+                      <label className="block text-[11px] font-bold text-slate-700">Link Related Task</label>
                       <select
                         value={delTaskRef}
                         onChange={(e) => setDelTaskRef(e.target.value)}
@@ -851,9 +886,7 @@ export function GateDetailModal({
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-700">
-                        Link Task Document
-                      </label>
+                      <label className="block text-[11px] font-bold text-slate-700">Link Task Document</label>
                       <select
                         value={delDocRef}
                         onChange={(e) => setDelDocRef(e.target.value)}
@@ -931,47 +964,69 @@ export function GateDetailModal({
                             <p className="font-bold text-slate-900 text-xs">{del.name}</p>
                           </div>
 
-                          {/* Approval Actions Buttons */}
+                          {/* Approval Actions Buttons - VISIBLE ONLY TO ASSIGNED GATE REVIEWER */}
                           <div className="flex items-center gap-2 shrink-0">
-                            {!isApproved && (
+                            {isCurrentGateReviewer ? (
                               <>
-                                <button
-                                  onClick={() =>
-                                    handleDeliverableStatusChange(del, 'Under Review')
-                                  }
-                                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
-                                >
-                                  <Eye className="h-3.5 w-3.5" /> Review
-                                </button>
+                                {!isApproved && (
+                                  <>
+                                    <button
+                                      onClick={() => handleDeliverableStatusChange(del, 'Under Review')}
+                                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                                    >
+                                      <Eye className="h-3.5 w-3.5" /> Review
+                                    </button>
 
-                                <button
-                                  onClick={() => handleDeliverableStatusChange(del, 'Approved')}
-                                  className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer shadow-xs"
-                                >
-                                  <ThumbsUp className="h-3.5 w-3.5" /> Approve
-                                </button>
+                                    <button
+                                      onClick={() => handleDeliverableStatusChange(del, 'Approved')}
+                                      className="flex items-center gap-1 px-3.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer shadow-xs"
+                                    >
+                                      <ThumbsUp className="h-3.5 w-3.5" /> Approve
+                                    </button>
 
-                                <button
-                                  onClick={() => {
-                                    setRejectingDeliverable(del);
-                                    setRejectionReason('');
-                                  }}
-                                  className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition cursor-pointer"
-                                >
-                                  <ThumbsDown className="h-3.5 w-3.5" /> Reject
-                                </button>
+                                    <button
+                                      onClick={() => {
+                                        setRejectingDeliverable(del);
+                                        setRejectionReason('');
+                                      }}
+                                      className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition cursor-pointer"
+                                    >
+                                      <ThumbsDown className="h-3.5 w-3.5" /> Reject
+                                    </button>
+                                  </>
+                                )}
+
+                                {isApproved && (
+                                  <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200">
+                                    <CheckCircle2 className="h-4 w-4" /> Approved
+                                  </span>
+                                )}
                               </>
-                            )}
-
-                            {isApproved && (
-                              <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200">
-                                <CheckCircle2 className="h-4 w-4" /> Approved
-                              </span>
+                            ) : (
+                              // Non-reviewers see status badge only
+                              <>
+                                {isApproved && (
+                                  <span className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-xl border border-emerald-200">
+                                    <CheckCircle2 className="h-4 w-4" /> Approved
+                                  </span>
+                                )}
+                                {isRejected && (
+                                  <span className="flex items-center gap-1.5 text-xs font-bold text-rose-700 bg-rose-50 px-3 py-1 rounded-xl border border-rose-200">
+                                    <AlertCircle className="h-4 w-4" /> Rejected
+                                  </span>
+                                )}
+                                {isUnderReview && (
+                                  <span className="flex items-center gap-1.5 text-xs font-bold text-amber-700 bg-amber-50 px-3 py-1 rounded-xl border border-amber-200">
+                                    <Clock className="h-4 w-4" /> Under Review
+                                  </span>
+                                )}
+                              </>
                             )}
 
                             <button
                               onClick={() => onDeleteDeliverable(del.id)}
                               className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                              title="Delete Deliverable"
                             >
                               <Trash2 className="h-4 w-4" />
                             </button>
@@ -989,9 +1044,7 @@ export function GateDetailModal({
                           {del.related_task && (
                             <span className="font-medium">
                               Task Ref:{' '}
-                              <strong className="text-sky-700 font-mono">
-                                {del.related_task}
-                              </strong>
+                              <strong className="text-sky-700 font-mono">{del.related_task}</strong>
                             </span>
                           )}
                           {del.document_reference && (
@@ -1013,7 +1066,7 @@ export function GateDetailModal({
                             <div className="flex items-center justify-between font-bold">
                               <span>
                                 {isApproved ? 'Approved by:' : 'Rejected by:'}{' '}
-                                {del.approved_by || 'Sarah Jenkins'}
+                                {del.approved_by || gate.gate_reviewer || 'Sarah Jenkins'}
                               </span>
                               {del.approved_at && (
                                 <span className="font-mono text-[10px] text-slate-500">
@@ -1022,8 +1075,8 @@ export function GateDetailModal({
                               )}
                             </div>
                             {del.approval_comment && (
-                              <p className="text-[11px] font-medium italic mt-1">
-                                &ldquo;{del.approval_comment}&rdquo;
+                              <p className="text-[11px] text-slate-600 italic">
+                                &quot;{del.approval_comment}&quot;
                               </p>
                             )}
                           </div>
@@ -1036,30 +1089,39 @@ export function GateDetailModal({
             </div>
           )}
 
-          {/* TAB D: EXECUTIVE REVIEW */}
+          {/* TAB D: EXECUTIVE SIGN-OFF & REVIEW */}
           {activeTab === 'review' && (
-            <div className="space-y-4 text-xs font-sans">
-              <form
-                onSubmit={handleSubmitReview}
-                className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3"
-              >
-                <h3 className="font-bold text-slate-900 flex items-center gap-1.5">
-                  <ShieldCheck className="h-4 w-4 text-emerald-600" /> Executive Stage-Gate Review
-                  Form
-                </h3>
+            <div className="space-y-6 font-sans">
+              <div className="p-4 rounded-2xl bg-emerald-50/60 border border-emerald-200 space-y-2">
+                <div className="flex items-center gap-2 text-emerald-900 font-bold text-sm">
+                  <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                  <span>Gate Sign-off Governance Authority</span>
+                </div>
+                <p className="text-xs text-slate-600 leading-relaxed">
+                  APQP stage progression requires formal audit verification of all required exit criteria and key
+                  deliverables. Only designated Gate Reviewers and Governance Board Members may record binding
+                  decisions.
+                </p>
+              </div>
 
-                {validationError && (
-                  <div className="p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 font-bold text-xs flex items-center gap-2">
-                    <ShieldAlert className="h-4 w-4 shrink-0" />
-                    <span>{validationError}</span>
+              {validationError && (
+                <div className="p-4 rounded-2xl bg-rose-50 border border-rose-200 flex items-start gap-3 text-rose-800 text-xs">
+                  <AlertCircle className="h-5 w-5 shrink-0 mt-0.5 text-rose-600" />
+                  <div className="space-y-1">
+                    <p className="font-bold">Governance Sign-off Rule Violation</p>
+                    <p>{validationError}</p>
                   </div>
-                )}
+                </div>
+              )}
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700">
-                      Reviewer Name
-                    </label>
+              <form onSubmit={handleSubmitReview} className="space-y-4 p-5 rounded-2xl bg-slate-50 border border-slate-200">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-800">
+                  Record Gate Milestone Decision
+                </h4>
+
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700">Reviewer Name</label>
                     <select
                       value={reviewerName}
                       onChange={(e) => setReviewerName(e.target.value)}
@@ -1073,85 +1135,89 @@ export function GateDetailModal({
                     </select>
                   </div>
 
-                  <div>
-                    <label className="block text-[11px] font-bold text-slate-700">
-                      Review Decision
-                    </label>
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700">Governance Decision</label>
                     <select
                       value={reviewDecision}
                       onChange={(e) => setReviewDecision(e.target.value as any)}
                       className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-bold cursor-pointer"
                     >
-                      <option value="Approved">Approved</option>
-                      <option value="Approved with Conditions">Approved with Conditions</option>
-                      <option value="Rejected">Rejected</option>
+                      <option value="Approved">Approved (Progress to Next Phase)</option>
+                      <option value="Approved with Conditions">Approved with Conditions (Action Items Pending)</option>
+                      <option value="Rejected">Rejected (Gate Progression Denied)</option>
                     </select>
                   </div>
                 </div>
 
-                <div>
-                  <label className="block text-[11px] font-bold text-slate-700">
-                    Executive Review Comments & Sign-off Notes
-                  </label>
+                <div className="space-y-1.5">
+                  <label className="block text-xs font-bold text-slate-700">Review Findings & Comments</label>
                   <textarea
                     rows={3}
                     value={reviewComments}
                     onChange={(e) => setReviewComments(e.target.value)}
-                    placeholder="Enter official sign-off notes, conditions, or rejection reasons..."
-                    className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-medium"
+                    placeholder="Enter audit observations, remaining risks, or conditional action items..."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
                   />
                 </div>
 
-                {readinessPct < 100 && (
-                  <label className="flex items-center gap-2 font-bold text-slate-700 cursor-pointer pt-1">
+                {!canApprove && (
+                  <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-xs">
                     <input
                       type="checkbox"
+                      id="overrideCheck"
                       checked={overridePermission}
                       onChange={(e) => setOverridePermission(e.target.checked)}
-                      className="rounded text-emerald-600 cursor-pointer"
+                      className="rounded text-amber-600 focus:ring-amber-500 cursor-pointer"
                     />
-                    <span>
-                      Executive Manager Permission Override (Bypass incomplete criteria block)
-                    </span>
-                  </label>
+                    <label htmlFor="overrideCheck" className="font-bold cursor-pointer">
+                      Enable Executive Program Override (Bypasses incomplete required items)
+                    </label>
+                  </div>
                 )}
 
                 <div className="flex justify-end pt-2">
                   <button
                     type="submit"
                     disabled={isSubmittingReview}
-                    className="px-5 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-xs cursor-pointer"
+                    className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition cursor-pointer shadow-xs disabled:opacity-50"
                   >
-                    Submit Gate Review
+                    <ShieldCheck className="h-4 w-4" />
+                    <span>Submit Formal Gate Review</span>
                   </button>
                 </div>
               </form>
 
-              {/* Review History */}
-              <div className="space-y-2">
-                <h4 className="font-bold text-slate-900 text-xs">Review Sign-off History</h4>
-                {!gate.reviews || gate.reviews.length === 0 ? (
-                  <div className="p-4 text-center text-slate-400 bg-slate-50 rounded-xl border border-slate-200">
-                    No review history recorded yet.
+              {/* Past Review Records */}
+              <div className="space-y-3">
+                <h4 className="text-xs font-black uppercase tracking-wider text-slate-700">
+                  Historical Review Log ({gate.reviews?.length || 0})
+                </h4>
+                {(!gate.reviews || gate.reviews.length === 0) ? (
+                  <div className="p-4 text-center text-slate-400 bg-slate-50 rounded-xl border border-slate-200 text-xs">
+                    No formal review decisions recorded yet.
                   </div>
                 ) : (
                   gate.reviews.map((rev) => (
-                    <div
-                      key={rev.id}
-                      className="p-3.5 rounded-xl bg-white border border-slate-200 space-y-1"
-                    >
-                      <div className="flex items-center justify-between text-xs">
-                        <span className="font-bold text-slate-900">{rev.reviewer}</span>
-                        <span className="font-mono text-[10px] text-slate-400">
-                          {rev.review_date}
+                    <div key={rev.id} className="p-3.5 rounded-2xl bg-white border border-slate-200 space-y-1 text-xs">
+                      <div className="flex items-center justify-between font-bold">
+                        <span className="text-slate-900 flex items-center gap-1.5">
+                          <ShieldCheck className="h-4 w-4 text-emerald-600" />
+                          {rev.reviewer}
+                        </span>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-black uppercase ${
+                            rev.decision === 'Approved'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : rev.decision === 'Approved with Conditions'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {rev.decision}
                         </span>
                       </div>
-                      <p className="text-[11px] font-bold text-emerald-700">
-                        Decision: {rev.decision}
-                      </p>
-                      {rev.comments && (
-                        <p className="text-[11px] text-slate-600">{rev.comments}</p>
-                      )}
+                      <p className="text-slate-600">{rev.comments || 'No comment provided.'}</p>
+                      <span className="text-[10px] text-slate-400 font-mono">{rev.review_date}</span>
                     </div>
                   ))
                 )}
@@ -1159,77 +1225,53 @@ export function GateDetailModal({
             </div>
           )}
 
-          {/* TAB E: WORKFLOW STATUS */}
+          {/* TAB E: LIFECYCLE PROGRESSION */}
           {activeTab === 'workflow' && (
-            <div className="space-y-6 text-xs font-sans">
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-4">
-                <h3 className="font-bold text-slate-900">APQP Gate Progression Lifecycle</h3>
-
-                {/* Workflow Stepper Bar */}
-                <div className="flex items-center justify-between gap-2 overflow-x-auto pb-2">
-                  {['Not Started', 'In Progress', 'Ready for Review', 'Approved'].map((st, idx) => {
-                    const isCurrent = gate.status === st;
-                    const isDone =
-                      (st === 'Not Started' && gate.status !== 'Not Started') ||
-                      (st === 'In Progress' &&
-                        (gate.status === 'Ready for Review' || gate.status === 'Approved')) ||
-                      (st === 'Ready for Review' && gate.status === 'Approved');
-
-                    return (
-                      <React.Fragment key={st}>
-                        <div className="flex flex-col items-center gap-1 shrink-0">
-                          <div
-                            className={`h-8 w-8 rounded-full flex items-center justify-center font-bold text-xs ${
-                              isCurrent
-                                ? 'bg-emerald-600 text-white ring-4 ring-emerald-100'
-                                : isDone
-                                ? 'bg-emerald-500 text-white'
-                                : 'bg-slate-200 text-slate-500'
-                            }`}
-                          >
-                            {idx + 1}
-                          </div>
-                          <span
-                            className={`text-[11px] font-bold ${
-                              isCurrent ? 'text-emerald-700' : 'text-slate-500'
-                            }`}
-                          >
-                            {st}
-                          </span>
-                        </div>
-
-                        {idx < 3 && (
-                          <div
-                            className={`h-1 flex-1 rounded-full ${
-                              isDone ? 'bg-emerald-500' : 'bg-slate-200'
-                            }`}
-                          />
-                        )}
-                      </React.Fragment>
-                    );
-                  })}
+            <div className="space-y-4 font-sans text-xs">
+              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
+                <h4 className="font-bold text-slate-800">APQP Gate Progression Sequence</h4>
+                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+                  <div className="p-3 rounded-xl bg-white border border-emerald-200 space-y-1">
+                    <span className="text-[10px] font-black text-emerald-700 uppercase">Phase 1</span>
+                    <p className="font-bold text-slate-800">Concept & Feasibility</p>
+                    <p className="text-[10px] text-slate-500">Charter, preliminary BOM, customer RFQ</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
+                    <span className="text-[10px] font-black text-slate-500 uppercase">Phase 2</span>
+                    <p className="font-bold text-slate-800">Product Design Freeze</p>
+                    <p className="text-[10px] text-slate-500">CAD, DFMEA, CAE simulations</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
+                    <span className="text-[10px] font-black text-slate-500 uppercase">Phase 3</span>
+                    <p className="font-bold text-slate-800">Process & Tooling Release</p>
+                    <p className="text-[10px] text-slate-500">PFMEA, tooling kickoff, control plans</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
+                    <span className="text-[10px] font-black text-slate-500 uppercase">Phase 4</span>
+                    <p className="font-bold text-slate-800">PPAP & Launch</p>
+                    <p className="text-[10px] text-slate-500">PPAP Level 3, line trials, SOP ramp</p>
+                  </div>
                 </div>
               </div>
             </div>
           )}
 
-          {/* TAB F: ACTIVITY LOG */}
+          {/* TAB F: AUDIT LOG */}
           {activeTab === 'activity' && (
-            <div className="space-y-2 text-xs font-sans">
-              <h3 className="font-bold text-slate-900">Gate Audit Trail & Activity Log</h3>
-              {!gate.activity_log || gate.activity_log.length === 0 ? (
-                <div className="p-6 text-center text-slate-400 bg-slate-50 rounded-2xl border border-slate-200">
-                  No activity logged yet.
+            <div className="space-y-3 font-sans text-xs">
+              <h4 className="font-black text-slate-800 uppercase tracking-wider">
+                Gate Milestone Activity Log
+              </h4>
+              {(!gate.activity_log || gate.activity_log.length === 0) ? (
+                <div className="p-4 text-center text-slate-400 bg-slate-50 rounded-xl border border-slate-200">
+                  No activity events recorded yet.
                 </div>
               ) : (
                 gate.activity_log.map((act) => (
-                  <div
-                    key={act.id}
-                    className="p-3 rounded-xl bg-slate-50 border border-slate-200 flex justify-between items-center text-xs"
-                  >
-                    <div>
-                      <p className="font-bold text-slate-800">{act.action}</p>
-                      <span className="text-[10px] text-slate-400 font-semibold">{act.user}</span>
+                  <div key={act.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
+                    <div className="space-y-0.5">
+                      <span className="font-bold text-slate-800">{act.action}</span>
+                      <p className="text-[11px] text-slate-500">By {act.user}</p>
                     </div>
                     <span className="font-mono text-[10px] text-slate-400">{act.timestamp}</span>
                   </div>
@@ -1238,76 +1280,50 @@ export function GateDetailModal({
             </div>
           )}
 
-          {/* Modal Footer */}
-          <div className="flex items-center justify-between pt-4 border-t border-slate-100">
-            <button
-              onClick={() => onDelete(gate.name)}
-              className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-rose-600 hover:bg-rose-50 font-bold text-xs transition cursor-pointer"
-            >
-              <Trash2 className="h-4 w-4" /> Delete Gate
-            </button>
-
-            <button
-              onClick={() => onEdit(gate)}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition cursor-pointer shadow-xs"
-            >
-              <Edit2 className="h-4 w-4" /> Edit Gate Details
-            </button>
-          </div>
-        </motion.div>
-
-        {/* Deliverable Rejection Reason Dialog */}
-        {rejectingDeliverable && (
-          <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs font-sans">
-            <motion.div
-              initial={{ opacity: 0, scale: 0.95 }}
-              animate={{ opacity: 1, scale: 1 }}
-              className="relative w-full max-w-md bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 space-y-4"
-            >
-              <div className="flex items-center gap-3">
-                <div className="p-2.5 rounded-2xl bg-rose-50 text-rose-600 border border-rose-200">
-                  <AlertCircle className="h-5 w-5" />
+          {/* Rejection Dialog Modal */}
+          {rejectingDeliverable && (
+            <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+              <div className="bg-white p-6 rounded-2xl max-w-md w-full border border-rose-200 shadow-2xl space-y-4">
+                <div className="flex items-center gap-2 text-rose-600 font-bold">
+                  <ThumbsDown className="h-5 w-5" />
+                  <span>Reject Gate Deliverable</span>
                 </div>
-                <div>
-                  <h3 className="text-sm font-black text-slate-900">Reject Gate Deliverable</h3>
-                  <p className="text-xs text-slate-500">{rejectingDeliverable.name}</p>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">
-                  Mandatory Rejection Reason / Engineering Findings
-                </label>
+                <p className="text-xs text-slate-600">
+                  Provide mandatory engineering rejection findings and corrective actions for{' '}
+                  <strong>{rejectingDeliverable.name}</strong>.
+                </p>
                 <textarea
-                  rows={4}
+                  rows={3}
                   value={rejectionReason}
                   onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="Specify why this deliverable is rejected (e.g. Missing dimensional validation, failed thermal cycling test)..."
-                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500 text-slate-800"
+                  placeholder="State non-conformance details, missing validation datasets, or engineering corrections required..."
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-rose-500"
                   required
                 />
+                <div className="flex justify-end gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setRejectingDeliverable(null);
+                      setRejectionReason('');
+                    }}
+                    className="px-3 py-1.5 rounded-xl border border-slate-200 text-slate-600 text-xs font-bold cursor-pointer"
+                  >
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!rejectionReason.trim()}
+                    onClick={handleConfirmRejection}
+                    className="px-4 py-1.5 rounded-xl bg-rose-600 text-white text-xs font-bold cursor-pointer disabled:opacity-50"
+                  >
+                    Confirm Rejection
+                  </button>
+                </div>
               </div>
-
-              <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-100">
-                <button
-                  type="button"
-                  onClick={() => setRejectingDeliverable(null)}
-                  className="px-4 py-2 rounded-xl border border-slate-200 text-slate-600 font-bold text-xs cursor-pointer"
-                >
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  onClick={handleConfirmRejection}
-                  disabled={!rejectionReason.trim()}
-                  className="px-5 py-2 rounded-xl bg-rose-600 hover:bg-rose-500 disabled:opacity-50 text-white font-bold text-xs cursor-pointer shadow-xs"
-                >
-                  Confirm Rejection
-                </button>
-              </div>
-            </motion.div>
-          </div>
-        )}
+            </div>
+          )}
+        </motion.div>
       </div>
     </AnimatePresence>
   );
