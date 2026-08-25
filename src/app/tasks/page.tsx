@@ -2,7 +2,14 @@
 
 import React, { useState, useMemo, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
-import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/use-tasks';
+import { 
+  useTasks, 
+  useCreateTask, 
+  useUpdateTask, 
+  useDeleteTask,
+  useSubmitTask,
+  useReviewTaskSubmission,
+} from '@/hooks/use-tasks';
 import { useProjects } from '@/hooks/use-projects';
 import { useIssues, useCreateIssue, useUpdateIssue, useDeleteIssue } from '@/hooks/use-issues';
 import { Task, MemberWorkload, TaskStatus } from '@/types/task.types';
@@ -53,6 +60,8 @@ import {
   Paperclip,
   FileText,
   Trash2,
+  Eye,
+  Download,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -170,6 +179,8 @@ export default function GlobalTaskManagementPage() {
   const createTaskMutation = useCreateTask();
   const updateTaskMutation = useUpdateTask();
   const deleteTaskMutation = useDeleteTask();
+  const submitTaskMutation = useSubmitTask();
+  const reviewTaskSubmissionMutation = useReviewTaskSubmission();
 
   // Issue Mutations
   const createIssueMutation = useCreateIssue();
@@ -306,22 +317,25 @@ export default function GlobalTaskManagementPage() {
     if (!submittingTask) return;
     try {
       setIsSubmittingAction(true);
-      const submitUser = user?.email || user?.fullName || 'Assignee';
-      const updatedDescription = `[Submitted by ${submitUser} on ${new Date().toLocaleDateString()}] ${
-        submissionComment ? `Comment: ${submissionComment}` : ''
-      }\n${submittingTask.description || ''}`;
-
-      await updateTaskMutation.mutateAsync({
+      await submitTaskMutation.mutateAsync({
         name: submittingTask.name,
         data: {
-          status: 'Submitted',
+          comment: submissionComment,
           progress: submissionProgress,
-          description: updatedDescription,
+          projectId: submittingTask.project,
+          taskSubject: submittingTask.subject,
+          files: submissionFiles.map((f) => ({
+            name: f.name,
+            size: f.size,
+            dataUrl: f.dataUrl,
+          })),
         },
       });
+
       showToast(`Work package ${submittingTask.name} submitted for review!`, 'success');
       setSubmittingTask(null);
       setSubmissionComment('');
+      setSubmissionFiles([]);
       refetch();
     } catch (err: any) {
       showToast(err.message || 'Failed to submit task', 'error');
@@ -335,43 +349,38 @@ export default function GlobalTaskManagementPage() {
     if (!reviewingTask) return;
     try {
       setIsSubmittingAction(true);
-      const reviewer = user?.fullName || user?.email || 'Reviewer';
-      const timestamp = new Date().toLocaleDateString();
+      const latestSub = reviewingTask.submissions?.[0];
 
-      if (action === 'approve') {
-        const updatedDesc = `[Approved by ${reviewer} on ${timestamp}] ${
-          reviewComment ? `Note: ${reviewComment}` : ''
-        }\n${reviewingTask.description || ''}`;
-
-        await updateTaskMutation.mutateAsync({
+      if (latestSub) {
+        await reviewTaskSubmissionMutation.mutateAsync({
           name: reviewingTask.name,
           data: {
-            status: 'Completed',
-            progress: 100,
-            description: updatedDesc,
+            submissionId: latestSub.id,
+            action,
+            comment: reviewComment,
           },
         });
-        showToast(`Task ${reviewingTask.name} approved & completed!`, 'success');
       } else {
-        const updatedDesc = `[Changes Requested by ${reviewer} on ${timestamp}] ${
-          reviewComment ? `Feedback: ${reviewComment}` : ''
-        }\n${reviewingTask.description || ''}`;
-
         await updateTaskMutation.mutateAsync({
           name: reviewingTask.name,
           data: {
-            status: 'Changes Required',
-            progress: Math.max((reviewingTask.progress || 50) - 20, 10),
-            description: updatedDesc,
+            status: action === 'approve' ? 'Completed' : 'Working',
+            progress: action === 'approve' ? 100 : reviewingTask.progress,
           },
         });
-        showToast(`Returned task ${reviewingTask.name} for changes`, 'info');
       }
+
+      showToast(
+        action === 'approve'
+          ? `Task ${reviewingTask.name} approved & completed!`
+          : `Changes requested on task ${reviewingTask.name}!`,
+        'success'
+      );
       setReviewingTask(null);
       setReviewComment('');
       refetch();
     } catch (err: any) {
-      showToast(err.message || 'Failed to process task review', 'error');
+      showToast(err.message || 'Failed to review task', 'error');
     } finally {
       setIsSubmittingAction(false);
     }
@@ -629,6 +638,7 @@ export default function GlobalTaskManagementPage() {
                   onViewTask={(t) => setViewingTask(t)}
                   onEditTask={(t) => setEditingTask(t)}
                   onDeleteTask={(t) => setDeletingTask(t)}
+                  onSubmitTask={(t) => setSubmittingTask(t)}
                 />
               ) : (
                 <TaskKanban
@@ -1113,10 +1123,84 @@ export default function GlobalTaskManagementPage() {
               </div>
 
               <div className="space-y-4 text-xs">
-                <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
-                  <span className="font-bold text-slate-800">Assignee Notes:</span>
-                  <p className="text-slate-600 whitespace-pre-wrap">{reviewingTask.description || 'No submission notes.'}</p>
-                </div>
+                {/* Submission Details & Attached Deliverables */}
+                {reviewingTask.submissions && reviewingTask.submissions.length > 0 ? (
+                  <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-amber-900 flex items-center gap-1.5">
+                        <FileCheck className="h-4 w-4 text-amber-600" />
+                        Submission #{reviewingTask.submissions[0].submission_number}
+                      </span>
+                      <span className="text-[10px] font-bold text-amber-700">
+                        {new Date(reviewingTask.submissions[0].submitted_at).toLocaleDateString()}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-[11px]">
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-bold">Submitted By</span>
+                        <span className="font-bold text-slate-900">{reviewingTask.submissions[0].submitted_by_name}</span>
+                      </div>
+                      <div>
+                        <span className="text-slate-500 block text-[10px] uppercase font-bold">Progress</span>
+                        <span className="font-bold text-emerald-600 font-mono">{reviewingTask.submissions[0].progress}%</span>
+                      </div>
+                    </div>
+
+                    {reviewingTask.submissions[0].comment && (
+                      <div className="p-2.5 rounded-xl bg-white border border-amber-200/60 text-slate-700">
+                        <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Assignee Notes:</span>
+                        <p className="font-medium whitespace-pre-wrap">{reviewingTask.submissions[0].comment}</p>
+                      </div>
+                    )}
+
+                    {reviewingTask.submissions[0].attachments && reviewingTask.submissions[0].attachments.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[10px] font-extrabold uppercase text-slate-700 block">
+                          Submitted Files ({reviewingTask.submissions[0].attachments.length}):
+                        </span>
+                        {reviewingTask.submissions[0].attachments.map((att: any) => (
+                          <div
+                            key={att.file_id || att.file_name}
+                            className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between shadow-2xs"
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <FileText className="h-4 w-4 text-sky-600 shrink-0" />
+                              <span className="font-bold text-slate-900 truncate">{att.file_name}</span>
+                              {att.file_size ? (
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  ({(att.file_size / 1024).toFixed(0)} KB)
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <a
+                                href={att.file_url || att.download_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
+                              >
+                                <Eye className="h-3 w-3" /> View
+                              </a>
+                              <a
+                                href={att.download_url || att.file_url}
+                                download={att.file_name}
+                                className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition"
+                              >
+                                <Download className="h-3 w-3" /> Download
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="p-3.5 bg-slate-50 rounded-2xl border border-slate-200 space-y-1">
+                    <span className="font-bold text-slate-800">Assignee Notes:</span>
+                    <p className="text-slate-600 whitespace-pre-wrap">{reviewingTask.description || 'No submission notes.'}</p>
+                  </div>
+                )}
 
                 <div className="space-y-1.5">
                   <label className="block text-xs font-bold text-slate-700">Reviewer Feedback Notes</label>

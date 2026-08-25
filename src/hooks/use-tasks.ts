@@ -78,3 +78,64 @@ export function useTaskAttachments(name: string) {
     enabled: !!name,
   });
 }
+
+export function useTaskSubmissions(name: string) {
+  return useQuery({
+    queryKey: [...TASK_KEYS.detail(name), 'submissions'],
+    queryFn: () => taskService.getTaskSubmissions(name),
+    enabled: !!name,
+  });
+}
+
+export function useSubmitTask() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      name,
+      data,
+    }: {
+      name: string;
+      data: {
+        comment: string;
+        progress: number;
+        projectId?: string;
+        taskSubject?: string;
+        files?: Array<{
+          name: string;
+          size: number;
+          dataUrl?: string;
+          file_url?: string;
+          mimeType?: string;
+        }>;
+      };
+    }) => taskService.submitTask(name, data),
+    onSuccess: (_data: any, variables: any) => {
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.detail(variables.name) });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+  });
+}
+
+export function useReviewTaskSubmission() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      name,
+      data,
+    }: {
+      name: string;
+      data: {
+        submissionId: string;
+        action: 'approve' | 'request_changes';
+        comment: string;
+      };
+    }) => taskService.reviewTaskSubmission(name, data),
+    onSuccess: (_data: any, variables: any) => {
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.all });
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.detail(variables.name) });
+    },
+  });
+}

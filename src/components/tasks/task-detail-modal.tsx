@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { Task, TaskComment, TaskAttachment } from '@/types/task.types';
+import { Task, TaskComment, TaskAttachment, TaskSubmission, TaskSubmissionAttachment } from '@/types/task.types';
 import { ProjectBaseline } from '@/types/baseline.types';
 import { calculateDayDiff, calculateDurationDays } from '@/services/baseline.service';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskPriorityBadge } from './task-priority-badge';
-import { useTaskComments, useTaskAttachments, useTask } from '@/hooks/use-tasks';
+import { useTaskComments, useTaskAttachments, useTask, useTaskSubmissions } from '@/hooks/use-tasks';
 import { resolveUserDisplayName } from '@/services/task.service';
 import { useIssues, useCreateIssue } from '@/hooks/use-issues';
 import { IssueFormDialog, IssueFormValues } from '@/components/issues/issue-form-dialog';
@@ -29,6 +29,11 @@ import {
   CheckCircle2,
   FolderKanban,
   SkipForward,
+  Send,
+  Download,
+  Eye,
+  FileCheck,
+  ExternalLink,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -43,7 +48,7 @@ interface TaskDetailModalProps {
 export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefresh }: TaskDetailModalProps) {
   const { showToast } = useToast();
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'issues' | 'baseline' | 'assignment' | 'rasic' | 'dependencies' | 'comments' | 'attachments'
+    'overview' | 'submissions' | 'issues' | 'baseline' | 'assignment' | 'rasic' | 'dependencies' | 'comments' | 'attachments'
   >('overview');
   const [isCreateIssueOpen, setIsCreateIssueOpen] = useState(false);
   const [isSkipDialogOpen, setIsSkipDialogOpen] = useState(false);
@@ -54,6 +59,7 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
 
   const { data: comments = [] } = useTaskComments(taskName);
   const { data: attachments = [] } = useTaskAttachments(taskName);
+  const { data: submissions = [] } = useTaskSubmissions(taskName);
 
   // Fetch skip requests for project
   const { data: skipRequests = [], refetch: refetchSkipRequests } = useSkipRequests(currentTask?.project);
@@ -224,11 +230,21 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
           <div className="flex items-center gap-1 px-6 pt-3 bg-slate-50 border-b border-slate-200 overflow-x-auto text-xs font-bold text-slate-600">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer ${
+              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
                 activeTab === 'overview' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
               }`}
             >
               Overview & Scope
+            </button>
+
+            <button
+              onClick={() => setActiveTab('submissions')}
+              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'submissions' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
+              }`}
+            >
+              <Send className="h-3.5 w-3.5 text-sky-600" />
+              <span>Submissions & Files ({submissions.length})</span>
             </button>
 
             <button
@@ -292,6 +308,92 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
           <div className="p-6 space-y-6 max-h-[65vh] overflow-y-auto">
             {activeTab === 'overview' && (
               <div className="space-y-6">
+                {/* Task Submission Notice & Deliverables Card */}
+                {submissions.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200 text-xs space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-sky-900 flex items-center gap-1.5">
+                        <FileCheck className="h-4 w-4 text-sky-600" />
+                        Task Submission #{submissions[0].submission_number}
+                      </span>
+                      <span
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                          submissions[0].status === 'Approved'
+                            ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                            : submissions[0].status === 'Changes Requested'
+                            ? 'bg-rose-50 text-rose-800 border-rose-300'
+                            : 'bg-amber-50 text-amber-800 border-amber-300'
+                        }`}
+                      >
+                        {submissions[0].status === 'Submitted' ? 'Submitted / Pending PM Review' : submissions[0].status}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+                      <div className="p-2 rounded-xl bg-white border border-sky-100">
+                        <span className="text-slate-500 block text-[10px] uppercase font-bold">Submitted By</span>
+                        <span className="font-bold text-slate-900">{submissions[0].submitted_by_name}</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-white border border-sky-100">
+                        <span className="text-slate-500 block text-[10px] uppercase font-bold">Submitted Date</span>
+                        <span className="font-bold text-slate-900">{new Date(submissions[0].submitted_at).toLocaleDateString()}</span>
+                      </div>
+                      <div className="p-2 rounded-xl bg-white border border-sky-100">
+                        <span className="text-slate-500 block text-[10px] uppercase font-bold">Progress</span>
+                        <span className="font-bold text-emerald-600 font-mono">{submissions[0].progress}%</span>
+                      </div>
+                    </div>
+
+                    {submissions[0].comment && (
+                      <div className="p-3 rounded-xl bg-white border border-sky-100 text-slate-700">
+                        <span className="text-[10px] font-bold uppercase text-slate-400 block mb-0.5">Submission Notes & Deliverables Summary:</span>
+                        <p className="font-medium whitespace-pre-wrap">{submissions[0].comment}</p>
+                      </div>
+                    )}
+
+                    {submissions[0].attachments && submissions[0].attachments.length > 0 && (
+                      <div className="space-y-1.5 pt-1">
+                        <span className="text-[10px] font-extrabold uppercase text-slate-700 block">
+                          Attached Submission Deliverables ({submissions[0].attachments.length}):
+                        </span>
+                        {submissions[0].attachments.map((att: TaskSubmissionAttachment) => (
+                          <div
+                            key={att.file_id || att.file_name}
+                            className="p-2.5 rounded-xl bg-white border border-slate-200 flex items-center justify-between shadow-2xs"
+                          >
+                            <div className="flex items-center gap-2 truncate">
+                              <FileText className="h-4 w-4 text-sky-600 shrink-0" />
+                              <span className="font-bold text-slate-900 truncate">{att.file_name}</span>
+                              {att.file_size ? (
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  ({(att.file_size / 1024).toFixed(0)} KB)
+                                </span>
+                              ) : null}
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <a
+                                href={att.file_url || att.download_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
+                              >
+                                <Eye className="h-3 w-3" /> View
+                              </a>
+                              <a
+                                href={att.download_url || att.file_url}
+                                download={att.file_name}
+                                className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition"
+                              >
+                                <Download className="h-3 w-3" /> Download
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+
                 {/* Skip Request Notice / Status Banner */}
                 {pendingSkipRequest && (
                   <div className="p-4 rounded-2xl bg-amber-50 border border-amber-200 text-amber-900 text-xs space-y-2">
@@ -594,6 +696,134 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
               </div>
             )}
 
+            {/* TAB: SUBMISSIONS */}
+            {activeTab === 'submissions' && (
+              <div className="space-y-4 font-sans text-xs">
+                <div className="flex items-center justify-between">
+                  <h4 className="text-xs font-black uppercase text-sky-800 flex items-center gap-1.5">
+                    <Send className="h-4 w-4 text-sky-600" />
+                    Task Submissions & Deliverable Verification History ({submissions.length})
+                  </h4>
+                </div>
+
+                {submissions.length === 0 ? (
+                  <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-2">
+                    <Send className="h-8 w-8 text-slate-300 mx-auto" />
+                    <p className="font-bold text-slate-700">No submissions recorded for this task yet.</p>
+                    <p className="text-slate-400 text-[11px]">
+                      The assigned team member can submit completed work packages with deliverables from the Submit Task button.
+                    </p>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    {submissions.map((sub: TaskSubmission) => (
+                      <div
+                        key={sub.id}
+                        className="p-4 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-3"
+                      >
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 pb-2.5">
+                          <div className="flex items-center gap-2">
+                            <span className="px-2.5 py-0.5 rounded-lg bg-sky-100 text-sky-800 font-extrabold text-[11px]">
+                              Submission #{sub.submission_number}
+                            </span>
+                            <span
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
+                                sub.status === 'Approved'
+                                  ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
+                                  : sub.status === 'Changes Requested'
+                                  ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                  : 'bg-amber-50 text-amber-800 border-amber-300'
+                              }`}
+                            >
+                              {sub.status === 'Submitted' ? 'Submitted / Pending PM Review' : sub.status}
+                            </span>
+                          </div>
+                          <span className="text-[11px] text-slate-400 font-medium">
+                            Submitted on {new Date(sub.submitted_at).toLocaleString()}
+                          </span>
+                        </div>
+
+                        <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
+                          <div>
+                            <span className="text-slate-500 block text-[10px] uppercase font-bold">Submitted By</span>
+                            <span className="font-bold text-slate-900">{sub.submitted_by_name}</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[10px] uppercase font-bold">Progress Reported</span>
+                            <span className="font-bold text-emerald-600 font-mono">{sub.progress}%</span>
+                          </div>
+                          <div>
+                            <span className="text-slate-500 block text-[10px] uppercase font-bold">Attached Files</span>
+                            <span className="font-bold text-sky-700">{sub.attachments?.length || 0} Deliverable(s)</span>
+                          </div>
+                        </div>
+
+                        {sub.comment && (
+                          <div className="p-3 rounded-xl bg-slate-50 border border-slate-200/70 text-slate-700 space-y-1">
+                            <span className="text-[10px] font-bold uppercase text-slate-400 block">Deliverables Summary / Notes:</span>
+                            <p className="font-medium whitespace-pre-wrap">{sub.comment}</p>
+                          </div>
+                        )}
+
+                        {sub.review_comment && (
+                          <div className="p-3 rounded-xl bg-amber-50/70 border border-amber-200 text-amber-900 space-y-1">
+                            <span className="text-[10px] font-bold uppercase text-amber-700 block">
+                              PM Review Feedback (by {sub.reviewed_by || 'Project Manager'}):
+                            </span>
+                            <p className="font-medium whitespace-pre-wrap">{sub.review_comment}</p>
+                          </div>
+                        )}
+
+                        {/* Submission Deliverables */}
+                        {sub.attachments && sub.attachments.length > 0 && (
+                          <div className="space-y-1.5 pt-1">
+                            <span className="text-[10px] font-extrabold uppercase text-slate-700 block">
+                              Deliverable Documents ({sub.attachments.length}):
+                            </span>
+                            <div className="space-y-1.5">
+                              {sub.attachments.map((att: TaskSubmissionAttachment) => (
+                                <div
+                                  key={att.file_id || att.file_name}
+                                  className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between hover:bg-white transition shadow-2xs"
+                                >
+                                  <div className="flex items-center gap-2 truncate">
+                                    <FileText className="h-4 w-4 text-sky-600 shrink-0" />
+                                    <span className="font-bold text-slate-900 truncate">{att.file_name}</span>
+                                    {att.file_size ? (
+                                      <span className="text-[10px] text-slate-400 font-mono">
+                                        ({(att.file_size / 1024).toFixed(0)} KB)
+                                      </span>
+                                    ) : null}
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <a
+                                      href={att.file_url || att.download_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 border border-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
+                                    >
+                                      <Eye className="h-3 w-3" /> View
+                                    </a>
+                                    <a
+                                      href={att.download_url || att.file_url}
+                                      download={att.file_name}
+                                      className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition"
+                                    >
+                                      <Download className="h-3 w-3" /> Download
+                                    </a>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+
             {/* TAB: COMMENTS */}
             {activeTab === 'comments' && (
               <div className="space-y-3 text-xs">
@@ -613,16 +843,50 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
             {/* TAB: ATTACHMENTS */}
             {activeTab === 'attachments' && (
               <div className="space-y-3 text-xs">
-                <h4 className="font-bold text-slate-800">Task Deliverables & Attachments ({attachments.length})</h4>
+                <h4 className="font-bold text-slate-800">Task Deliverables & Files ({attachments.length})</h4>
                 {attachments.length === 0 ? (
-                  <p className="text-slate-400 italic">No files attached to this task.</p>
+                  <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1">
+                    <Paperclip className="h-6 w-6 text-slate-300 mx-auto" />
+                    <p className="font-bold text-slate-700">No files attached to this task.</p>
+                  </div>
                 ) : (
-                  attachments.map((a: TaskAttachment) => (
-                    <div key={a.name} className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex justify-between items-center">
-                      <span className="font-bold text-slate-800">{a.file_name}</span>
-                      <a href={a.file_url} target="_blank" rel="noreferrer" className="text-sky-600 font-bold">Download</a>
-                    </div>
-                  ))
+                  <div className="space-y-2">
+                    {attachments.map((a: TaskAttachment) => (
+                      <div
+                        key={a.name || a.file_name}
+                        className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs hover:bg-slate-50/60 transition"
+                      >
+                        <div className="flex items-center gap-2.5 truncate">
+                          <FileText className="h-4 w-4 text-sky-600 shrink-0" />
+                          <div className="truncate">
+                            <span className="font-bold text-slate-900 block truncate">{a.file_name}</span>
+                            <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                              {a.uploaded_by && <span>By {a.uploaded_by}</span>}
+                              {a.file_size && <span className="font-mono">({(a.file_size / 1024).toFixed(0)} KB)</span>}
+                              {a.creation && <span>{new Date(a.creation).toLocaleDateString()}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2 shrink-0">
+                          <a
+                            href={a.file_url}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
+                          >
+                            <Eye className="h-3 w-3" /> View
+                          </a>
+                          <a
+                            href={a.file_url}
+                            download={a.file_name}
+                            className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition"
+                          >
+                            <Download className="h-3 w-3" /> Download
+                          </a>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
                 )}
               </div>
             )}

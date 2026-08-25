@@ -9,6 +9,7 @@ import {
   fetchAllTasksFromERP,
 } from '@/lib/server/rbac-scoping';
 import { getTaskRasic, saveTaskRasic, loadAllTaskRasic } from '@/lib/server/rasic-store';
+import { getTaskSubmissions, loadAllTaskSubmissions } from '@/lib/server/task-submission-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -456,6 +457,16 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
             } catch {}
           }
 
+          // Hydrate Submissions from server store
+          const taskSubs = getTaskSubmissions(recordId);
+          resJson.data.submissions = taskSubs;
+          if (taskSubs.length > 0 && resJson.data.status !== 'Completed' && resJson.data.status !== 'Cancelled') {
+            const latestSub = taskSubs[0];
+            if (latestSub.status === 'Submitted') {
+              resJson.data.status = 'Submitted';
+            }
+          }
+
           // Attach _assign if missing in single document payload
           if (!resJson.data._assign) {
             try {
@@ -488,8 +499,9 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
           }
           // PM & Admin see all task details
         } else if (!recordId && Array.isArray(resJson.data)) {
-          // Hydrate RASIC on all task items
+          // Hydrate RASIC and Submissions on all task items
           const allRasic = loadAllTaskRasic();
+          const allSubs = loadAllTaskSubmissions();
           resJson.data.forEach((item: any) => {
             if (item && item.name) {
               const r = allRasic[item.name];
@@ -508,6 +520,15 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
                     item.rasic = JSON.parse(match[1]);
                   }
                 } catch {}
+              }
+
+              const subs = allSubs[item.name] || [];
+              item.submissions = subs;
+              if (subs.length > 0 && item.status !== 'Completed' && item.status !== 'Cancelled') {
+                const latestSub = subs[0];
+                if (latestSub.status === 'Submitted') {
+                  item.status = 'Submitted';
+                }
               }
             }
           });

@@ -6,6 +6,8 @@ import {
   TaskSummary,
   TaskComment,
   TaskAttachment,
+  TaskSubmission,
+  TaskSubmissionAttachment,
 } from '@/types/task.types';
 
 const TASK_FIELDS = [
@@ -181,6 +183,7 @@ const normalizeTask = (t: any): Task => {
     assigned_employee_name: finalAssignedName,
     rasic,
     skip_reason: skipReason,
+    submissions: t.submissions || [],
     is_overdue,
     overdue_days,
   };
@@ -530,43 +533,126 @@ export const taskService = {
   },
 
   /**
-   * Fetch file attachments for task
+   * Fetch task submissions history
+   */
+  async getTaskSubmissions(taskName: string): Promise<TaskSubmission[]> {
+    try {
+      const response = await api.get<{ data: TaskSubmission[]; submissions: TaskSubmission[] }>(
+        `/api/tasks/${encodeURIComponent(taskName)}/submissions`
+      );
+      return response.data || response.submissions || [];
+    } catch {
+      return [];
+    }
+  },
+
+  /**
+   * Submit task work package with comment, progress, and file deliverables
+   */
+  async submitTask(
+    taskName: string,
+    data: {
+      comment: string;
+      progress: number;
+      projectId?: string;
+      taskSubject?: string;
+      files?: Array<{
+        name: string;
+        size: number;
+        dataUrl?: string;
+        file_url?: string;
+        mimeType?: string;
+      }>;
+    }
+  ): Promise<TaskSubmission> {
+    const response = await api.post<{ success: boolean; data: TaskSubmission; submission: TaskSubmission }>(
+      `/api/tasks/${encodeURIComponent(taskName)}/submissions`,
+      data
+    );
+    return response.data || response.submission;
+  },
+
+  /**
+   * Review task submission (Approve / Request Changes)
+   */
+  async reviewTaskSubmission(
+    taskName: string,
+    data: {
+      submissionId: string;
+      action: 'approve' | 'request_changes';
+      comment: string;
+    }
+  ): Promise<TaskSubmission> {
+    const response = await api.put<{ success: boolean; data: TaskSubmission; submission: TaskSubmission }>(
+      `/api/tasks/${encodeURIComponent(taskName)}/submissions`,
+      data
+    );
+    return response.data || response.submission;
+  },
+
+  /**
+   * Fetch file attachments for task (combining ERPNext files, PDM Document Vault, and Task Submissions)
    */
   async getTaskAttachments(taskName: string): Promise<TaskAttachment[]> {
     const list: TaskAttachment[] = [];
+
+    // 1. Fetch from Task Submissions Store
     try {
-      // 1. Fetch from Frappe File DocType
+      const subs = await this.getTaskSubmissions(taskName);
+      subs.forEach((sub) => {
+        (sub.attachments || []).forEach((att: TaskSubmissionAttachment) => {
+          if (!list.some((existing) => existing.file_name === att.file_name || existing.name === att.file_id)) {
+            list.push({
+              name: att.file_id,
+              file_name: att.file_name,
+              file_url: att.file_url || att.download_url || `/api/documents/${encodeURIComponent(att.file_id)}/download`,
+              file_size: att.file_size,
+              creation: att.uploaded_at || sub.submitted_at,
+              uploaded_by: att.uploaded_by || sub.submitted_by_name,
+              submission_id: sub.id,
+            });
+          }
+        });
+      });
+    } catch {}
+
+    // 2. Fetch from PDM DocumentStore
+    try {
+      const docRes = await api.get<{ documents: any[] }>(`/api/documents?task=${encodeURIComponent(taskName)}`);
+      (docRes.documents || []).forEach((d) => {
+        if (!list.some((existing) => existing.file_name === (d.file_name || d.title) || existing.name === d.name)) {
+          list.push({
+            name: d.name,
+            file_name: d.file_name || d.title,
+            file_url: d.file_url || `/api/documents/${d.name}/download`,
+            file_size: d.file_size,
+            creation: d.creation || d.upload_date,
+            uploaded_by: d.uploaded_by,
+          });
+        }
+      });
+    } catch {}
+
+    // 3. Fetch from Frappe File DocType
+    try {
       const filters = JSON.stringify([
         ['attached_to_doctype', '=', 'Task'],
         ['attached_to_name', '=', taskName],
       ]);
       const response = await api.get<{ data: any[] }>(
         `/api/resource/File?filters=${encodeURIComponent(filters)}&fields=${encodeURIComponent(
-          JSON.stringify(['name', 'file_name', 'file_url', 'file_size', 'creation'])
+          JSON.stringify(['name', 'file_name', 'file_url', 'file_size', 'creation', 'owner'])
         )}`
       );
       (response.data || []).forEach((f) => {
-        list.push({
-          name: f.name,
-          file_name: f.file_name,
-          file_url: f.file_url,
-          file_size: f.file_size,
-          creation: f.creation,
-        });
-      });
-    } catch {}
-
-    try {
-      // 2. Fetch from PDM DocumentStore
-      const docRes = await api.get<{ documents: any[] }>(`/api/documents?task=${encodeURIComponent(taskName)}`);
-      (docRes.documents || []).forEach((d) => {
-        if (!list.some((existing) => existing.file_name === (d.file_name || d.title))) {
+        if (!list.some((existing) => existing.file_name === f.file_name || existing.name === f.name)) {
           list.push({
-            name: d.name,
-            file_name: d.file_name || d.title,
-            file_url: d.file_url || `/api/documents/${d.name}/download`,
-            file_size: d.file_size,
-            creation: d.creation,
+            name: f.name,
+            file_name: f.file_name,
+            file_url: f.file_url,
+            file_size: f.file_size,
+            creation: f.creation,
+            uploaded_by: f.owner,
           });
         }
       });

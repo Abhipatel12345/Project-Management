@@ -47,6 +47,7 @@ export interface Task {
   skip_reason?: string;
   skipped_by?: string;
   skipped_on?: string;
+  submissions?: TaskSubmission[];
 }
 
 export interface TaskSummary {
@@ -110,4 +111,35 @@ export interface TaskAttachment {
   file_url: string;
   file_size?: number;
   creation?: string;
+  uploaded_by?: string;
+  submission_id?: string;
+}
+
+export interface TaskSubmissionAttachment {
+  file_id: string;
+  file_name: string;
+  file_size?: number;
+  file_url: string;
+  download_url: string;
+  mime_type?: string;
+  uploaded_at?: string;
+  uploaded_by?: string;
+}
+
+export interface TaskSubmission {
+  id: string;
+  submission_number: number;
+  task_id: string;
+  project_id?: string;
+  task_subject?: string;
+  submitted_by_id: string;
+  submitted_by_name: string;
+  submitted_at: string;
+  progress: number;
+  comment: string;
+  status: 'Submitted' | 'Approved' | 'Changes Requested';
+  reviewed_by?: string;
+  reviewed_at?: string;
+  review_comment?: string;
+  attachments: TaskSubmissionAttachment[];
 }
