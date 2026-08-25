@@ -1,6 +1,11 @@
 import api from './api';
 import { ProjectTeamMember, EmployeeOption, TeamMemberFormData } from '@/types/team.types';
 
+// Configuration Flag: Auto-assignment of project team members
+// Set to false as per requirement to disable automatic team/member assignment.
+// When false, projects only contain members who are manually assigned.
+export const AUTO_ASSIGN_TEAM = false;
+
 // Cache for instant local feedback while syncing directly to ERPNext
 const projectTeamCache: Record<string, ProjectTeamMember[]> = {};
 
@@ -78,54 +83,59 @@ export const teamService = {
       console.warn(`[ERPNext Team Service Warning] Failed to fetch project team for ${projectId}:`, error);
     }
 
-    // Fallback if no users child table returned yet
+    // If no users child table found and AUTO_ASSIGN_TEAM is enabled, fallback to default template
     if (!projectTeamCache[projectId]) {
-      projectTeamCache[projectId] = [
-        {
-          id: `TM-${projectId}-1`,
-          project_id: projectId,
-          user_email: 'sarahjenkins@gmail.com',
-          employee_name: 'Sarah Jenkins',
-          department: 'Battery Systems',
-          function_name: 'Program Management',
-          role: 'Project Manager',
-          is_board_member: false,
-          status: 'Active',
-        },
-        {
-          id: `TM-${projectId}-2`,
-          project_id: projectId,
-          user_email: 'teammember@netlink.com',
-          employee_name: 'Yash',
-          department: 'Engineering',
-          function_name: 'Engineering Release',
-          role: 'Systems Engineer',
-          is_board_member: false,
-          status: 'Active',
-        },
-        {
-          id: `TM-${projectId}-3`,
-          project_id: projectId,
-          user_email: 'gatereviewer@netlink.com',
-          employee_name: 'Reviewer',
-          department: 'Quality Assurance',
-          function_name: 'APQP Governance',
-          role: 'Gate Board Reviewer',
-          is_board_member: true,
-          status: 'Active',
-        },
-        {
-          id: `TM-${projectId}-4`,
-          project_id: projectId,
-          user_email: 'admin@example.com',
-          employee_name: 'Administrator',
-          department: 'Program Management',
-          function_name: 'Program Governance',
-          role: 'Project Manager',
-          is_board_member: true,
-          status: 'Active',
-        },
-      ];
+      if (AUTO_ASSIGN_TEAM) {
+        projectTeamCache[projectId] = [
+          {
+            id: `TM-${projectId}-1`,
+            project_id: projectId,
+            user_email: 'sarahjenkins@gmail.com',
+            employee_name: 'Sarah Jenkins',
+            department: 'Battery Systems',
+            function_name: 'Program Management',
+            role: 'Project Manager',
+            is_board_member: false,
+            status: 'Active',
+          },
+          {
+            id: `TM-${projectId}-2`,
+            project_id: projectId,
+            user_email: 'teammember@netlink.com',
+            employee_name: 'Yash',
+            department: 'Engineering',
+            function_name: 'Engineering Release',
+            role: 'Systems Engineer',
+            is_board_member: false,
+            status: 'Active',
+          },
+          {
+            id: `TM-${projectId}-3`,
+            project_id: projectId,
+            user_email: 'gatereviewer@netlink.com',
+            employee_name: 'Reviewer',
+            department: 'Quality Assurance',
+            function_name: 'APQP Governance',
+            role: 'Gate Board Reviewer',
+            is_board_member: true,
+            status: 'Active',
+          },
+          {
+            id: `TM-${projectId}-4`,
+            project_id: projectId,
+            user_email: 'admin@example.com',
+            employee_name: 'Administrator',
+            department: 'Program Management',
+            function_name: 'Program Governance',
+            role: 'Project Manager',
+            is_board_member: true,
+            status: 'Active',
+          },
+        ];
+      } else {
+        // Auto-assignment disabled: Only manual assignments
+        projectTeamCache[projectId] = [];
+      }
     }
 
     return projectTeamCache[projectId];

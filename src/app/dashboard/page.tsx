@@ -15,6 +15,7 @@ import { useIssues } from '@/hooks/use-issues';
 import { Task } from '@/types/task.types';
 import { Issue } from '@/types/issue.types';
 import { Project } from '@/types/project.types';
+import { Gate } from '@/types/gate.types';
 import { TaskStatusBadge } from '@/components/tasks/task-status-badge';
 import { TaskPriorityBadge } from '@/components/tasks/task-priority-badge';
 import { TaskFormDialog } from '@/components/tasks/task-form-dialog';
@@ -24,6 +25,9 @@ import { TaskFormValues } from '@/lib/validations/task.schema';
 import { BackButton } from '@/components/shared/back-button';
 import { ImportExportControls } from '@/components/shared/import-export-controls';
 import { useToast } from '@/providers/toast-context';
+import { useGates } from '@/hooks/use-gates';
+import { isGateReviewer } from '@/utils/user-matcher';
+import { GateReviewerDashboard } from '@/components/dashboard/gate-reviewer-dashboard';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import {
   FolderKanban,
@@ -64,36 +68,47 @@ import {
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
-// MAIN ROLE-BASED DASHBOARD ROUTER
+// MAIN ROLE & ASSIGNMENT-BASED DASHBOARD ROUTER
 export default function DashboardRouter() {
-  const { role, hasPermission } = useAuth();
+  const { user, role, hasPermission } = useAuth();
+  const { data: gatesData } = useGates({ pageSize: 100 });
 
-  // IT Admin / PDM User Administrator
+  // Filter gates where current user is the assigned Gate Reviewer
+  const allGates: Gate[] = (gatesData?.gates as Gate[]) || [];
+  const assignedGates = useMemo(() => {
+    if (!user) return [];
+    return allGates.filter((g: Gate) => isGateReviewer(g, user));
+  }, [allGates, user]);
+
+  const isAssignedGateReviewer = assignedGates.length > 0 || role === 'gate_reviewer';
+
+  // 1. DEDICATED GATE REVIEWER DASHBOARD:
+  // Appears when the logged-in user is assigned as Gate Reviewer for any active gate
+  if (isAssignedGateReviewer) {
+    return <GateReviewerDashboard assignedGates={assignedGates} />;
+  }
+
+  // 2. IT Admin / PDM User Administrator
   if (role === 'it_admin' || (hasPermission('manageUsers') && !hasPermission('manageProjects'))) {
     return <ITAdminDashboard />;
   }
 
-  // PDM Administrator (PMO / Business System Admin - NO user creation)
+  // 3. PDM Administrator (PMO / Business System Admin)
   if (role === 'admin') {
     return <PDMAdminDashboard />;
   }
 
-  // Project Manager
+  // 4. Project Manager
   if (role === 'projectmanager') {
     return <ProjectManagerDashboard />;
   }
 
-  // Gate Reviewer
-  if (role === 'gate_reviewer') {
-    return <GateReviewerDashboard />;
-  }
-
-  // Warehouse User
+  // 5. Warehouse User
   if (role === 'warehouse_user') {
     return <WarehouseDashboard />;
   }
 
-  // Team Member / Projects User / Design Engineer
+  // 6. Team Member / Projects User / Design Engineer
   return <TeamMemberDashboard />;
 }
 
@@ -989,33 +1004,6 @@ function ProjectManagerDashboard() {
   );
 }
 
-// ----------------------------------------------------------------------
-// 4. GATE REVIEWER DASHBOARD
-// ----------------------------------------------------------------------
-function GateReviewerDashboard() {
-  const { user } = useAuth();
-  return (
-    <div className="space-y-6 pb-20 font-sans text-slate-800">
-      <div className="rounded-3xl bg-white border border-slate-200 p-6 text-slate-900 space-y-2 shadow-xs">
-        <h1 className="text-xl font-bold">{user?.fullName || 'Gate Reviewer'} — Review Board</h1>
-        <p className="text-xs text-slate-500">Evaluate APQP Stage Gate readiness formulas, KGD compliance, and perform sign-offs.</p>
-      </div>
-
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 flex items-center justify-between shadow-xs">
-        <div>
-          <h2 className="text-base font-bold text-slate-900">Executive Gate Review Board</h2>
-          <p className="text-xs text-slate-500">Review APQP Gate Readiness, evaluate KGDs & critical issues, and approve gate milestones.</p>
-        </div>
-        <Link
-          href="/gates/review"
-          className="px-4 py-2.5 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition flex items-center gap-2 shadow-xs"
-        >
-          <Lock className="h-4 w-4" /> Open Gate Review Board <ArrowRight className="h-4 w-4" />
-        </Link>
-      </div>
-    </div>
-  );
-}
 
 // ----------------------------------------------------------------------
 // 5. WAREHOUSE DASHBOARD
