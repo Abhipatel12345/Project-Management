@@ -66,5 +66,20 @@ export function isGateReviewer(
     if (isUserMatch(gate.reviewer, user)) return true;
   }
 
+  // 4. If user is system Gate Reviewer and the gate reviewer label is generic
+  if ((user as any).role === 'gate_reviewer') {
+    const revStr = (gate.gate_reviewer || gate.reviewer_user_id || gate.reviewer || '').toLowerCase().trim();
+    if (
+      revStr === 'gate reviewer' ||
+      revStr === 'gate_reviewer' ||
+      revStr === 'quality reviewer' ||
+      revStr === 'quality manager' ||
+      revStr === 'gate board' ||
+      revStr === 'review board'
+    ) {
+      return true;
+    }
+  }
+
   return false;
 }

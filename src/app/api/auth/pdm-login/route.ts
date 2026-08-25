@@ -234,7 +234,12 @@ function derivePersonaFromERPNextRoles(
     };
   }
 
-  if (roleSet.has('Quality Manager')) {
+  if (
+    roleSet.has('Gate Reviewer') ||
+    roleSet.has('Quality Manager') ||
+    roleSet.has('Quality Reviewer') ||
+    roleSet.has('Gate Board Reviewer')
+  ) {
     return {
       role: 'gate_reviewer',
       roleLabel: 'Quality Manager / Gate Board Reviewer',
