@@ -43,33 +43,50 @@ export function isUserMatch(
  */
 export function isGateReviewer(
   gate: {
+    gate_reviewer_user_id?: string;
     reviewer_user_id?: string;
     gate_reviewer?: string;
     reviewer?: string;
+    custom_gate_reviewer?: string;
   } | null | undefined,
-  user: PDMUserSession | { email?: string; username?: string; fullName?: string; employeeId?: string } | null | undefined
+  user: PDMUserSession | { email?: string; username?: string; fullName?: string; employeeId?: string; id?: string } | null | undefined
 ): boolean {
   if (!gate || !user) return false;
 
-  // 1. Check reviewer_user_id (preferred exact ID/email matching)
-  if (gate.reviewer_user_id) {
-    if (isUserMatch(gate.reviewer_user_id, user)) return true;
+  // 1. Check gate_reviewer_user_id / reviewer_user_id (preferred exact ID/email matching)
+  if (gate.gate_reviewer_user_id && isUserMatch(gate.gate_reviewer_user_id, user)) {
+    return true;
+  }
+  if (gate.reviewer_user_id && isUserMatch(gate.reviewer_user_id, user)) {
+    return true;
   }
 
   // 2. Check gate_reviewer display name / email
-  if (gate.gate_reviewer) {
-    if (isUserMatch(gate.gate_reviewer, user)) return true;
+  if (gate.gate_reviewer && isUserMatch(gate.gate_reviewer, user)) {
+    return true;
   }
 
-  // 3. Fallback to reviewer field if present
-  if (gate.reviewer) {
-    if (isUserMatch(gate.reviewer, user)) return true;
+  // 3. Fallback to custom_gate_reviewer / reviewer field if present
+  if (gate.custom_gate_reviewer && isUserMatch(gate.custom_gate_reviewer, user)) {
+    return true;
+  }
+  if (gate.reviewer && isUserMatch(gate.reviewer, user)) {
+    return true;
   }
 
-  // 4. If user is system Gate Reviewer and the gate reviewer label is generic
+  // 4. If user has role 'gate_reviewer' and the gate has generic/unassigned reviewer label
   if ((user as any).role === 'gate_reviewer') {
-    const revStr = (gate.gate_reviewer || gate.reviewer_user_id || gate.reviewer || '').toLowerCase().trim();
+    const revStr = (
+      gate.gate_reviewer_user_id ||
+      gate.reviewer_user_id ||
+      gate.gate_reviewer ||
+      gate.reviewer ||
+      gate.custom_gate_reviewer ||
+      ''
+    ).toLowerCase().trim();
+
     if (
+      !revStr ||
       revStr === 'gate reviewer' ||
       revStr === 'gate_reviewer' ||
       revStr === 'quality reviewer' ||

@@ -280,6 +280,26 @@ export const gateService = {
     return this.updateGate(gateName, { criteria: gate.criteria });
   },
 
+  /**
+   * Approve a gate exit criterion (Restricted to assigned Gate Reviewer)
+   */
+  async approveCriterion(
+    gateName: string,
+    criterionId: string
+  ): Promise<{ gate: Gate; criterion: GateCriterion }> {
+    const res = await api.post<{ success: boolean; gate: Gate; criterion: GateCriterion }>(
+      `/api/gates/${encodeURIComponent(gateName)}/criteria/${encodeURIComponent(criterionId)}/approve`
+    );
+
+    if (res?.gate) {
+      const gates = getStoredGates().map((g) => (g.name === gateName ? res.gate : g));
+      saveStoredGates(gates);
+      return { gate: res.gate, criterion: res.criterion };
+    }
+
+    throw new Error('Failed to approve criterion');
+  },
+
   async updateCriterion(gateName: string, criterionId: string, data: Partial<GateCriterion>): Promise<Gate> {
     const gates = getStoredGates();
     const gate = gates.find((g) => g.name === gateName);

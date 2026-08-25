@@ -47,6 +47,8 @@ export interface GateCriterion {
   responsible_person?: string;
   due_date?: string;
   comments?: string;
+  approved_by?: string;
+  approved_at?: string;
 }
 
 export interface GateDeliverable {
@@ -110,6 +112,8 @@ export interface Gate {
   gate_owner_id?: string;
   gate_reviewer?: string;
   reviewer_user_id?: string;
+  gate_reviewer_user_id?: string;
+  custom_gate_reviewer?: string;
   approval_status: GateApprovalStatus;
   completion_percentage: number;
   readiness_percentage: number;

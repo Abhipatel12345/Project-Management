@@ -61,6 +61,19 @@ export function useUpdateGateCriterion() {
   });
 }
 
+export function useApproveGateCriterion() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({ gateName, criterionId }: { gateName: string; criterionId: string }) =>
+      gateService.approveCriterion(gateName, criterionId),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['gates'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-summary'] });
+    },
+  });
+}
+
 export function useDeleteGateCriterion() {
   const queryClient = useQueryClient();
 

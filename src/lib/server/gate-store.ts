@@ -340,3 +340,69 @@ export function executeDeliverableReviewAction(
   saveAllGates(gates);
   return { gate, deliverable };
 }
+
+/**
+ * Execute Gate Exit Criterion Approval
+ * ENFORCES: Logged-in user MUST BE the assigned Gate Reviewer for THIS specific Gate!
+ */
+export function executeCriterionApprovalAction(
+  gateName: string,
+  criterionId: string,
+  session: PDMUserSession
+): { gate: Gate; criterion: GateCriterion } {
+  const gates = loadAllGates();
+  const gate = gates.find((g) => g.name === gateName);
+  if (!gate) {
+    throw new Error(`Gate ${gateName} not found`);
+  }
+
+  // 1. STRICT BACKEND PERMISSION CHECK: Must be the assigned Gate Reviewer for THIS specific gate!
+  const isReviewer = isGateReviewer(gate, session);
+  if (!isReviewer) {
+    const assignedReviewer =
+      gate.gate_reviewer_user_id ||
+      gate.reviewer_user_id ||
+      gate.gate_reviewer ||
+      gate.custom_gate_reviewer ||
+      'Assigned Gate Reviewer';
+    const err: any = new Error(
+      `403 Forbidden: Only the assigned Gate Reviewer (${assignedReviewer}) is authorized to approve exit criteria on gate ${gate.name}. Current user: ${session.fullName || session.username} (${session.email})`
+    );
+    err.statusCode = 403;
+    throw err;
+  }
+
+  const criterion = (gate.criteria || []).find((c) => c.id === criterionId);
+  if (!criterion) {
+    throw new Error(`Criterion ${criterionId} not found in Gate ${gateName}`);
+  }
+
+  const oldStatus = criterion.status;
+  const reviewerIdentity = session.email || session.username || session.fullName || 'gatereviewer@netlink.com';
+  const todayStr = new Date().toISOString().split('T')[0];
+
+  criterion.status = 'Completed';
+  criterion.approved_by = reviewerIdentity;
+  criterion.approved_at = todayStr;
+
+  const { completion, readiness } = calculateGateReadiness(gate);
+  gate.completion_percentage = completion;
+  gate.readiness_percentage = readiness;
+
+  // Record audit history
+  saveAuditRecord({
+    project_id: gate.project || 'GLOBAL',
+    user_id: session.email || session.username,
+    user_name: session.fullName || reviewerIdentity,
+    role: session.role,
+    action: `Gate Exit Criterion Approved`,
+    entity_type: 'GateCriterion',
+    entity_id: criterion.id,
+    description: `APPROVED exit criterion "${criterion.name}" (${criterion.id}) for Gate ${gate.name} by ${reviewerIdentity}.`,
+    old_value: oldStatus,
+    new_value: 'Approved / Completed',
+  });
+
+  saveAllGates(gates);
+  return { gate, criterion };
+}

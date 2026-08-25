@@ -13,7 +13,7 @@ import { DocumentItem } from '@/types/document.types';
 import { useProjects } from '@/hooks/use-projects';
 import { useTasks } from '@/hooks/use-tasks';
 import { useDocuments } from '@/hooks/use-documents';
-import { useGates } from '@/hooks/use-gates';
+import { useGates, useApproveGateCriterion } from '@/hooks/use-gates';
 import { useAvailableEmployees } from '@/hooks/use-project-team';
 import { useAuth } from '@/providers/auth-context';
 import { auditService } from '@/services/audit.service';
@@ -302,6 +302,46 @@ export function GateDetailModal({
       setCrtComments('');
       setIsAddingCriterion(false);
     } catch {}
+  };
+
+  const approveCriterionMutation = useApproveGateCriterion();
+  const [approvingCritId, setApprovingCritId] = useState<string | null>(null);
+
+  // Approve Gate Exit Criterion Handler (Restricted to assigned Gate Reviewer)
+  const handleApproveCriterion = async (criterionId: string) => {
+    try {
+      setApprovingCritId(criterionId);
+      const reviewerEmail = user?.email || user?.username || 'gatereviewer@netlink.com';
+      const todayStr = new Date().toISOString().split('T')[0];
+
+      await approveCriterionMutation.mutateAsync({
+        gateName: gate.name,
+        criterionId,
+      });
+
+      await onUpdateCriterion(criterionId, {
+        status: 'Completed',
+        approved_by: reviewerEmail,
+        approved_at: todayStr,
+      });
+
+      auditService.logAction(
+        user?.fullName || reviewerEmail,
+        'Gate Exit Criterion Approved',
+        'GateCriterion',
+        criterionId,
+        `Approved criterion ${criterionId} on ${gate.name} as Gate Reviewer.`,
+        'In Progress',
+        'Completed',
+        user?.roleLabel || 'Gate Reviewer',
+        gate.project
+      );
+    } catch (err: any) {
+      console.error('Failed to approve criterion:', err);
+      alert(err.message || 'Failed to approve exit criterion');
+    } finally {
+      setApprovingCritId(null);
+    }
   };
 
   // Save Deliverable Handler with Complete Persistent Details
@@ -867,60 +907,94 @@ export function GateDetailModal({
                   </div>
                 ) : (
                   criteria.map((crt) => {
-                    const isCompleted = crt.status === 'Completed';
+                    const isApproved =
+                      crt.status === 'Completed' ||
+                      (crt.status as any) === 'Approved' ||
+                      (crt.status as any) === 'APPROVED';
+
                     return (
                       <div
                         key={crt.id}
-                        className="flex items-start justify-between p-3.5 rounded-2xl bg-white border border-slate-200 hover:border-emerald-200 transition"
+                        className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-4 rounded-2xl bg-white border border-slate-200 hover:border-emerald-200 shadow-2xs transition"
                       >
                         <div className="flex items-start gap-3">
-                          <button
-                            onClick={() =>
-                              onUpdateCriterion(crt.id, {
-                                status: isCompleted ? 'In Progress' : 'Completed',
-                              })
-                            }
-                            className={`mt-0.5 p-1 rounded-lg transition cursor-pointer ${
-                              isCompleted
-                                ? 'bg-emerald-100 text-emerald-700'
-                                : 'bg-slate-100 text-slate-400 hover:bg-slate-200'
-                            }`}
-                          >
-                            {isCompleted ? <CheckSquare className="h-4 w-4" /> : <Square className="h-4 w-4" />}
-                          </button>
+                          <div className="mt-0.5 shrink-0">
+                            {isApproved ? (
+                              <div className="p-1 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200">
+                                <CheckCircle2 className="h-4 w-4" />
+                              </div>
+                            ) : (
+                              <div className="p-1 rounded-lg bg-slate-50 text-slate-400 border border-slate-200">
+                                <Clock className="h-4 w-4" />
+                              </div>
+                            )}
+                          </div>
 
-                          <div>
-                            <div className="flex items-center gap-2">
+                          <div className="space-y-1">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-mono text-[10px] font-bold text-slate-500">{crt.id}</span>
-                              <p
-                                className={`text-xs font-bold ${
-                                  isCompleted ? 'text-slate-500 line-through' : 'text-slate-900'
-                                }`}
-                              >
+                              <p className={`text-xs font-black ${isApproved ? 'text-slate-700' : 'text-slate-900'}`}>
                                 {crt.name}
                               </p>
                               {crt.is_required && (
-                                <span className="px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-100 text-rose-800">
+                                <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-rose-50 text-rose-700 border border-rose-200">
                                   Required
                                 </span>
                               )}
                             </div>
                             {crt.description && (
-                              <p className="text-[11px] text-slate-500 mt-0.5">{crt.description}</p>
+                              <p className="text-[11px] text-slate-500">{crt.description}</p>
                             )}
-                            <div className="flex items-center gap-3 text-[10px] text-slate-400 mt-1">
-                              <span>Responsible: {crt.responsible_person || 'Gate Owner'}</span>
+                            <div className="flex flex-wrap items-center gap-3 text-[10px] text-slate-400 font-medium">
+                              <span>Responsible: <strong className="text-slate-600">{crt.responsible_person || 'Gate Owner'}</strong></span>
                               {crt.due_date && <span>Due: {crt.due_date}</span>}
                             </div>
                           </div>
                         </div>
 
-                        <button
-                          onClick={() => onDeleteCriterion(crt.id)}
-                          className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
-                        >
-                          <Trash2 className="h-3.5 w-3.5" />
-                        </button>
+                        {/* Actions & Approval Badges */}
+                        <div className="flex items-center justify-end gap-2.5 shrink-0 pt-2 sm:pt-0 border-t sm:border-t-0 border-slate-100">
+                          {isApproved ? (
+                            <div className="flex flex-col items-end gap-0.5 text-right">
+                              <span className="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-50 text-emerald-800 border border-emerald-300 font-black text-[11px]">
+                                <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                                ✓ Approved
+                              </span>
+                              <span className="text-[10px] text-slate-500 font-medium">
+                                Approved by: <strong className="text-slate-800">{crt.approved_by || gate.gate_reviewer || gate.reviewer_user_id || 'Gate Reviewer'}</strong>
+                              </span>
+                              {crt.approved_at && (
+                                <span className="text-[10px] text-slate-400 font-mono">
+                                  Date: {crt.approved_at}
+                                </span>
+                              )}
+                            </div>
+                          ) : isCurrentGateReviewer ? (
+                            <button
+                              type="button"
+                              onClick={() => handleApproveCriterion(crt.id)}
+                              disabled={approvingCritId === crt.id}
+                              className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-black text-xs shadow-xs transition cursor-pointer disabled:opacity-50"
+                              title="Approve Exit Criterion"
+                            >
+                              <CheckCircle2 className="h-4 w-4" />
+                              <span>{approvingCritId === crt.id ? 'Approving...' : 'Approve'}</span>
+                            </button>
+                          ) : (
+                            <span className="px-2.5 py-1 rounded-full bg-slate-100 text-slate-600 border border-slate-200 text-[11px] font-bold">
+                              {crt.status || 'Pending Review'}
+                            </span>
+                          )}
+
+                          <button
+                            type="button"
+                            onClick={() => onDeleteCriterion(crt.id)}
+                            className="p-1.5 text-slate-400 hover:text-rose-600 hover:bg-rose-50 rounded-lg transition cursor-pointer"
+                            title="Delete Criterion"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
                       </div>
                     );
                   })
