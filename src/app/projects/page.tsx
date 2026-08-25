@@ -82,8 +82,17 @@ export default function ProjectsPage() {
       setTimeout(() => setActionSuccess(null), 4000);
       return created;
     } catch (err: any) {
-      const msg = err.message || 'Failed to create project.';
-      setActionError(msg);
+      const msg = err.message || err.response?.data?._error_message || err.response?.data?.error || 'Failed to create project.';
+      const isFieldValidationError =
+        /project\s*name\s*must\s*be\s*unique/i.test(msg) ||
+        /project\s*code\s*must\s*be\s*unique/i.test(msg) ||
+        err.response?.data?.field === 'project_name' ||
+        err.response?.data?.field === 'name';
+
+      // Keep global error only for genuine server/network errors; suppress for field validation inside modal
+      if (!isFieldValidationError) {
+        setActionError(msg);
+      }
       throw err;
     }
   };
@@ -101,8 +110,16 @@ export default function ProjectsPage() {
       setTimeout(() => setActionSuccess(null), 4000);
       setEditingProject(null);
     } catch (err: any) {
-      const msg = err.message || 'Failed to update project.';
-      setActionError(msg);
+      const msg = err.message || err.response?.data?._error_message || err.response?.data?.error || 'Failed to update project.';
+      const isFieldValidationError =
+        /project\s*name\s*must\s*be\s*unique/i.test(msg) ||
+        /project\s*code\s*must\s*be\s*unique/i.test(msg) ||
+        err.response?.data?.field === 'project_name' ||
+        err.response?.data?.field === 'name';
+
+      if (!isFieldValidationError) {
+        setActionError(msg);
+      }
       throw err;
     }
   };

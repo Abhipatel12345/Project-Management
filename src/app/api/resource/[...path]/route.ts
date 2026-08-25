@@ -200,6 +200,70 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
       }
     }
 
+    // 4. Project Duplicate Name & Code Uniqueness Validation
+    if (docType === 'Project' && req.method === 'POST' && parsedBodyObj) {
+      const projectName = (parsedBodyObj.project_name || '').trim();
+      const projectCode = (parsedBodyObj.name || '').trim();
+
+      const erpUrl = getErpUrl();
+      const apiKey = getApiKey();
+      const apiSecret = getApiSecret();
+
+      if (projectName) {
+        try {
+          const checkRes = await fetch(
+            `${erpUrl}/api/resource/Project?filters=[["project_name","=","${encodeURIComponent(projectName)}"]]&fields=["name","project_name"]&limit_page_length=1`,
+            {
+              headers: { Authorization: `token ${apiKey}:${apiSecret}` },
+              cache: 'no-store',
+            }
+          );
+          if (checkRes.ok) {
+            const checkData = await checkRes.json();
+            if (Array.isArray(checkData.data) && checkData.data.length > 0) {
+              return NextResponse.json(
+                {
+                  error: 'Project Name must be unique',
+                  _error_message: 'Project Name must be unique',
+                  field: 'project_name',
+                },
+                { status: 409 }
+              );
+            }
+          }
+        } catch {
+          // continue
+        }
+      }
+
+      if (projectCode) {
+        try {
+          const checkCodeRes = await fetch(
+            `${erpUrl}/api/resource/Project?filters=[["name","=","${encodeURIComponent(projectCode)}"]]&fields=["name"]&limit_page_length=1`,
+            {
+              headers: { Authorization: `token ${apiKey}:${apiSecret}` },
+              cache: 'no-store',
+            }
+          );
+          if (checkCodeRes.ok) {
+            const checkCodeData = await checkCodeRes.json();
+            if (Array.isArray(checkCodeData.data) && checkCodeData.data.length > 0) {
+              return NextResponse.json(
+                {
+                  error: 'Project Code must be unique',
+                  _error_message: 'Project Code must be unique',
+                  field: 'name',
+                },
+                { status: 409 }
+              );
+            }
+          }
+        } catch {
+          // continue
+        }
+      }
+    }
+
     // Forward request to ERPNext VM
     const searchParams = req.nextUrl.search;
     const erpUrl = getErpUrl();
@@ -226,6 +290,31 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
       resJson = JSON.parse(resText);
     } catch {
       resJson = resText;
+    }
+
+    // Normalized Duplicate Error Handling for Project
+    if (docType === 'Project' && !erpRes.ok) {
+      const errStr = JSON.stringify(resJson || resText || '');
+      if (/duplicate/i.test(errStr) || /already\s*exists/i.test(errStr) || /must\s*be\s*unique/i.test(errStr)) {
+        if (/code/i.test(errStr)) {
+          return NextResponse.json(
+            {
+              error: 'Project Code must be unique',
+              _error_message: 'Project Code must be unique',
+              field: 'name',
+            },
+            { status: 409 }
+          );
+        }
+        return NextResponse.json(
+          {
+            error: 'Project Name must be unique',
+            _error_message: 'Project Name must be unique',
+            field: 'project_name',
+          },
+          { status: 409 }
+        );
+      }
     }
 
     // 5. READ OPERATION RBAC & DATA-SCOPING INTERCEPTOR (GET)

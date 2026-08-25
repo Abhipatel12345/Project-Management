@@ -72,6 +72,8 @@ export function ProjectFormDialog({
     register,
     handleSubmit,
     reset,
+    setError,
+    clearErrors,
     formState: { errors },
   } = useForm<ProjectFormValues>({
     resolver: zodResolver(projectFormSchema),
@@ -171,6 +173,7 @@ export function ProjectFormDialog({
   const onFormSubmit = async (data: ProjectFormValues) => {
     try {
       setFormError(null);
+      clearErrors();
       const createdProj: any = await onSubmit(data, attachedFiles);
 
       // Save attached files directly into ERPNext Project DocType and document store linked to Canonical Project ID
@@ -215,7 +218,45 @@ export function ProjectFormDialog({
 
       onClose();
     } catch (err: any) {
-      setFormError(err.message || 'Failed to save project. Please check form inputs.');
+      const errMsg =
+        err.response?.data?.error ||
+        err.response?.data?._error_message ||
+        err.message ||
+        'Failed to save project. Please check form inputs.';
+      const errField = err.response?.data?.field;
+
+      // 1. Duplicate Project Name Validation Error Mapping
+      if (
+        errField === 'project_name' ||
+        /project\s*name\s*must\s*be\s*unique/i.test(errMsg) ||
+        (/already\s*exists/i.test(errMsg) && !/code/i.test(errMsg)) ||
+        (/duplicate/i.test(errMsg) && /name/i.test(errMsg))
+      ) {
+        setError('project_name', {
+          type: 'manual',
+          message: 'Project Name must be unique',
+        });
+        // Keep modal open, keep all form values intact, clear generic top banner
+        setFormError(null);
+        return;
+      }
+
+      // 2. Duplicate Project Code Validation Error Mapping
+      if (
+        errField === 'name' ||
+        /project\s*code\s*must\s*be\s*unique/i.test(errMsg) ||
+        (/duplicate/i.test(errMsg) && /code/i.test(errMsg))
+      ) {
+        setError('project_name', {
+          type: 'manual',
+          message: 'Project Code must be unique',
+        });
+        setFormError(null);
+        return;
+      }
+
+      // Genuine system/server errors (500, network, etc.)
+      setFormError(errMsg);
     }
   };
 
@@ -281,13 +322,26 @@ export function ProjectFormDialog({
                 Project Name <span className="text-rose-500">*</span>
               </label>
               <input
-                {...register('project_name')}
+                {...register('project_name', {
+                  onChange: () => {
+                    if (errors.project_name) clearErrors('project_name');
+                    if (formError) setFormError(null);
+                  },
+                })}
                 type="text"
                 placeholder="e.g. Door Handle Assembly (PROJ-0043)"
-                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition"
+                className={cn(
+                  'w-full px-3.5 py-2.5 rounded-xl text-xs font-bold placeholder-slate-400 focus:outline-none transition',
+                  errors.project_name
+                    ? 'bg-rose-50/70 border-2 border-rose-500 text-rose-900 focus:ring-1 focus:ring-rose-500 focus:border-rose-500'
+                    : 'bg-slate-50 border border-slate-200 text-slate-800 focus:ring-1 focus:ring-sky-500 focus:border-sky-500'
+                )}
               />
               {errors.project_name && (
-                <p className="text-[11px] text-rose-500 font-bold">{errors.project_name.message}</p>
+                <p className="text-[11px] text-rose-600 font-bold flex items-center gap-1.5 mt-1">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                  <span>{errors.project_name.message}</span>
+                </p>
               )}
             </div>
 
