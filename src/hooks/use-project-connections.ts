@@ -60,3 +60,11 @@ export function useCreateConnectionRecord() {
     },
   });
 }
+
+export function useErpItems() {
+  return useQuery<{ name: string; item_name: string; item_group?: string; stock_uom?: string }[]>({
+    queryKey: ['erp-items'],
+    queryFn: () => projectConnectionsService.getErpItems(),
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+}

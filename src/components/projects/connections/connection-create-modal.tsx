@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react';
 import { ConnectionItemConfig, ConnectionFormField } from '@/types/connection.types';
-import { useCreateConnectionRecord } from '@/hooks/use-project-connections';
+import { useCreateConnectionRecord, useErpItems } from '@/hooks/use-project-connections';
 import { useToast } from '@/providers/toast-context';
 import { useAuth } from '@/providers/auth-context';
 import documentService from '@/services/document.service';
@@ -16,6 +16,7 @@ import {
   Paperclip,
   FileText,
   Trash2,
+  Package,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -39,6 +40,7 @@ export function ConnectionCreateModal({
   const { showToast } = useToast();
   const { user } = useAuth();
   const createRecordMutation = useCreateConnectionRecord();
+  const { data: erpItems = [], isLoading: isLoadingItems } = useErpItems();
 
   const [formState, setFormState] = useState<Record<string, any>>({});
   const [attachedFiles, setAttachedFiles] = useState<
@@ -53,6 +55,14 @@ export function ConnectionCreateModal({
       itemConfig.fields?.forEach((f) => {
         if (f.defaultValue !== undefined) {
           initial[f.name] = f.defaultValue;
+        } else if (
+          (f.type === 'item_select' ||
+            f.name === 'item_code' ||
+            f.name === 'item' ||
+            f.name === 'production_item') &&
+          erpItems.length > 0
+        ) {
+          initial[f.name] = erpItems[0].name;
         } else {
           initial[f.name] = '';
         }
@@ -61,7 +71,7 @@ export function ConnectionCreateModal({
       setAttachedFiles([]);
       setValidationError(null);
     }
-  }, [isOpen, itemConfig]);
+  }, [isOpen, itemConfig, erpItems]);
 
   if (!isOpen || !itemConfig) return null;
 
@@ -223,7 +233,27 @@ export function ConnectionCreateModal({
                   {f.label} {f.required && <span className="text-rose-500">*</span>}
                 </label>
 
-                {f.type === 'select' ? (
+                {f.type === 'item_select' || f.name === 'item_code' || f.name === 'item' || f.name === 'production_item' ? (
+                  <div className="space-y-1">
+                    <select
+                      value={formState[f.name] || ''}
+                      onChange={(e) => handleChange(f.name, e.target.value)}
+                      className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                    >
+                      <option value="">-- Select Item from ERPNext ({erpItems.length} available) --</option>
+                      {erpItems.map((item) => (
+                        <option key={item.name} value={item.name}>
+                          {item.name} {item.item_name && item.item_name !== item.name ? `— ${item.item_name}` : ''} {item.stock_uom ? `(${item.stock_uom})` : ''}
+                        </option>
+                      ))}
+                    </select>
+                    {isLoadingItems && (
+                      <p className="text-[11px] text-slate-400 flex items-center gap-1.5 font-medium">
+                        <Loader2 className="h-3 w-3 animate-spin text-sky-600" /> Loading items from ERPNext...
+                      </p>
+                    )}
+                  </div>
+                ) : f.type === 'select' ? (
                   <select
                     value={formState[f.name] || ''}
                     onChange={(e) => handleChange(f.name, e.target.value)}

@@ -1,7 +1,7 @@
 export interface ConnectionFormField {
   name: string;
   label: string;
-  type: 'text' | 'select' | 'date' | 'number' | 'textarea';
+  type: 'text' | 'select' | 'date' | 'number' | 'textarea' | 'item_select';
   required?: boolean;
   options?: string[];
   defaultValue?: any;
@@ -122,7 +122,7 @@ export const PROJECT_CONNECTIONS: ConnectionGroupConfig[] = [
         projectField: 'project',
         fields: [
           { name: 'material_request_type', label: 'Request Type', type: 'select', options: ['Purchase', 'Material Transfer', 'Material Issue', 'Manufacture'], defaultValue: 'Purchase' },
-          { name: 'item_code', label: 'Item Code / Raw Material', type: 'text', required: true },
+          { name: 'item_code', label: 'Item Code / Raw Material', type: 'item_select', required: true },
           { name: 'qty', label: 'Quantity Required', type: 'number', defaultValue: 1, required: true },
           { name: 'schedule_date', label: 'Required By Date', type: 'date' },
           { name: 'purpose', label: 'Purpose / Remarks', type: 'textarea' },
@@ -133,7 +133,7 @@ export const PROJECT_CONNECTIONS: ConnectionGroupConfig[] = [
         doctype: 'BOM',
         projectField: 'project',
         fields: [
-          { name: 'item', label: 'Finished Good / Assembly Item Code', type: 'text', required: true },
+          { name: 'item', label: 'Finished Good / Assembly Item Code', type: 'item_select', required: true },
           { name: 'is_active', label: 'Is Active', type: 'select', options: ['1', '0'], defaultValue: '1' },
           { name: 'quantity', label: 'Quantity', type: 'number', defaultValue: 1 },
           { name: 'description', label: 'BOM Description', type: 'textarea' },
@@ -236,7 +236,7 @@ export const PROJECT_CONNECTIONS: ConnectionGroupConfig[] = [
         doctype: 'Work Order',
         projectField: 'project',
         fields: [
-          { name: 'production_item', label: 'Assembly / Production Item Code', type: 'text', required: true },
+          { name: 'production_item', label: 'Assembly / Production Item Code', type: 'item_select', required: true },
           { name: 'qty', label: 'Manufacture Quantity', type: 'number', defaultValue: 1 },
           { name: 'status', label: 'Status', type: 'select', options: ['Draft', 'Not Started', 'In Process', 'Completed', 'Stopped'], defaultValue: 'Draft' },
           { name: 'planned_start_date', label: 'Planned Start Date', type: 'date' },

@@ -256,6 +256,21 @@ export const projectConnectionsService = {
       throw error;
     }
   },
+
+  /**
+   * Fetch standard ERPNext Item Master records for item dropdown selects
+   */
+  async getErpItems(): Promise<{ name: string; item_name: string; item_group?: string; stock_uom?: string }[]> {
+    try {
+      const fields = JSON.stringify(['name', 'item_name', 'item_group', 'stock_uom']);
+      const url = `/api/resource/Item?fields=${encodeURIComponent(fields)}&limit_page_length=500&order_by=name%20asc`;
+      const response = await api.get<{ data: any[] }>(url);
+      return Array.isArray(response.data) ? response.data : [];
+    } catch (err) {
+      console.warn('[ERPNext Connection Service] Could not fetch Items:', err);
+      return [];
+    }
+  },
 };
 
 export default projectConnectionsService;
