@@ -75,12 +75,24 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
       }
     }
 
-    // 2. Project Manager Role & Permission Restrictions (Inteva PM Requirement)
-    if (userRole === 'projectmanager' || !session?.permissions?.manageTeamMembers) {
-      // Restrict Changing Team Members / Board Members
+    // 2. Project Manager Role & Permission Restrictions
+    if (userRole === 'projectmanager') {
+      // Restrict Changing Team Members / Board Members only if NOT the assigned Project Manager
+      if (docType === 'Project' && (req.method === 'PUT' || req.method === 'POST') && parsedBodyObj && 'users' in parsedBodyObj) {
+        if (recordId && session) {
+          const managedIds = await getManagedProjectIdsForUser(session);
+          if (managedIds.size > 0 && !managedIds.has(recordId)) {
+            return NextResponse.json(
+              { _error_message: `403 Forbidden: You are not authorized to modify team members for Project "${recordId}" because you are not its assigned Project Manager.` },
+              { status: 403 }
+            );
+          }
+        }
+      }
+    } else if (userRole === 'teammember') {
       if (docType === 'Project' && (req.method === 'PUT' || req.method === 'POST') && parsedBodyObj && 'users' in parsedBodyObj) {
         return NextResponse.json(
-          { _error_message: '403 Forbidden: Project Managers are not authorized to add, remove, or modify Project Team Members or Steering Board composition (Inteva PM Requirement).' },
+          { _error_message: '403 Forbidden: Team Members are not authorized to add, remove, or modify Project Team Members.' },
           { status: 403 }
         );
       }
@@ -317,6 +329,37 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
       }
     }
 
+    // Auto-assign in ERPNext if Task was created with assigned_to
+    if (docType === 'Task' && req.method === 'POST' && erpRes.ok && resJson.data && parsedBodyObj?.assigned_to) {
+      const targetEmail = parsedBodyObj.assigned_to;
+      const emailToAssign = targetEmail.includes('@')
+        ? targetEmail
+        : targetEmail.toLowerCase().includes('yash')
+        ? 'teammember@netlink.com'
+        : targetEmail.toLowerCase().includes('sarah')
+        ? 'sarahjenkins@gmail.com'
+        : null;
+
+      if (emailToAssign) {
+        try {
+          await fetch(`${erpUrl}/api/method/frappe.desk.form.assign_to.add`, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+              Authorization: `token ${getApiKey()}:${getApiSecret()}`,
+            },
+            body: JSON.stringify({
+              doctype: 'Task',
+              name: resJson.data.name,
+              assign_to: JSON.stringify([emailToAssign]),
+            }),
+          });
+        } catch {
+          // non-blocking
+        }
+      }
+    }
+
     // 5. READ OPERATION RBAC & DATA-SCOPING INTERCEPTOR (GET)
     if (req.method === 'GET' && session && typeof resJson === 'object' && resJson !== null) {
       // 5A. Project Scoping
@@ -390,7 +433,12 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
         } else if (!recordId && Array.isArray(resJson.data)) {
           // Task List Collection Filtering
           if (userRole === 'teammember') {
-            const filteredTasks = resJson.data.filter((t: any) => isTaskAssignedToUser(t, session));
+            const allTasksWithDetails = await fetchAllTasksFromERP();
+            const detailMap = new Map(allTasksWithDetails.map((t) => [t.name, t]));
+            const filteredTasks = resJson.data.filter((t: any) => {
+              const fullTask = detailMap.get(t.name) || t;
+              return isTaskAssignedToUser(fullTask, session);
+            });
             return NextResponse.json({ data: filteredTasks }, { status: 200 });
           }
           // PM & Admin see ALL tasks

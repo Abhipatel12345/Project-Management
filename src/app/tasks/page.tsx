@@ -272,6 +272,13 @@ export default function GlobalTaskManagementPage() {
           assigned_to: values.assigned_to,
           parent_task: values.parent_task,
           depends_on: values.depends_on,
+          rasic: {
+            responsible: values.rasic_responsible,
+            accountable: values.rasic_accountable,
+            support: values.rasic_support,
+            consulted: values.rasic_consulted,
+            informed: values.rasic_informed,
+          },
         },
       });
       showToast(`Task ${editingTask.name} updated in ERPNext!`, 'success');

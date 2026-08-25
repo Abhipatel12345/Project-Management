@@ -28,6 +28,7 @@ import { BackButton } from '@/components/shared/back-button';
 import { ImportExportControls } from '@/components/shared/import-export-controls';
 import { useToast } from '@/providers/toast-context';
 import { GateReviewerDashboard } from '@/components/dashboard/gate-reviewer-dashboard';
+import { getUserRasicRole } from '@/utils/user-matcher';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import {
   FolderKanban,
@@ -1156,7 +1157,9 @@ function TeamMemberDashboard() {
 
     const myTasks = filteredTasks.filter((t) => {
       const assigned = (t.assigned_to || t.assigned_employee_name || '').toLowerCase();
-      return assigned.includes(userEmail) || assigned.includes(userName);
+      const isAssigned = (userEmail && assigned.includes(userEmail)) || (userName && assigned.includes(userName));
+      const hasRasic = !!getUserRasicRole(t, user);
+      return isAssigned || hasRasic;
     });
 
     const openTasks = filteredTasks.filter(
@@ -1346,6 +1349,13 @@ function TeamMemberDashboard() {
           assigned_to: values.assigned_to,
           parent_task: values.parent_task,
           depends_on: values.depends_on,
+          rasic: {
+            responsible: values.rasic_responsible,
+            accountable: values.rasic_accountable,
+            support: values.rasic_support,
+            consulted: values.rasic_consulted,
+            informed: values.rasic_informed,
+          },
         },
       });
       showToast(`Task ${editingTask.name} updated in ERPNext!`, 'success');

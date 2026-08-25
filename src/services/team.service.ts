@@ -11,10 +11,23 @@ const projectTeamCache: Record<string, ProjectTeamMember[]> = {};
 
 export const teamService = {
   /**
-   * Fetch team members strictly belonging to the currently opened project from ERPNext Project
+   * Fetch team members strictly belonging to the currently opened project
    */
   async getTeamMembers(projectId: string): Promise<ProjectTeamMember[]> {
     if (!projectId) return [];
+
+    // 1. Try fetching from server-side persistent team store
+    try {
+      const localRes = await api.get<{ data: ProjectTeamMember[] }>(
+        `/api/projects/${encodeURIComponent(projectId)}/team`
+      );
+      if (localRes?.data && Array.isArray(localRes.data) && localRes.data.length > 0) {
+        projectTeamCache[projectId] = localRes.data;
+        return localRes.data;
+      }
+    } catch {
+      // fallback to ERPNext or cache
+    }
 
     try {
       // Query Project User child table from ERPNext Project DocType
@@ -83,81 +96,41 @@ export const teamService = {
       console.warn(`[ERPNext Team Service Warning] Failed to fetch project team for ${projectId}:`, error);
     }
 
-    // If no users child table found and AUTO_ASSIGN_TEAM is enabled, fallback to default template
     if (!projectTeamCache[projectId]) {
-      if (AUTO_ASSIGN_TEAM) {
-        projectTeamCache[projectId] = [
-          {
-            id: `TM-${projectId}-1`,
-            project_id: projectId,
-            user_email: 'sarahjenkins@gmail.com',
-            employee_name: 'Sarah Jenkins',
-            department: 'Battery Systems',
-            function_name: 'Program Management',
-            role: 'Project Manager',
-            is_board_member: false,
-            status: 'Active',
-          },
-          {
-            id: `TM-${projectId}-2`,
-            project_id: projectId,
-            user_email: 'teammember@netlink.com',
-            employee_name: 'Yash',
-            department: 'Engineering',
-            function_name: 'Engineering Release',
-            role: 'Systems Engineer',
-            is_board_member: false,
-            status: 'Active',
-          },
-          {
-            id: `TM-${projectId}-3`,
-            project_id: projectId,
-            user_email: 'gatereviewer@netlink.com',
-            employee_name: 'Reviewer',
-            department: 'Quality Assurance',
-            function_name: 'APQP Governance',
-            role: 'Gate Board Reviewer',
-            is_board_member: true,
-            status: 'Active',
-          },
-          {
-            id: `TM-${projectId}-4`,
-            project_id: projectId,
-            user_email: 'admin@example.com',
-            employee_name: 'Administrator',
-            department: 'Program Management',
-            function_name: 'Program Governance',
-            role: 'Project Manager',
-            is_board_member: true,
-            status: 'Active',
-          },
-        ];
-      } else {
-        // Auto-assignment disabled: Only manual assignments
-        projectTeamCache[projectId] = [];
-      }
+      projectTeamCache[projectId] = [];
     }
 
     return projectTeamCache[projectId];
   },
 
   /**
-   * Add team member to ERPNext Project Users child table
+   * Add team member to project
    */
   async addTeamMember(projectId: string, data: TeamMemberFormData): Promise<ProjectTeamMember> {
-    const currentList = await this.getTeamMembers(projectId);
-    const newMember: ProjectTeamMember = {
+    let newMember: ProjectTeamMember = {
       id: `TM-${projectId}-${Date.now()}`,
       project_id: projectId,
       ...data,
       creation: new Date().toISOString(),
     };
 
-    const updatedList = [newMember, ...currentList];
+    try {
+      const res = await api.post<{ data: ProjectTeamMember }>(
+        `/api/projects/${encodeURIComponent(projectId)}/team`,
+        data
+      );
+      if (res?.data) {
+        newMember = res.data;
+      }
+    } catch (err) {
+      console.warn('[TeamService] Local API save fallback:', err);
+    }
+
+    const currentList = projectTeamCache[projectId] || [];
+    const updatedList = [newMember, ...currentList.filter((m) => m.id !== newMember.id)];
     projectTeamCache[projectId] = updatedList;
 
     try {
-      // Sync child table users with ERPNext Project (setting welcome_email_sent: 1 to prevent OutgoingEmailError)
       const updatedUsers = updatedList.map((m) => ({
         user: m.user_email,
         email: m.user_email,
@@ -169,7 +142,7 @@ export const teamService = {
         users: updatedUsers,
       });
     } catch (err: any) {
-      console.warn(`[ERPNext Team Service] Failed to save Project User to ERPNext:`, err);
+      console.warn(`[ERPNext Team Service] Failed to sync Project User to ERPNext:`, err);
     }
 
     return newMember;
@@ -183,24 +156,37 @@ export const teamService = {
     memberId: string,
     data: Partial<TeamMemberFormData>
   ): Promise<ProjectTeamMember> {
+    let updatedMember: ProjectTeamMember | null = null;
+
+    try {
+      const res = await api.put<{ data: ProjectTeamMember }>(
+        `/api/projects/${encodeURIComponent(projectId)}/team`,
+        { memberId, ...data }
+      );
+      if (res?.data) {
+        updatedMember = res.data;
+      }
+    } catch (err) {
+      console.warn('[TeamService] Local API update fallback:', err);
+    }
+
     const currentList = await this.getTeamMembers(projectId);
     const index = currentList.findIndex((m) => m.id === memberId);
 
-    if (index === -1) {
+    if (index !== -1) {
+      updatedMember = {
+        ...currentList[index],
+        ...data,
+        modified: new Date().toISOString(),
+      };
+      currentList[index] = updatedMember;
+      projectTeamCache[projectId] = [...currentList];
+    } else if (!updatedMember) {
       throw new Error(`Team member ${memberId} not found in project ${projectId}`);
     }
 
-    const updatedMember = {
-      ...currentList[index],
-      ...data,
-      modified: new Date().toISOString(),
-    };
-
-    currentList[index] = updatedMember;
-    projectTeamCache[projectId] = [...currentList];
-
     try {
-      const updatedUsers = currentList.map((m) => ({
+      const updatedUsers = (projectTeamCache[projectId] || currentList).map((m) => ({
         user: m.user_email,
         email: m.user_email,
         full_name: m.employee_name,
@@ -231,9 +217,17 @@ export const teamService = {
   },
 
   /**
-   * Remove a team member from ERPNext Project
+   * Remove a team member from Project
    */
   async removeTeamMember(projectId: string, memberId: string): Promise<void> {
+    try {
+      await api.delete(
+        `/api/projects/${encodeURIComponent(projectId)}/team?memberId=${encodeURIComponent(memberId)}`
+      );
+    } catch (err) {
+      console.warn('[TeamService] Local API delete fallback:', err);
+    }
+
     const currentList = await this.getTeamMembers(projectId);
     const updatedList = currentList.filter((m) => m.id !== memberId);
     projectTeamCache[projectId] = updatedList;

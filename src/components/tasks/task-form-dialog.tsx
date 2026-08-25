@@ -5,8 +5,8 @@ import { taskFormSchema, TaskFormValues } from '@/lib/validations/task.schema';
 import { Task } from '@/types/task.types';
 import { Project } from '@/types/project.types';
 import { useProjects, useProject } from '@/hooks/use-projects';
-import { useProjectTeam } from '@/hooks/use-project-team';
-import { ProjectTeamMember } from '@/types/team.types';
+import { useProjectTeam, useAvailableEmployees } from '@/hooks/use-project-team';
+import { ProjectTeamMember, EmployeeOption } from '@/types/team.types';
 import { findMatchingTeamMember } from '@/utils/auto-assignment';
 import { validateTaskDatesAgainstProject } from '@/utils/date-utils';
 import { X, Loader2, Calendar, User, ShieldCheck, CheckSquare, Edit3 } from 'lucide-react';
@@ -67,7 +67,42 @@ export function TaskFormDialog({
 
   const selectedProjectId = watch('project') || defaultProjectId || '';
   const { data: teamMembers = [] } = useProjectTeam(selectedProjectId);
+  const { data: availableEmployees = [] } = useAvailableEmployees('');
   const { data: selectedProject } = useProject(selectedProjectId);
+
+  // Combined selectable users: project team members first, then available system employees
+  const allSelectableUsers = React.useMemo(() => {
+    const map = new Map<string, { id: string; name: string; email: string; role: string; department: string }>();
+
+    // 1. Team members
+    teamMembers.forEach((tm: ProjectTeamMember) => {
+      const email = tm.user_email || tm.employee_name;
+      map.set(email.toLowerCase(), {
+        id: tm.id,
+        name: tm.employee_name,
+        email: tm.user_email || '',
+        role: tm.role,
+        department: tm.department,
+      });
+    });
+
+    // 2. Available employees
+    availableEmployees.forEach((emp: EmployeeOption) => {
+      const email = emp.email || emp.name;
+      const key = (emp.email || emp.name || emp.full_name).toLowerCase();
+      if (!map.has(key) && !map.has(emp.full_name.toLowerCase())) {
+        map.set(key, {
+          id: emp.name,
+          name: emp.full_name,
+          email: emp.email || emp.name,
+          role: emp.designation || 'Team Member',
+          department: emp.department || 'Engineering',
+        });
+      }
+    });
+
+    return Array.from(map.values());
+  }, [teamMembers, availableEmployees]);
 
   const firstProjectName = projects[0]?.name || '';
   const initialTaskIdentifier = initialData?.name || initialData?.subject || '';
@@ -247,7 +282,21 @@ export function TaskFormDialog({
                     type="button"
                     onClick={() => {
                       const subject = watch('subject');
-                      const match = findMatchingTeamMember(subject, '', teamMembers);
+                      const match = findMatchingTeamMember(
+                        subject,
+                        '',
+                        allSelectableUsers.map((u) => ({
+                          id: u.id,
+                          employee_name: u.name,
+                          user_email: u.email,
+                          role: u.role,
+                          function_name: 'Lead Engineering',
+                          department: u.department,
+                          project_id: selectedProjectId,
+                          is_board_member: false,
+                          status: 'Active' as const,
+                        }))
+                      );
                       if (match) {
                         const targetVal = match.member.user_email || match.member.employee_name;
                         setValue('assigned_to', targetVal);
@@ -267,9 +316,9 @@ export function TaskFormDialog({
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
                 >
                   <option value="">Unassigned</option>
-                  {teamMembers.map((tm: ProjectTeamMember) => (
-                    <option key={tm.id} value={tm.user_email || tm.employee_name}>
-                      {tm.employee_name} ({tm.role} — {tm.department})
+                  {allSelectableUsers.map((u) => (
+                    <option key={u.id} value={u.email || u.name}>
+                      {u.name} ({u.role}{u.department ? ` — ${u.department}` : ''})
                     </option>
                   ))}
                 </select>
@@ -388,10 +437,10 @@ export function TaskFormDialog({
                     {...register('rasic_responsible')}
                     className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
                   >
-                    <option value="">Select Team Member</option>
-                    {teamMembers.map((tm: ProjectTeamMember) => (
-                      <option key={tm.id} value={tm.user_email || tm.employee_name}>
-                        {tm.employee_name} ({tm.role})
+                    <option value="">Select Member</option>
+                    {allSelectableUsers.map((u) => (
+                      <option key={u.id} value={u.email || u.name}>
+                        {u.name} ({u.role})
                       </option>
                     ))}
                   </select>
@@ -402,10 +451,10 @@ export function TaskFormDialog({
                     {...register('rasic_accountable')}
                     className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
                   >
-                    <option value="">Select Team Member</option>
-                    {teamMembers.map((tm: ProjectTeamMember) => (
-                      <option key={tm.id} value={tm.user_email || tm.employee_name}>
-                        {tm.employee_name} ({tm.role})
+                    <option value="">Select Member</option>
+                    {allSelectableUsers.map((u) => (
+                      <option key={u.id} value={u.email || u.name}>
+                        {u.name} ({u.role})
                       </option>
                     ))}
                   </select>
@@ -416,10 +465,10 @@ export function TaskFormDialog({
                     {...register('rasic_support')}
                     className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
                   >
-                    <option value="">Select Team Member</option>
-                    {teamMembers.map((tm: ProjectTeamMember) => (
-                      <option key={tm.id} value={tm.user_email || tm.employee_name}>
-                        {tm.employee_name} ({tm.role})
+                    <option value="">Select Member</option>
+                    {allSelectableUsers.map((u) => (
+                      <option key={u.id} value={u.email || u.name}>
+                        {u.name} ({u.role})
                       </option>
                     ))}
                   </select>
@@ -430,10 +479,10 @@ export function TaskFormDialog({
                     {...register('rasic_consulted')}
                     className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
                   >
-                    <option value="">Select Team Member</option>
-                    {teamMembers.map((tm: ProjectTeamMember) => (
-                      <option key={tm.id} value={tm.user_email || tm.employee_name}>
-                        {tm.employee_name} ({tm.role})
+                    <option value="">Select Member</option>
+                    {allSelectableUsers.map((u) => (
+                      <option key={u.id} value={u.email || u.name}>
+                        {u.name} ({u.role})
                       </option>
                     ))}
                   </select>
@@ -444,10 +493,10 @@ export function TaskFormDialog({
                     {...register('rasic_informed')}
                     className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
                   >
-                    <option value="">Select Team Member</option>
-                    {teamMembers.map((tm: ProjectTeamMember) => (
-                      <option key={tm.id} value={tm.user_email || tm.employee_name}>
-                        {tm.employee_name} ({tm.role})
+                    <option value="">Select Member</option>
+                    {allSelectableUsers.map((u) => (
+                      <option key={u.id} value={u.email || u.name}>
+                        {u.name} ({u.role})
                       </option>
                     ))}
                   </select>

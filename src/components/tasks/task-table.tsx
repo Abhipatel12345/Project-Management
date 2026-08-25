@@ -7,6 +7,7 @@ import { useSkipRequests } from '@/hooks/use-skip-requests';
 import { Eye, Edit2, Trash2, Calendar, User, AlertTriangle, Clock } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/providers/auth-context';
+import { getUserRasicRole } from '@/utils/user-matcher';
 
 interface TaskTableProps {
   tasks: Task[];
@@ -121,14 +122,31 @@ export function TaskTable({
                     <TaskPriorityBadge priority={task.priority} />
                   </td>
 
-                  {/* Assigned To */}
+                  {/* Assigned To & RASIC */}
                   <td className="py-3.5 px-4">
-                    <div className="flex items-center gap-1.5 text-slate-800 font-semibold text-xs">
-                      <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
-                      <span className="truncate max-w-[130px]">
-                        {task.assigned_employee_name || task.assigned_to || 'Unassigned'}
-                      </span>
-                    </div>
+                    {(() => {
+                      const myRasic = getUserRasicRole(task, user);
+                      return (
+                        <div className="flex flex-col gap-1">
+                          <div className="flex items-center gap-1.5 text-slate-800 font-semibold text-xs">
+                            <User className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+                            <span className="truncate max-w-[130px]">
+                              {task.assigned_employee_name || task.assigned_to || 'Unassigned'}
+                            </span>
+                          </div>
+                          {myRasic ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-extrabold bg-sky-100 text-sky-800 border border-sky-300 w-fit">
+                              RASIC: {myRasic.label}
+                            </span>
+                          ) : task.rasic && Object.values(task.rasic).some(Boolean) ? (
+                            <span className="text-[10px] font-medium text-slate-400">
+                              {task.rasic.responsible ? `R: ${task.rasic.responsible.split('@')[0]}` : ''}
+                              {task.rasic.accountable ? ` | A: ${task.rasic.accountable.split('@')[0]}` : ''}
+                            </span>
+                          ) : null}
+                        </div>
+                      );
+                    })()}
                   </td>
 
                   {/* Start Date */}

@@ -294,10 +294,16 @@ export const taskService = {
 
       // Client-side additional filters if assigned_to or is_overdue specified
       if (params.assigned_to && params.assigned_to !== 'ALL') {
+        const target = params.assigned_to.toLowerCase().trim();
         tasks = tasks.filter(
           (t) =>
-            t.assigned_to?.toLowerCase().includes(params.assigned_to!.toLowerCase()) ||
-            t.assigned_employee_name?.toLowerCase().includes(params.assigned_to!.toLowerCase())
+            t.assigned_to?.toLowerCase().includes(target) ||
+            t.assigned_employee_name?.toLowerCase().includes(target) ||
+            (t.rasic?.responsible && t.rasic.responsible.toLowerCase().includes(target)) ||
+            (t.rasic?.accountable && t.rasic.accountable.toLowerCase().includes(target)) ||
+            (t.rasic?.support && t.rasic.support.toLowerCase().includes(target)) ||
+            (t.rasic?.consulted && t.rasic.consulted.toLowerCase().includes(target)) ||
+            (t.rasic?.informed && t.rasic.informed.toLowerCase().includes(target))
         );
       }
 

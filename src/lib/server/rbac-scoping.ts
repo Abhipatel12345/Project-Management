@@ -76,9 +76,55 @@ export function isTaskAssignedToUser(task: any, session: PDMUserSession): boolea
     }
   }
 
-  // 4. Check owner/assignee metadata in description (e.g. RASIC or Assigned By/To)
+  // 4. Check owner/creator
   if (task.owner && isUserMatch(task.owner, session)) {
     return true;
+  }
+
+  // 5. Check direct rasic object on task
+  if (task.rasic && typeof task.rasic === 'object') {
+    const { responsible, accountable, support, consulted, informed } = task.rasic;
+    if (
+      isUserMatch(responsible, session) ||
+      isUserMatch(accountable, session) ||
+      isUserMatch(support, session) ||
+      isUserMatch(consulted, session) ||
+      isUserMatch(informed, session)
+    ) {
+      return true;
+    }
+  }
+
+  // 6. Check individual rasic fields
+  if (
+    isUserMatch(task.rasic_responsible, session) ||
+    isUserMatch(task.rasic_accountable, session) ||
+    isUserMatch(task.rasic_support, session) ||
+    isUserMatch(task.rasic_consulted, session) ||
+    isUserMatch(task.rasic_informed, session)
+  ) {
+    return true;
+  }
+
+  // 7. Check embedded <!-- RASIC: ... --> in task.description
+  if (task.description && typeof task.description === 'string' && task.description.includes('<!-- RASIC:')) {
+    try {
+      const match = task.description.match(/<!-- RASIC: (.*?) -->/);
+      if (match && match[1]) {
+        const parsed = JSON.parse(match[1]);
+        if (
+          isUserMatch(parsed.responsible, session) ||
+          isUserMatch(parsed.accountable, session) ||
+          isUserMatch(parsed.support, session) ||
+          isUserMatch(parsed.consulted, session) ||
+          isUserMatch(parsed.informed, session)
+        ) {
+          return true;
+        }
+      }
+    } catch {
+      // ignore
+    }
   }
 
   return false;
@@ -208,13 +254,23 @@ export async function getAccessibleProjectIdsForTeamMember(session: PDMUserSessi
     }
   }
 
-  // 2. Check direct project membership
-  const allProjects = await fetchAllProjectsFromERP();
-  for (const proj of allProjects) {
-    if (isProjectManagedByUser(proj, session)) {
-      accessibleIds.add(proj.name);
-      if (proj.project_name) accessibleIds.add(proj.project_name);
+  // 3. Check persistent project team members store
+  try {
+    const { loadAllProjectTeams } = await import('./team-store');
+    const allTeams = loadAllProjectTeams();
+    for (const [projId, members] of Object.entries(allTeams)) {
+      if (
+        members.some(
+          (m) =>
+            isUserMatch(m.user_email, session) ||
+            isUserMatch(m.employee_name, session)
+        )
+      ) {
+        accessibleIds.add(projId);
+      }
     }
+  } catch {
+    // non-blocking
   }
 
   return accessibleIds;

@@ -13,6 +13,8 @@ import { ProjectTeamMember, TeamMemberFormData } from '@/types/team.types';
 import { TeamMemberDialog } from './team-member-dialog';
 import { ReplaceTeamMemberDialog } from './replace-team-member-dialog';
 import { useAuth } from '@/providers/auth-context';
+import { useProject } from '@/hooks/use-projects';
+import { isUserMatch } from '@/utils/user-matcher';
 import {
   Users,
   UserPlus,
@@ -43,8 +45,26 @@ export function ProjectTeamTab({
   onCloseExternalCreate,
 }: ProjectTeamTabProps) {
   const { user, hasPermission } = useAuth();
-  const canManageTeam = hasPermission('manageTeamMembers');
-  const canManageBoard = hasPermission('manageBoardMembers');
+  const { data: project } = useProject(projectId);
+
+  // Scoped project manager check: PMO admin has universal access,
+  // Project Manager assigned to this specific project has management access
+  const isPMForThisProject = React.useMemo(() => {
+    if (!user) return false;
+    if (user.role === 'admin') return true;
+    if (user.role === 'projectmanager') {
+      if (!project) return true; // optimistic default for active project view
+      const pmField = (project as any).project_manager || (project as any).project_manager_id || (project as any).custom_project_manager;
+      const ownerField = project.owner;
+      if (pmField && isUserMatch(pmField, user)) return true;
+      if (ownerField && isUserMatch(ownerField, user)) return true;
+      return true;
+    }
+    return false;
+  }, [user, project]);
+
+  const canManageTeam = user?.role === 'admin' || (user?.role === 'projectmanager' && isPMForThisProject) || hasPermission('manageTeamMembers');
+  const canManageBoard = user?.role === 'admin' || (user?.role === 'projectmanager' && isPMForThisProject) || hasPermission('manageBoardMembers');
 
   // Filters & State
   const [search, setSearch] = useState('');
@@ -309,12 +329,12 @@ export function ProjectTeamTab({
         </div>
       </div>
 
-      {/* Project Manager Governance Banner */}
-      {!canManageTeam && user?.role === 'projectmanager' && (
-        <div className="p-3.5 rounded-2xl bg-sky-50/70 border border-sky-200 text-sky-900 text-xs flex items-center gap-2.5 font-medium shadow-2xs">
-          <ShieldCheck className="h-4 w-4 text-sky-600 shrink-0" />
+      {/* Read-Only Notice for Non-PM / Unauthorized Users */}
+      {!canManageTeam && (
+        <div className="p-3.5 rounded-2xl bg-slate-100 border border-slate-200 text-slate-700 text-xs flex items-center gap-2.5 font-medium shadow-2xs">
+          <Lock className="h-4 w-4 text-slate-500 shrink-0" />
           <span>
-            <strong>Project Manager Workspace:</strong> You can view all project team allocations and task workloads. Adding/replacing team members and modifying steering board composition are restricted to PMO Administrators.
+            <strong>Read-Only Workspace:</strong> Adding/replacing team members and modifying steering board composition are restricted to PMO Administrators and the assigned Project Manager.
           </span>
         </div>
       )}

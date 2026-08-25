@@ -83,3 +83,36 @@ export function isGateReviewer(
 
   return false;
 }
+
+/**
+ * Return the specific RASIC role (R, A, S, C, I) if the user has a RASIC responsibility on the task.
+ */
+export function getUserRasicRole(
+  task: { rasic?: { responsible?: string; accountable?: string; support?: string; consulted?: string; informed?: string }; description?: string } | null | undefined,
+  user: PDMUserSession | { email?: string; username?: string; fullName?: string; employeeId?: string } | null | undefined
+): { key: 'R' | 'A' | 'S' | 'C' | 'I'; label: string; field: string } | null {
+  if (!task || !user) return null;
+
+  let rasic = task.rasic;
+  if (!rasic && task.description && task.description.includes('<!-- RASIC:')) {
+    try {
+      const match = task.description.match(/<!-- RASIC: (.*?) -->/);
+      if (match && match[1]) {
+        rasic = JSON.parse(match[1]);
+      }
+    } catch {
+      // ignore
+    }
+  }
+
+  if (!rasic) return null;
+
+  if (isUserMatch(rasic.responsible, user)) return { key: 'R', label: 'Responsible (R)', field: 'responsible' };
+  if (isUserMatch(rasic.accountable, user)) return { key: 'A', label: 'Accountable (A)', field: 'accountable' };
+  if (isUserMatch(rasic.support, user)) return { key: 'S', label: 'Support (S)', field: 'support' };
+  if (isUserMatch(rasic.consulted, user)) return { key: 'C', label: 'Consulted (C)', field: 'consulted' };
+  if (isUserMatch(rasic.informed, user)) return { key: 'I', label: 'Informed (I)', field: 'informed' };
+
+  return null;
+}
+
