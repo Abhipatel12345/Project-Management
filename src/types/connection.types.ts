@@ -122,6 +122,8 @@ export const PROJECT_CONNECTIONS: ConnectionGroupConfig[] = [
         projectField: 'project',
         fields: [
           { name: 'material_request_type', label: 'Request Type', type: 'select', options: ['Purchase', 'Material Transfer', 'Material Issue', 'Manufacture'], defaultValue: 'Purchase' },
+          { name: 'item_code', label: 'Item Code / Raw Material', type: 'text', required: true },
+          { name: 'qty', label: 'Quantity Required', type: 'number', defaultValue: 1, required: true },
           { name: 'schedule_date', label: 'Required By Date', type: 'date' },
           { name: 'purpose', label: 'Purpose / Remarks', type: 'textarea' },
         ],
