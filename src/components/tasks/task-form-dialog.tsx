@@ -107,6 +107,24 @@ export function TaskFormDialog({
   const firstProjectName = projects[0]?.name || '';
   const initialTaskIdentifier = initialData?.name || initialData?.subject || '';
 
+  const matchOptionValue = React.useCallback(
+    (val?: string) => {
+      if (!val) return '';
+      const lower = val.toLowerCase().trim();
+      const matched = allSelectableUsers.find(
+        (u) =>
+          u.email?.toLowerCase() === lower ||
+          u.name?.toLowerCase() === lower ||
+          u.id?.toLowerCase() === lower ||
+          (lower.includes('yash') && u.email?.toLowerCase().includes('teammember')) ||
+          (lower.includes('sarah') && u.email?.toLowerCase().includes('sarah')) ||
+          (lower.includes('admin') && (u.email?.toLowerCase().includes('admin') || u.name?.toLowerCase().includes('admin')))
+      );
+      return matched ? matched.email || matched.name : val;
+    },
+    [allSelectableUsers]
+  );
+
   useEffect(() => {
     if (!isOpen) return;
 
@@ -128,14 +146,14 @@ export function TaskFormDialog({
         expected_time: initialData.expected_time || 0,
         progress: initialData.progress || 0,
         description: initialData.description || '',
-        assigned_to: initialData.assigned_to || '',
+        assigned_to: matchOptionValue(initialData.assigned_to),
         parent_task: initialData.parent_task || '',
         depends_on: typeof initialData.depends_on === 'string' ? initialData.depends_on : '',
-        rasic_responsible: initialData.rasic?.responsible || '',
-        rasic_accountable: initialData.rasic?.accountable || '',
-        rasic_support: initialData.rasic?.support || '',
-        rasic_consulted: initialData.rasic?.consulted || '',
-        rasic_informed: initialData.rasic?.informed || '',
+        rasic_responsible: matchOptionValue(initialData.rasic?.responsible),
+        rasic_accountable: matchOptionValue(initialData.rasic?.accountable),
+        rasic_support: matchOptionValue(initialData.rasic?.support),
+        rasic_consulted: matchOptionValue(initialData.rasic?.consulted),
+        rasic_informed: matchOptionValue(initialData.rasic?.informed),
       });
     } else {
       reset({
@@ -158,7 +176,7 @@ export function TaskFormDialog({
         rasic_informed: '',
       });
     }
-  }, [isOpen, initialTaskIdentifier, defaultProjectId, firstProjectName, reset]);
+  }, [isOpen, initialTaskIdentifier, defaultProjectId, firstProjectName, reset, matchOptionValue, initialData]);
 
   const onFormSubmit = async (values: TaskFormValues) => {
     // Perform date validation against active project bounds before calling ERPNext API

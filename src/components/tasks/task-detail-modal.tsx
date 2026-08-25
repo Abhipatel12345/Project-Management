@@ -4,7 +4,8 @@ import { ProjectBaseline } from '@/types/baseline.types';
 import { calculateDayDiff, calculateDurationDays } from '@/services/baseline.service';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskPriorityBadge } from './task-priority-badge';
-import { useTaskComments, useTaskAttachments } from '@/hooks/use-tasks';
+import { useTaskComments, useTaskAttachments, useTask } from '@/hooks/use-tasks';
+import { resolveUserDisplayName } from '@/services/task.service';
 import { useIssues, useCreateIssue } from '@/hooks/use-issues';
 import { IssueFormDialog, IssueFormValues } from '@/components/issues/issue-form-dialog';
 import { Issue } from '@/types/issue.types';
@@ -48,11 +49,14 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
   const [isSkipDialogOpen, setIsSkipDialogOpen] = useState(false);
 
   const taskName = task?.name || '';
+  const { data: freshTask } = useTask(taskName);
+  const currentTask = freshTask || task;
+
   const { data: comments = [] } = useTaskComments(taskName);
   const { data: attachments = [] } = useTaskAttachments(taskName);
 
   // Fetch skip requests for project
-  const { data: skipRequests = [], refetch: refetchSkipRequests } = useSkipRequests(task?.project);
+  const { data: skipRequests = [], refetch: refetchSkipRequests } = useSkipRequests(currentTask?.project);
   const createSkipRequestMutation = useCreateSkipRequest();
 
   const pendingSkipRequest = skipRequests.find(
@@ -543,27 +547,47 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
                   <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
                     <span className="text-[10px] font-extrabold text-sky-700 uppercase tracking-wider block">R — Responsible</span>
-                    <p className="font-bold text-slate-900 truncate">{task.rasic?.responsible || 'Unassigned'}</p>
+                    <p className="font-bold text-slate-900 truncate">
+                      {currentTask?.rasic?.responsible
+                        ? resolveUserDisplayName(currentTask.rasic.responsible)
+                        : 'Unassigned'}
+                    </p>
                     <p className="text-[10px] text-slate-400">Directly completes the work package</p>
                   </div>
                   <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
                     <span className="text-[10px] font-extrabold text-blue-700 uppercase tracking-wider block">A — Accountable</span>
-                    <p className="font-bold text-slate-900 truncate">{task.rasic?.accountable || 'Unassigned'}</p>
+                    <p className="font-bold text-slate-900 truncate">
+                      {currentTask?.rasic?.accountable
+                        ? resolveUserDisplayName(currentTask.rasic.accountable)
+                        : 'Unassigned'}
+                    </p>
                     <p className="text-[10px] text-slate-400">Final approving authority</p>
                   </div>
                   <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
                     <span className="text-[10px] font-extrabold text-indigo-700 uppercase tracking-wider block">S — Support</span>
-                    <p className="font-bold text-slate-900 truncate">{task.rasic?.support || 'None'}</p>
+                    <p className="font-bold text-slate-900 truncate">
+                      {currentTask?.rasic?.support
+                        ? resolveUserDisplayName(currentTask.rasic.support)
+                        : 'None'}
+                    </p>
                     <p className="text-[10px] text-slate-400">Provides technical assistance</p>
                   </div>
                   <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
                     <span className="text-[10px] font-extrabold text-purple-700 uppercase tracking-wider block">C — Consulted</span>
-                    <p className="font-bold text-slate-900 truncate">{task.rasic?.consulted || 'None'}</p>
+                    <p className="font-bold text-slate-900 truncate">
+                      {currentTask?.rasic?.consulted
+                        ? resolveUserDisplayName(currentTask.rasic.consulted)
+                        : 'None'}
+                    </p>
                     <p className="text-[10px] text-slate-400">SME two-way input</p>
                   </div>
                   <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs space-y-1">
                     <span className="text-[10px] font-extrabold text-slate-700 uppercase tracking-wider block">I — Informed</span>
-                    <p className="font-bold text-slate-900 truncate">{task.rasic?.informed || 'None'}</p>
+                    <p className="font-bold text-slate-900 truncate">
+                      {currentTask?.rasic?.informed
+                        ? resolveUserDisplayName(currentTask.rasic.informed)
+                        : 'None'}
+                    </p>
                     <p className="text-[10px] text-slate-400">Kept updated on progress</p>
                   </div>
                 </div>

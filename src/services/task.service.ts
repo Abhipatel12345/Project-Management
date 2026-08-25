@@ -45,6 +45,8 @@ export const resolveUserDisplayName = (userStr: string | null | undefined): stri
   if (lower === 'patilabhay717@gmail.com') return 'Abhay Patil';
   if (lower === 'aditya@netlink.com') return 'Aditya';
   if (lower === 'admin@example.com' || lower === 'administrator' || lower === 'admin') return 'Administrator';
+  if (lower.includes('john')) return 'John';
+  if (lower.includes('quality')) return 'Quality Lead';
 
   if (clean.includes('@')) {
     const prefix = clean.split('@')[0];
@@ -209,10 +211,24 @@ const cleanPayload = (data: Partial<Task>): Record<string, any> => {
 
   // Build description with embedded RASIC and SKIP_REASON blocks if provided
   let description = data.description || '';
+
+  let targetRasic = data.rasic;
+  if (!targetRasic && description.includes('<!-- RASIC:')) {
+    try {
+      const match = description.match(/<!-- RASIC: (.*?) -->/);
+      if (match && match[1]) {
+        targetRasic = JSON.parse(match[1]);
+      }
+    } catch {
+      // fallback
+    }
+  }
+
   description = description.replace(/<!-- RASIC: .*? -->/, '').replace(/<!-- SKIP_REASON: .*? -->/, '').trim();
 
-  if (data.rasic && Object.values(data.rasic).some(Boolean)) {
-    description = `${description}\n\n<!-- RASIC: ${JSON.stringify(data.rasic)} -->`.trim();
+  if (targetRasic && Object.values(targetRasic).some(Boolean)) {
+    description = `${description}\n\n<!-- RASIC: ${JSON.stringify(targetRasic)} -->`.trim();
+    payload.rasic = targetRasic;
   }
 
   if (data.skip_reason) {

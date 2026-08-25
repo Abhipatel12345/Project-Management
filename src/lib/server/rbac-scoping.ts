@@ -1,4 +1,5 @@
 import { PDMUserSession } from '@/types/auth.types';
+import { getTaskRasic } from './rasic-store';
 
 const getErpUrl = (): string => {
   return (process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
@@ -124,6 +125,23 @@ export function isTaskAssignedToUser(task: any, session: PDMUserSession): boolea
       }
     } catch {
       // ignore
+    }
+  }
+
+  // 8. Check server-side persistent RASIC store
+  const taskId = task.name || task.id;
+  if (taskId) {
+    const stored = getTaskRasic(taskId);
+    if (stored) {
+      if (
+        isUserMatch(stored.responsible, session) ||
+        isUserMatch(stored.accountable, session) ||
+        isUserMatch(stored.support, session) ||
+        isUserMatch(stored.consulted, session) ||
+        isUserMatch(stored.informed, session)
+      ) {
+        return true;
+      }
     }
   }
 

@@ -8,6 +8,7 @@ import {
   getAccessibleProjectIdsForTeamMember,
   fetchAllTasksFromERP,
 } from '@/lib/server/rbac-scoping';
+import { getTaskRasic, saveTaskRasic, loadAllTaskRasic } from '@/lib/server/rasic-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -329,34 +330,71 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
       }
     }
 
-    // Auto-assign in ERPNext if Task was created with assigned_to
-    if (docType === 'Task' && req.method === 'POST' && erpRes.ok && resJson.data && parsedBodyObj?.assigned_to) {
-      const targetEmail = parsedBodyObj.assigned_to;
-      const emailToAssign = targetEmail.includes('@')
-        ? targetEmail
-        : targetEmail.toLowerCase().includes('yash')
-        ? 'teammember@netlink.com'
-        : targetEmail.toLowerCase().includes('sarah')
-        ? 'sarahjenkins@gmail.com'
-        : null;
+    // Task POST / PUT Synchronizations (Assignment & RASIC)
+    if (docType === 'Task' && (req.method === 'POST' || req.method === 'PUT') && erpRes.ok && resJson.data) {
+      const targetTaskId = resJson.data.name || recordId;
 
-      if (emailToAssign) {
-        try {
-          await fetch(`${erpUrl}/api/method/frappe.desk.form.assign_to.add`, {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-              Authorization: `token ${getApiKey()}:${getApiSecret()}`,
-            },
-            body: JSON.stringify({
-              doctype: 'Task',
-              name: resJson.data.name,
-              assign_to: JSON.stringify([emailToAssign]),
-            }),
-          });
-        } catch {
-          // non-blocking
+      // 1. Synchronize Assignment
+      if (parsedBodyObj?.assigned_to) {
+        const targetEmail = parsedBodyObj.assigned_to;
+        const emailToAssign = targetEmail.includes('@')
+          ? targetEmail
+          : targetEmail.toLowerCase().includes('yash')
+          ? 'teammember@netlink.com'
+          : targetEmail.toLowerCase().includes('sarah')
+          ? 'sarahjenkins@gmail.com'
+          : null;
+
+        if (emailToAssign && targetTaskId) {
+          try {
+            await fetch(`${erpUrl}/api/method/frappe.desk.form.assign_to.add`, {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `token ${getApiKey()}:${getApiSecret()}`,
+              },
+              body: JSON.stringify({
+                doctype: 'Task',
+                name: targetTaskId,
+                assign_to: JSON.stringify([emailToAssign]),
+              }),
+            });
+          } catch {
+            // non-blocking
+          }
         }
+      }
+
+      // 2. Synchronize RASIC Store
+      let rasicPayload = parsedBodyObj?.rasic;
+      if (!rasicPayload && parsedBodyObj) {
+        if (
+          parsedBodyObj.rasic_responsible ||
+          parsedBodyObj.rasic_accountable ||
+          parsedBodyObj.rasic_support ||
+          parsedBodyObj.rasic_consulted ||
+          parsedBodyObj.rasic_informed
+        ) {
+          rasicPayload = {
+            responsible: parsedBodyObj.rasic_responsible,
+            accountable: parsedBodyObj.rasic_accountable,
+            support: parsedBodyObj.rasic_support,
+            consulted: parsedBodyObj.rasic_consulted,
+            informed: parsedBodyObj.rasic_informed,
+          };
+        } else if (parsedBodyObj.description && parsedBodyObj.description.includes('<!-- RASIC:')) {
+          try {
+            const match = parsedBodyObj.description.match(/<!-- RASIC: (.*?) -->/);
+            if (match && match[1]) {
+              rasicPayload = JSON.parse(match[1]);
+            }
+          } catch {}
+        }
+      }
+
+      if (targetTaskId && rasicPayload) {
+        saveTaskRasic(targetTaskId, rasicPayload, session);
+        resJson.data.rasic = rasicPayload;
       }
     }
 
@@ -396,9 +434,28 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
         }
       }
 
-      // 5B. Task Scoping
+      // 5B. Task Scoping & RASIC Hydration
       if (docType === 'Task') {
         if (recordId && resJson.data) {
+          // Hydrate RASIC from server store or description
+          const storedRasic = getTaskRasic(recordId);
+          if (storedRasic) {
+            resJson.data.rasic = {
+              responsible: storedRasic.responsible || '',
+              accountable: storedRasic.accountable || '',
+              support: storedRasic.support || '',
+              consulted: storedRasic.consulted || '',
+              informed: storedRasic.informed || '',
+            };
+          } else if (resJson.data.description && resJson.data.description.includes('<!-- RASIC:')) {
+            try {
+              const match = resJson.data.description.match(/<!-- RASIC: (.*?) -->/);
+              if (match && match[1]) {
+                resJson.data.rasic = JSON.parse(match[1]);
+              }
+            } catch {}
+          }
+
           // Attach _assign if missing in single document payload
           if (!resJson.data._assign) {
             try {
@@ -431,6 +488,30 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
           }
           // PM & Admin see all task details
         } else if (!recordId && Array.isArray(resJson.data)) {
+          // Hydrate RASIC on all task items
+          const allRasic = loadAllTaskRasic();
+          resJson.data.forEach((item: any) => {
+            if (item && item.name) {
+              const r = allRasic[item.name];
+              if (r) {
+                item.rasic = {
+                  responsible: r.responsible || '',
+                  accountable: r.accountable || '',
+                  support: r.support || '',
+                  consulted: r.consulted || '',
+                  informed: r.informed || '',
+                };
+              } else if (item.description && item.description.includes('<!-- RASIC:')) {
+                try {
+                  const match = item.description.match(/<!-- RASIC: (.*?) -->/);
+                  if (match && match[1]) {
+                    item.rasic = JSON.parse(match[1]);
+                  }
+                } catch {}
+              }
+            }
+          });
+
           // Task List Collection Filtering
           if (userRole === 'teammember') {
             const allTasksWithDetails = await fetchAllTasksFromERP();
