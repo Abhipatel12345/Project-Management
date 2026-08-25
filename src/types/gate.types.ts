@@ -51,7 +51,11 @@ export interface GateCriterion {
 
 export interface GateDeliverable {
   id: string;
+  deliverable_id?: string;
+  project_id?: string;
+  gate_id?: string;
   name: string;
+  title?: string;
   description?: string;
   responsible_person?: string;
   responsible_user_id?: string;
@@ -60,12 +64,22 @@ export interface GateDeliverable {
   status: DeliverableStatus;
   completion_percentage: number;
   is_required: boolean;
-  document_reference?: string;
   related_task?: string;
+  related_task_id?: string;
+  related_task_subject?: string;
+  document_reference?: string;
+  linked_document_id?: string;
+  linked_document_name?: string;
+  created_by?: string;
+  created_at?: string;
   approved_by?: string;
   approved_at?: string;
+  rejected_by?: string;
+  rejected_at?: string;
+  review_comments?: string;
   approval_status?: 'Not Started' | 'Submitted' | 'Under Review' | 'Approved' | 'Rejected' | string;
   approval_comment?: string;
+  rejection_reason?: string;
 }
 
 export interface GateReviewRecord {

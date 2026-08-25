@@ -9,14 +9,18 @@ import {
   CriterionStatus,
   DeliverableStatus,
 } from '@/types/gate.types';
+import { DocumentItem } from '@/types/document.types';
 import { useProjects } from '@/hooks/use-projects';
 import { useTasks } from '@/hooks/use-tasks';
 import { useDocuments } from '@/hooks/use-documents';
+import { useGates } from '@/hooks/use-gates';
 import { useAvailableEmployees } from '@/hooks/use-project-team';
 import { useAuth } from '@/providers/auth-context';
 import { auditService } from '@/services/audit.service';
 import { gateService } from '@/services/gate.service';
+import { documentService } from '@/services/document.service';
 import { isGateReviewer } from '@/utils/user-matcher';
+import { DocumentViewerModal } from '@/components/documents/document-viewer-modal';
 import {
   X,
   Lock,
@@ -45,6 +49,7 @@ import {
   ThumbsDown,
   Eye,
   Download,
+  ExternalLink,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -84,7 +89,7 @@ export function GateDetailModal({
     'overview' | 'criteria' | 'deliverables' | 'review' | 'workflow' | 'activity'
   >('overview');
 
-  // Check if current user is the authorized Gate Reviewer for THIS specific gate
+  // Check if current logged-in user is the assigned Gate Reviewer for THIS specific gate
   const isCurrentGateReviewer = isGateReviewer(gate, user);
 
   // Fetch employees for dropdowns
@@ -96,14 +101,24 @@ export function GateDetailModal({
     pageSize: 100,
   });
 
-  // Fetch project documents for contextual deliverable selection
+  // Fetch project documents for contextual deliverable selection and downloading
   const { data: docsData } = useDocuments({
     project: gate.project,
     pageSize: 100,
   });
 
+  // Fetch all gates belonging to this project for real dynamic Lifecycle presentation
+  const { data: projectGatesData } = useGates({
+    project: gate.project,
+    pageSize: 50,
+  });
+
   const projectTasks = tasksData?.tasks || [];
-  const projectDocs = docsData?.documents || [];
+  const projectDocs: DocumentItem[] = docsData?.documents || [];
+  const projectGates: Gate[] = projectGatesData?.gates || [gate];
+
+  // Document Viewer Modal State
+  const [viewingDoc, setViewingDoc] = useState<DocumentItem | null>(null);
 
   // Criterion Form state
   const [isAddingCriterion, setIsAddingCriterion] = useState(false);
@@ -130,7 +145,11 @@ export function GateDetailModal({
   );
   const [delRequired, setDelRequired] = useState(true);
   const [delTaskRef, setDelTaskRef] = useState('');
-  const [delDocRef, setDelDocRef] = useState('');
+  const [delDocId, setDelDocId] = useState('');
+
+  // Deliverable Review Modal State (When Reviewer clicks Review)
+  const [reviewingDeliverable, setReviewingDeliverable] = useState<GateDeliverable | null>(null);
+  const [reviewCommentsText, setReviewCommentsText] = useState('');
 
   // Deliverable Rejection Modal state
   const [rejectingDeliverable, setRejectingDeliverable] = useState<GateDeliverable | null>(null);
@@ -174,9 +193,9 @@ export function GateDetailModal({
   const canApprove = readinessPct >= 100 || overridePermission;
 
   // Contextual Document Filtering for Gate Deliverables (Task documents)
+  // When a Related Task is selected, shows ONLY documents belonging to that task!
   const contextualDocs = React.useMemo(() => {
     if (delTaskRef) {
-      // Filter strictly by the chosen related task
       const taskFiltered = projectDocs.filter(
         (d: any) =>
           d.task === delTaskRef ||
@@ -185,12 +204,73 @@ export function GateDetailModal({
       );
       if (taskFiltered.length > 0) return taskFiltered;
     }
-    // Fallback: Documents tagged with any task or entity_type = Task, or all project documents
     const taskDocs = projectDocs.filter((d: any) => d.task || d.entity_type === 'Task');
     return taskDocs.length > 0 ? taskDocs : projectDocs;
   }, [projectDocs, delTaskRef]);
 
-  // Handlers
+  // Helper to find real document item from document ID / reference
+  const resolveDocument = (docIdOrRef?: string, docName?: string): DocumentItem | null => {
+    if (!docIdOrRef && !docName) return null;
+    return (
+      projectDocs.find(
+        (d) =>
+          (docIdOrRef && d.name === docIdOrRef) ||
+          (docName && (d.file_name === docName || d.title === docName)) ||
+          (docIdOrRef && (d.file_name === docIdOrRef || d.title === docIdOrRef))
+      ) || null
+    );
+  };
+
+  // Document Download Handler
+  const handleDownloadDeliverableDocument = async (del: GateDeliverable) => {
+    try {
+      const targetDoc = resolveDocument(del.linked_document_id, del.document_reference || del.linked_document_name);
+      const docId = targetDoc ? targetDoc.name : del.linked_document_id || del.document_reference || '';
+      const docName = targetDoc ? (targetDoc.file_name || targetDoc.title) : del.linked_document_name || del.document_reference || 'document';
+
+      auditService.logAction(
+        user?.fullName || user?.username || 'User',
+        'Downloaded Document',
+        'GateDeliverable',
+        del.id,
+        `Downloaded attachment "${docName}" (Doc ID: ${docId}) for deliverable "${del.name}" (Gate: ${gate.name})`,
+        undefined,
+        undefined,
+        user?.roleLabel,
+        gate.project
+      );
+
+      await documentService.downloadDocument(gate.project, docId, docName);
+    } catch (err: any) {
+      console.error('Download error:', err);
+      alert('Document unavailable. The original file could not be found.');
+    }
+  };
+
+  // Document View Handler
+  const handleViewDeliverableDocument = (del: GateDeliverable) => {
+    const targetDoc = resolveDocument(del.linked_document_id, del.document_reference || del.linked_document_name);
+    if (targetDoc) {
+      setViewingDoc(targetDoc);
+    } else {
+      // Create synthetic viewer item from deliverable metadata
+      setViewingDoc({
+        name: del.linked_document_id || del.id,
+        title: del.linked_document_name || del.document_reference || del.name,
+        document_type: 'Engineering',
+        project: gate.project || 'General',
+        status: del.status === 'Approved' ? 'Approved' : 'Under Review',
+        review_status: del.status === 'Approved' ? 'Approved' : 'In Review',
+        version: 'v1.0',
+        uploaded_by: del.responsible_person || 'Administrator',
+        upload_date: del.created_at || new Date().toISOString(),
+        file_name: del.linked_document_name || del.document_reference || 'document.pdf',
+        file_url: `/api/projects/${encodeURIComponent(gate.project || 'ALL')}/documents/${encodeURIComponent(del.linked_document_id || del.id)}/download`,
+      });
+    }
+  };
+
+  // Save Criterion Handler
   const handleSaveCriterion = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!crtName.trim()) return;
@@ -224,39 +304,59 @@ export function GateDetailModal({
     } catch {}
   };
 
+  // Save Deliverable Handler with Complete Persistent Details
   const handleSaveDeliverable = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!delName.trim()) return;
     try {
+      const selectedTask = projectTasks.find((t: any) => t.name === delTaskRef);
+      const selectedDoc = projectDocs.find((d: any) => d.name === delDocId || d.file_name === delDocId);
+      const selectedEmployee = employees.find((emp: any) => (emp.full_name || emp.name) === delPerson);
+
+      const delId = `DEL-${Math.floor(100 + Math.random() * 900)}`;
+      const todayStr = new Date().toISOString().split('T')[0];
+
       await onAddDeliverable({
+        id: delId,
+        deliverable_id: delId,
+        gate_id: gate.name,
+        project_id: gate.project,
         name: delName,
+        title: delName,
         description: delDesc,
         responsible_person: delPerson,
+        responsible_user_id: selectedEmployee ? selectedEmployee.email || selectedEmployee.name : delPerson,
         project: gate.project,
         due_date: delDueDate,
         is_required: delRequired,
-        status: 'Not Started',
-        approval_status: 'Not Started',
+        status: 'Under Review',
+        approval_status: 'Under Review',
         completion_percentage: 0,
         related_task: delTaskRef || undefined,
-        document_reference: delDocRef || undefined,
+        related_task_id: delTaskRef || undefined,
+        related_task_subject: selectedTask ? selectedTask.subject : undefined,
+        document_reference: selectedDoc ? selectedDoc.file_name || selectedDoc.title : undefined,
+        linked_document_id: selectedDoc ? selectedDoc.name : delDocId || undefined,
+        linked_document_name: selectedDoc ? selectedDoc.file_name || selectedDoc.title : undefined,
+        created_by: user?.fullName || user?.username || 'Administrator',
+        created_at: todayStr,
       });
 
       auditService.logAction(
         user?.fullName || 'Administrator',
-        'Gate Deliverable Added',
+        'Gate Deliverable Created',
         'GateDeliverable',
-        delName,
-        `Added deliverable "${delName}" (Linked Doc: ${delDocRef || 'None'}) to ${gate.name}.`,
+        delId,
+        `Created deliverable "${delName}" for Gate ${gate.name} (Linked Task: ${delTaskRef || 'None'}, Linked Doc: ${selectedDoc?.file_name || 'None'})`,
         undefined,
-        undefined,
+        'Under Review',
         user?.roleLabel,
         gate.project
       );
 
       setDelName('');
       setDelDesc('');
-      setDelDocRef('');
+      setDelDocId('');
       setDelTaskRef('');
       setIsAddingDeliverable(false);
     } catch {}
@@ -277,16 +377,21 @@ export function GateDetailModal({
       try {
         await gateService.executeDeliverableAction(gate.name, del.id, action, comment);
       } catch (err: any) {
-        console.warn('executeDeliverableAction warning:', err);
+        console.warn('executeDeliverableAction backend sync warning:', err);
       }
 
       // 2. Update local state
+      const todayStr = new Date().toISOString().split('T')[0];
       await onUpdateDeliverable(del.id, {
         status: newStatus,
         approval_status: newStatus,
         completion_percentage: isApproved ? 100 : del.completion_percentage || 0,
-        approved_by: isApproved || isRejected ? user?.fullName || user?.username || 'Gate Reviewer' : undefined,
-        approved_at: isApproved || isRejected ? new Date().toISOString().split('T')[0] : undefined,
+        approved_by: isApproved ? user?.fullName || user?.username || 'Gate Reviewer' : del.approved_by,
+        approved_at: isApproved ? todayStr : del.approved_at,
+        rejected_by: isRejected ? user?.fullName || user?.username || 'Gate Reviewer' : del.rejected_by,
+        rejected_at: isRejected ? todayStr : del.rejected_at,
+        rejection_reason: isRejected ? comment : del.rejection_reason,
+        review_comments: comment,
         approval_comment: comment,
       });
 
@@ -296,10 +401,10 @@ export function GateDetailModal({
           ? 'Gate Deliverable Approved'
           : isRejected
           ? 'Gate Deliverable Rejected'
-          : 'Gate Deliverable Status Changed',
+          : 'Gate Deliverable Reviewed',
         'GateDeliverable',
         del.id,
-        `${del.name}: Status changed to ${newStatus}${comment ? ` (Reason: ${comment})` : ''}`,
+        `${del.name}: Status changed to ${newStatus}${comment ? ` (Notes: ${comment})` : ''}`,
         del.status,
         newStatus,
         user?.roleLabel,
@@ -315,6 +420,20 @@ export function GateDetailModal({
     await handleDeliverableStatusChange(rejectingDeliverable, 'Rejected', rejectionReason.trim());
     setRejectingDeliverable(null);
     setRejectionReason('');
+  };
+
+  const handleReviewModalDecision = async (decision: 'approve' | 'reject' | 'review') => {
+    if (!reviewingDeliverable) return;
+    if (decision === 'reject' && !reviewCommentsText.trim()) {
+      alert('Mandatory engineering rejection reason required when rejecting a deliverable.');
+      return;
+    }
+    const newStatus: DeliverableStatus =
+      decision === 'approve' ? 'Approved' : decision === 'reject' ? 'Rejected' : 'Under Review';
+
+    await handleDeliverableStatusChange(reviewingDeliverable, newStatus, reviewCommentsText.trim());
+    setReviewingDeliverable(null);
+    setReviewCommentsText('');
   };
 
   const handleSubmitReview = async (e: React.FormEvent) => {
@@ -476,7 +595,7 @@ export function GateDetailModal({
                   : 'text-slate-500 hover:bg-slate-100'
               }`}
             >
-              <ChevronRight className="h-4 w-4" /> Lifecycle
+              <ChevronRight className="h-4 w-4" /> Project Gate Lifecycle
             </button>
 
             <button
@@ -810,7 +929,7 @@ export function GateDetailModal({
             </div>
           )}
 
-          {/* TAB C: KEY DELIVERABLES (WITH STRICT GATE REVIEWER APPROVAL CONTROLS) */}
+          {/* TAB C: KEY DELIVERABLES (WITH VIEW/DOWNLOAD & STRICT REVIEWER APPROVAL CONTROLS) */}
           {activeTab === 'deliverables' && (
             <div className="space-y-4 font-sans">
               <div className="flex items-center justify-between">
@@ -819,8 +938,8 @@ export function GateDetailModal({
                     Key Gate Deliverables ({deliverables.length})
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Review and approve attached deliverables. Action authority is restricted exclusively to the
-                    assigned Gate Reviewer (<strong>{gate.gate_reviewer || gate.reviewer_user_id || 'Sarah Jenkins'}</strong>).
+                    Deliverables must be backed by real task documents. Review & approval actions are restricted
+                    strictly to the assigned Gate Reviewer (<strong>{gate.gate_reviewer || gate.reviewer_user_id || 'Sarah Jenkins'}</strong>).
                   </p>
                 </div>
                 <button
@@ -844,7 +963,7 @@ export function GateDetailModal({
                         type="text"
                         value={delName}
                         onChange={(e) => setDelName(e.target.value)}
-                        placeholder="e.g. PPAP Level 3 Quality Binder"
+                        placeholder="e.g. Review and verify"
                         className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-medium"
                         required
                       />
@@ -864,7 +983,7 @@ export function GateDetailModal({
                             </option>
                           ))
                         ) : (
-                          <option value="Sarah Jenkins">Sarah Jenkins</option>
+                          <option value="Administrator">Administrator</option>
                         )}
                       </select>
                     </div>
@@ -873,7 +992,10 @@ export function GateDetailModal({
                       <label className="block text-[11px] font-bold text-slate-700">Link Related Task</label>
                       <select
                         value={delTaskRef}
-                        onChange={(e) => setDelTaskRef(e.target.value)}
+                        onChange={(e) => {
+                          setDelTaskRef(e.target.value);
+                          setDelDocId(''); // Reset doc selector on task change
+                        }}
                         className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-medium cursor-pointer"
                       >
                         <option value="">No Related Task</option>
@@ -886,16 +1008,18 @@ export function GateDetailModal({
                     </div>
 
                     <div className="space-y-1">
-                      <label className="block text-[11px] font-bold text-slate-700">Link Task Document</label>
+                      <label className="block text-[11px] font-bold text-slate-700">
+                        Link Task Document (from {delTaskRef ? `Task ${delTaskRef}` : 'Tasks'})
+                      </label>
                       <select
-                        value={delDocRef}
-                        onChange={(e) => setDelDocRef(e.target.value)}
+                        value={delDocId}
+                        onChange={(e) => setDelDocId(e.target.value)}
                         className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-medium cursor-pointer"
                       >
                         <option value="">No Linked Document</option>
                         {contextualDocs.map((d: any) => (
-                          <option key={d.name} value={d.file_name || d.title}>
-                            {d.file_name || d.title} {d.task ? `[Task: ${d.task}]` : ''}
+                          <option key={d.name} value={d.name}>
+                            {d.file_name || d.title} {d.task ? `[${d.task}]` : ''}
                           </option>
                         ))}
                       </select>
@@ -930,6 +1054,8 @@ export function GateDetailModal({
                     const isApproved = del.status === 'Approved';
                     const isRejected = del.status === 'Rejected';
                     const isUnderReview = del.status === 'Under Review';
+                    const docItem = resolveDocument(del.linked_document_id, del.document_reference || del.linked_document_name);
+                    const docDisplayName = docItem ? (docItem.file_name || docItem.title) : del.linked_document_name || del.document_reference;
 
                     return (
                       <div
@@ -971,7 +1097,10 @@ export function GateDetailModal({
                                 {!isApproved && (
                                   <>
                                     <button
-                                      onClick={() => handleDeliverableStatusChange(del, 'Under Review')}
+                                      onClick={() => {
+                                        setReviewingDeliverable(del);
+                                        setReviewCommentsText('');
+                                      }}
                                       className="flex items-center gap-1 px-3 py-1.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
                                     >
                                       <Eye className="h-3.5 w-3.5" /> Review
@@ -1033,41 +1162,66 @@ export function GateDetailModal({
                           </div>
                         </div>
 
-                        {/* Metadata Row */}
-                        <div className="flex flex-wrap items-center gap-4 text-[11px] text-slate-500 pt-1 border-t border-slate-100">
-                          {del.responsible_person && (
-                            <span className="font-medium">
-                              Responsible:{' '}
-                              <strong className="text-slate-700">{del.responsible_person}</strong>
-                            </span>
-                          )}
-                          {del.related_task && (
-                            <span className="font-medium">
-                              Task Ref:{' '}
-                              <strong className="text-sky-700 font-mono">{del.related_task}</strong>
-                            </span>
-                          )}
-                          {del.document_reference && (
-                            <span className="font-medium flex items-center gap-1 text-emerald-700 font-mono">
-                              <FileText className="h-3 w-3" /> {del.document_reference}
-                            </span>
-                          )}
+                        {/* Full Deliverable Details Row */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] text-slate-600 pt-2 border-t border-slate-100 bg-slate-50/50 p-2.5 rounded-xl">
+                          <div>
+                            <span className="font-bold text-slate-500">Responsible Person: </span>
+                            <strong className="text-slate-800">{del.responsible_person || 'Administrator'}</strong>
+                          </div>
+
+                          <div>
+                            <span className="font-bold text-slate-500">Related Task: </span>
+                            <strong className="text-sky-800">
+                              {del.related_task_subject ? `${del.related_task_subject} (${del.related_task})` : del.related_task || 'None'}
+                            </strong>
+                          </div>
+
+                          {/* Linked Document with Direct View and Download Actions */}
+                          <div className="sm:col-span-2 flex items-center justify-between flex-wrap gap-2 pt-1 border-t border-slate-100/80">
+                            <div className="flex items-center gap-1.5">
+                              <span className="font-bold text-slate-500">Linked Task Document: </span>
+                              {docDisplayName ? (
+                                <span className="font-bold text-emerald-800 flex items-center gap-1">
+                                  <FileText className="h-3.5 w-3.5 text-emerald-600" />
+                                  <span>{docDisplayName}</span>
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 italic">No document attached</span>
+                              )}
+                            </div>
+
+                            {docDisplayName && (
+                              <div className="flex items-center gap-1.5">
+                                <button
+                                  type="button"
+                                  onClick={() => handleViewDeliverableDocument(del)}
+                                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-sky-700 text-[11px] font-bold border border-sky-200 transition cursor-pointer"
+                                >
+                                  <Eye className="h-3 w-3" /> View
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleDownloadDeliverableDocument(del)}
+                                  className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold border border-emerald-200 transition cursor-pointer"
+                                >
+                                  <Download className="h-3 w-3" /> Download
+                                </button>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* Created By & Date */}
+                          <div className="sm:col-span-2 text-[10px] text-slate-400 flex items-center justify-between pt-1">
+                            <span>Created by: {del.created_by || 'Administrator'}</span>
+                            {del.created_at && <span>Created on: {del.created_at}</span>}
+                          </div>
                         </div>
 
                         {/* Approval Info Box */}
-                        {(del.approved_by || isApproved || isRejected) && (
-                          <div
-                            className={`p-3 rounded-xl text-xs space-y-0.5 border ${
-                              isApproved
-                                ? 'bg-emerald-50/70 border-emerald-200 text-emerald-900'
-                                : 'bg-rose-50/70 border-rose-200 text-rose-900'
-                            }`}
-                          >
+                        {(del.approved_by || isApproved) && (
+                          <div className="p-3 rounded-xl text-xs space-y-0.5 border bg-emerald-50/70 border-emerald-200 text-emerald-900">
                             <div className="flex items-center justify-between font-bold">
-                              <span>
-                                {isApproved ? 'Approved by:' : 'Rejected by:'}{' '}
-                                {del.approved_by || gate.gate_reviewer || 'Sarah Jenkins'}
-                              </span>
+                              <span>Approved by: {del.approved_by || gate.gate_reviewer || 'Sarah Jenkins'}</span>
                               {del.approved_at && (
                                 <span className="font-mono text-[10px] text-slate-500">
                                   {new Date(del.approved_at).toLocaleDateString()}
@@ -1079,6 +1233,23 @@ export function GateDetailModal({
                                 &quot;{del.approval_comment}&quot;
                               </p>
                             )}
+                          </div>
+                        )}
+
+                        {/* Rejection Info Box */}
+                        {(del.rejected_by || isRejected) && (
+                          <div className="p-3 rounded-xl text-xs space-y-0.5 border bg-rose-50/70 border-rose-200 text-rose-900">
+                            <div className="flex items-center justify-between font-bold">
+                              <span>Rejected by: {del.rejected_by || del.approved_by || gate.gate_reviewer || 'Sarah Jenkins'}</span>
+                              {del.rejected_at && (
+                                <span className="font-mono text-[10px] text-slate-500">
+                                  {new Date(del.rejected_at).toLocaleDateString()}
+                                </span>
+                              )}
+                            </div>
+                            <p className="text-[11px] text-rose-800 font-medium">
+                              Reason: {del.rejection_reason || del.approval_comment || 'Correction required'}
+                            </p>
                           </div>
                         )}
                       </div>
@@ -1225,43 +1396,142 @@ export function GateDetailModal({
             </div>
           )}
 
-          {/* TAB E: LIFECYCLE PROGRESSION */}
+          {/* TAB E: REAL PROJECT GATE LIFECYCLE (REMOVED HARDCODED STATIC PHASES) */}
           {activeTab === 'workflow' && (
-            <div className="space-y-4 font-sans text-xs">
-              <div className="p-4 rounded-2xl bg-slate-50 border border-slate-200 space-y-3">
-                <h4 className="font-bold text-slate-800">APQP Gate Progression Sequence</h4>
-                <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
-                  <div className="p-3 rounded-xl bg-white border border-emerald-200 space-y-1">
-                    <span className="text-[10px] font-black text-emerald-700 uppercase">Phase 1</span>
-                    <p className="font-bold text-slate-800">Concept & Feasibility</p>
-                    <p className="text-[10px] text-slate-500">Charter, preliminary BOM, customer RFQ</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
-                    <span className="text-[10px] font-black text-slate-500 uppercase">Phase 2</span>
-                    <p className="font-bold text-slate-800">Product Design Freeze</p>
-                    <p className="text-[10px] text-slate-500">CAD, DFMEA, CAE simulations</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
-                    <span className="text-[10px] font-black text-slate-500 uppercase">Phase 3</span>
-                    <p className="font-bold text-slate-800">Process & Tooling Release</p>
-                    <p className="text-[10px] text-slate-500">PFMEA, tooling kickoff, control plans</p>
-                  </div>
-                  <div className="p-3 rounded-xl bg-white border border-slate-200 space-y-1">
-                    <span className="text-[10px] font-black text-slate-500 uppercase">Phase 4</span>
-                    <p className="font-bold text-slate-800">PPAP & Launch</p>
-                    <p className="text-[10px] text-slate-500">PPAP Level 3, line trials, SOP ramp</p>
-                  </div>
+            <div className="space-y-5 font-sans text-xs">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div>
+                  <h4 className="font-black text-slate-900 uppercase tracking-wider text-sm">
+                    Project Stage-Gate Lifecycle
+                  </h4>
+                  <p className="text-slate-500 text-xs">
+                    Real persisted Gate milestones for Project {gate.project || 'General'}. Current gate is highlighted.
+                  </p>
                 </div>
+                <span className="font-mono text-xs font-bold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                  {projectGates.length} Total Gate(s)
+                </span>
+              </div>
+
+              {/* Chronological Gate Progression Sequence */}
+              <div className="space-y-3">
+                {projectGates.map((g, idx) => {
+                  const isCurrent = g.name === gate.name;
+                  const isApproved = g.status === 'Approved';
+                  const isReady = g.status === 'Ready for Review';
+                  const gReadiness = g.readiness_percentage !== undefined ? g.readiness_percentage : isApproved ? 100 : isReady ? 85 : 50;
+
+                  return (
+                    <div
+                      key={g.name}
+                      className={`p-4 rounded-2xl border transition ${
+                        isCurrent
+                          ? 'bg-emerald-50/40 border-emerald-400 shadow-md ring-2 ring-emerald-500/20'
+                          : isApproved
+                          ? 'bg-white border-slate-200 opacity-90'
+                          : 'bg-slate-50/60 border-slate-200'
+                      }`}
+                    >
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+                        <div className="flex items-center gap-3">
+                          <div
+                            className={`p-2 rounded-xl text-xs font-black ${
+                              isApproved
+                                ? 'bg-emerald-600 text-white'
+                                : isCurrent
+                                ? 'bg-emerald-500 text-white animate-pulse'
+                                : 'bg-slate-200 text-slate-700'
+                            }`}
+                          >
+                            Gate {idx + 1}
+                          </div>
+
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-bold text-slate-900 text-xs">{g.gate_name}</span>
+                              {isCurrent && (
+                                <span className="px-2 py-0.5 rounded-full text-[10px] font-black bg-emerald-600 text-white">
+                                  Current Gate
+                                </span>
+                              )}
+                            </div>
+                            <div className="text-[11px] text-slate-500 flex items-center gap-3 mt-0.5">
+                              <span>Phase: {g.gate_type}</span>
+                              <span>Owner: {g.gate_owner}</span>
+                              <span>Reviewer: {g.gate_reviewer || 'Sarah Jenkins'}</span>
+                              {g.planned_date && <span>Target: {g.planned_date}</span>}
+                            </div>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-3 shrink-0">
+                          <div className="text-right">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Readiness</span>
+                            <p className="font-bold text-emerald-700 font-mono text-xs">{gReadiness}%</p>
+                          </div>
+
+                          <span
+                            className={`px-2.5 py-1 rounded-lg text-[10px] font-black uppercase ${
+                              isApproved
+                                ? 'bg-emerald-100 text-emerald-800'
+                                : isReady
+                                ? 'bg-sky-100 text-sky-800'
+                                : g.status === 'Blocked'
+                                ? 'bg-rose-100 text-rose-800'
+                                : 'bg-slate-100 text-slate-700'
+                            }`}
+                          >
+                            {g.status}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Current Gate Context KPIs */}
+                      {isCurrent && (
+                        <div className="mt-3 pt-3 border-t border-emerald-200/60 grid grid-cols-2 sm:grid-cols-4 gap-2 text-[11px]">
+                          <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Tasks Progress</span>
+                            <p className="font-bold text-slate-800 mt-0.5">
+                              {projectTasks.filter((t: any) => t.status === 'Completed').length} / {projectTasks.length} Completed
+                            </p>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Required Deliverables</span>
+                            <p className="font-bold text-slate-800 mt-0.5">
+                              {completedRequiredDeliverables} / {requiredDeliverables.length} Completed
+                            </p>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Required Criteria</span>
+                            <p className="font-bold text-slate-800 mt-0.5">
+                              {completedRequiredCriteria} / {requiredCriteria.length} Satisfied
+                            </p>
+                          </div>
+                          <div className="bg-white p-2.5 rounded-xl border border-emerald-100">
+                            <span className="text-[10px] font-bold text-slate-400 uppercase">Sign-off Decision</span>
+                            <p className="font-bold text-emerald-700 mt-0.5">{gate.approval_status || 'Pending'}</p>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
             </div>
           )}
 
-          {/* TAB F: AUDIT LOG */}
+          {/* TAB F: PERSISTED AUDIT HISTORY */}
           {activeTab === 'activity' && (
             <div className="space-y-3 font-sans text-xs">
-              <h4 className="font-black text-slate-800 uppercase tracking-wider">
-                Gate Milestone Activity Log
-              </h4>
+              <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                <h4 className="font-black text-slate-800 uppercase tracking-wider">
+                  Gate & Project Activity Log
+                </h4>
+                <span className="text-slate-500 font-bold text-[11px]">
+                  Project: {gate.project || 'General'}
+                </span>
+              </div>
+
               {(!gate.activity_log || gate.activity_log.length === 0) ? (
                 <div className="p-4 text-center text-slate-400 bg-slate-50 rounded-xl border border-slate-200">
                   No activity events recorded yet.
@@ -1270,19 +1540,138 @@ export function GateDetailModal({
                 gate.activity_log.map((act) => (
                   <div key={act.id} className="flex items-center justify-between p-3 rounded-xl bg-slate-50 border border-slate-200">
                     <div className="space-y-0.5">
-                      <span className="font-bold text-slate-800">{act.action}</span>
+                      <div className="flex items-center gap-2">
+                        <span className="font-bold text-slate-800">{act.action}</span>
+                        {act.details && <span className="text-slate-500">• {act.details}</span>}
+                      </div>
                       <p className="text-[11px] text-slate-500">By {act.user}</p>
                     </div>
-                    <span className="font-mono text-[10px] text-slate-400">{act.timestamp}</span>
+                    <span className="font-mono text-[10px] text-slate-400 shrink-0">{act.timestamp}</span>
                   </div>
                 ))
               )}
             </div>
           )}
 
-          {/* Rejection Dialog Modal */}
+          {/* Dedicated Deliverable Review Modal for Assigned Gate Reviewer */}
+          {reviewingDeliverable && (
+            <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs font-sans">
+              <div className="bg-white p-6 rounded-3xl max-w-lg w-full border border-slate-200 shadow-2xl space-y-4">
+                <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                  <div className="flex items-center gap-2 text-emerald-800 font-bold">
+                    <ShieldCheck className="h-5 w-5 text-emerald-600" />
+                    <span className="text-sm">Review Key Gate Deliverable</span>
+                  </div>
+                  <button
+                    onClick={() => {
+                      setReviewingDeliverable(null);
+                      setReviewCommentsText('');
+                    }}
+                    className="p-1 text-slate-400 hover:text-slate-700 rounded-lg"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-3 text-xs">
+                  <div className="p-3.5 rounded-2xl bg-slate-50 border border-slate-200 space-y-2">
+                    <div>
+                      <span className="text-[10px] font-bold text-slate-400 uppercase">Deliverable Title</span>
+                      <p className="font-bold text-slate-900 text-sm">{reviewingDeliverable.name}</p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 pt-1 border-t border-slate-200/60">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Responsible Person</span>
+                        <p className="font-bold text-slate-800">{reviewingDeliverable.responsible_person || 'Administrator'}</p>
+                      </div>
+
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase">Related Task</span>
+                        <p className="font-bold text-sky-800 font-mono">
+                          {reviewingDeliverable.related_task_subject
+                            ? `${reviewingDeliverable.related_task_subject} (${reviewingDeliverable.related_task})`
+                            : reviewingDeliverable.related_task || 'None'}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* Supporting Document with Direct View & Download */}
+                    <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between">
+                      <div>
+                        <span className="text-[10px] font-bold text-slate-400 uppercase block">Supporting Document</span>
+                        <span className="font-bold text-emerald-800 flex items-center gap-1">
+                          <FileText className="h-3.5 w-3.5 text-emerald-600" />
+                          {reviewingDeliverable.linked_document_name || reviewingDeliverable.document_reference || 'No document attached'}
+                        </span>
+                      </div>
+
+                      {(reviewingDeliverable.linked_document_name || reviewingDeliverable.document_reference) && (
+                        <div className="flex items-center gap-1.5">
+                          <button
+                            type="button"
+                            onClick={() => handleViewDeliverableDocument(reviewingDeliverable)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-white hover:bg-slate-100 text-sky-700 text-[11px] font-bold border border-sky-200 transition cursor-pointer"
+                          >
+                            <Eye className="h-3 w-3" /> View
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleDownloadDeliverableDocument(reviewingDeliverable)}
+                            className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-emerald-50 hover:bg-emerald-100 text-emerald-700 text-[11px] font-bold border border-emerald-200 transition cursor-pointer"
+                          >
+                            <Download className="h-3 w-3" /> Download
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="space-y-1.5">
+                    <label className="block text-xs font-bold text-slate-700">Review Findings & Evaluation Comments</label>
+                    <textarea
+                      rows={3}
+                      value={reviewCommentsText}
+                      onChange={(e) => setReviewCommentsText(e.target.value)}
+                      placeholder="Enter technical verification observations, compliance checks, or rejection findings..."
+                      className="w-full px-3 py-2 rounded-xl bg-white border border-slate-200 text-xs font-medium focus:outline-none focus:ring-2 focus:ring-emerald-500"
+                    />
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                  <button
+                    type="button"
+                    onClick={() => handleReviewModalDecision('reject')}
+                    className="flex items-center gap-1 px-4 py-2 rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 text-xs font-bold border border-rose-200 transition cursor-pointer"
+                  >
+                    <ThumbsDown className="h-4 w-4" /> Reject Deliverable
+                  </button>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handleReviewModalDecision('review')}
+                      className="px-3.5 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 text-xs font-bold transition cursor-pointer"
+                    >
+                      Mark Under Review
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => handleReviewModalDecision('approve')}
+                      className="flex items-center gap-1 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold transition cursor-pointer shadow-xs"
+                    >
+                      <ThumbsUp className="h-4 w-4" /> Approve Deliverable
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Direct Rejection Reason Dialog Modal */}
           {rejectingDeliverable && (
-            <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+            <div className="fixed inset-0 z-60 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs font-sans">
               <div className="bg-white p-6 rounded-2xl max-w-md w-full border border-rose-200 shadow-2xl space-y-4">
                 <div className="flex items-center gap-2 text-rose-600 font-bold">
                   <ThumbsDown className="h-5 w-5" />
@@ -1322,6 +1711,15 @@ export function GateDetailModal({
                 </div>
               </div>
             </div>
+          )}
+
+          {/* Full Document Viewer Modal */}
+          {viewingDoc && (
+            <DocumentViewerModal
+              document={viewingDoc}
+              isOpen={!!viewingDoc}
+              onClose={() => setViewingDoc(null)}
+            />
           )}
         </motion.div>
       </div>
