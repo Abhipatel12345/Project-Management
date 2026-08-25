@@ -73,6 +73,8 @@ export default function DesignReviewPage() {
         approval_status: values.approval_status,
         description: values.description,
         notes: values.notes,
+        documents: values.documents,
+        files: values.files,
         findings: [],
       });
 
@@ -104,6 +106,8 @@ export default function DesignReviewPage() {
           approval_status: values.approval_status,
           description: values.description,
           notes: values.notes,
+          documents: values.documents,
+          files: values.files,
         },
       });
 

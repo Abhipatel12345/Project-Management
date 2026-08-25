@@ -33,6 +33,9 @@ import {
   AlertCircle,
   FileCheck,
 } from 'lucide-react';
+import { DocumentViewerModal } from '@/components/documents/document-viewer-modal';
+import { DocumentItem } from '@/types/document.types';
+import documentService from '@/services/document.service';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface DesignReviewDetailModalProps {
@@ -75,6 +78,46 @@ export function DesignReviewDetailModal({
   // Rejection modal
   const [isRejectModalOpen, setIsRejectModalOpen] = useState(false);
   const [rejectionComment, setRejectionComment] = useState('');
+
+  // Document Viewer Modal State
+  const [viewingDoc, setViewingDoc] = useState<DocumentItem | null>(null);
+  const [downloadingDocId, setDownloadingDocId] = useState<string | null>(null);
+
+  const handleViewDocument = (doc: any) => {
+    setViewingDoc({
+      name: doc.id || doc.name,
+      title: doc.file_name || doc.name || 'Document',
+      document_type: 'Design',
+      project: review.project || 'General',
+      status: 'Approved',
+      review_status: 'Approved',
+      version: 'v1.0',
+      uploaded_by: doc.uploaded_by || 'Administrator',
+      upload_date: doc.uploaded_at || new Date().toISOString(),
+      file_name: doc.file_name || 'document.pdf',
+      file_size: doc.file_size || 1024,
+      file_url: doc.file_url || `/api/documents/${encodeURIComponent(doc.id || doc.name)}/download`,
+    });
+  };
+
+  const handleDownloadDocument = async (doc: any) => {
+    const docId = doc.id || doc.name;
+    const fileName = doc.file_name || doc.name || 'document.pdf';
+    setDownloadingDocId(docId);
+    try {
+      await documentService.downloadDocument(review.project || 'GLOBAL', docId, fileName);
+    } catch (err: any) {
+      console.warn('Download service error, using direct browser download fallback', err);
+      const link = document.createElement('a');
+      link.href = doc.file_url || `/api/documents/${encodeURIComponent(docId)}/download`;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    } finally {
+      setDownloadingDocId(null);
+    }
+  };
 
   const handleCreateFinding = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -348,49 +391,64 @@ export function DesignReviewDetailModal({
 
           {/* Associated Documents & Attachments Section */}
           <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
-            <h3 className="text-xs font-black uppercase tracking-wider text-slate-700 flex items-center gap-1.5">
-              <Paperclip className="h-4 w-4 text-indigo-600" />
-              Attached Design Documents & Specifications ({review.documents?.length || 0})
-            </h3>
+            <div className="flex items-center justify-between">
+              <h3 className="text-xs font-black uppercase tracking-wider text-slate-800 flex items-center gap-1.5">
+                <Paperclip className="h-4 w-4 text-indigo-600" />
+                Design Review Documents ({review.documents?.length || 0})
+              </h3>
+            </div>
 
             {!review.documents || review.documents.length === 0 ? (
-              <p className="text-xs text-slate-400 italic py-1">
-                No CAD models or specifications attached to this review.
+              <p className="text-xs text-slate-400 italic py-2">
+                No CAD models or specifications attached to this review yet.
               </p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                 {review.documents.map((doc) => (
                   <div
                     key={doc.id || doc.name}
-                    className="p-3 bg-slate-50 rounded-xl border border-slate-200 flex items-center justify-between text-xs"
+                    className="p-3.5 bg-slate-50 hover:bg-slate-100/80 rounded-2xl border border-slate-200 flex flex-col justify-between gap-3 text-xs transition"
                   >
-                    <div className="flex items-center gap-2 overflow-hidden">
-                      <FileText className="h-4 w-4 text-indigo-600 shrink-0" />
-                      <div className="truncate">
-                        <span className="font-bold text-slate-800 block truncate">
+                    <div className="flex items-start gap-2.5">
+                      <div className="p-2 rounded-xl bg-indigo-50 text-indigo-600 border border-indigo-200 shrink-0">
+                        <FileText className="h-4 w-4" />
+                      </div>
+                      <div className="space-y-0.5 min-w-0 flex-1">
+                        <span className="font-bold text-slate-900 block truncate" title={doc.file_name || doc.name}>
                           {doc.file_name || doc.name}
                         </span>
-                        {doc.uploaded_at && (
-                          <span className="text-[10px] text-slate-400 font-mono">
-                            {new Date(doc.uploaded_at).toLocaleDateString()}
-                          </span>
-                        )}
+                        <div className="flex flex-wrap items-center gap-2 text-[10px] text-slate-500 font-medium">
+                          {doc.uploaded_by && <span>By: <strong className="text-slate-700">{doc.uploaded_by}</strong></span>}
+                          {doc.file_size && <span>• {Math.round(doc.file_size > 1024 ? doc.file_size / 1024 : doc.file_size)} KB</span>}
+                          {doc.uploaded_at && (
+                            <span>• {new Date(doc.uploaded_at).toLocaleDateString()}</span>
+                          )}
+                        </div>
                       </div>
                     </div>
 
-                    <a
-                      href={
-                        doc.file_url ||
-                        `/api/projects/${encodeURIComponent(
-                          review.project || 'GLOBAL'
-                        )}/documents/${encodeURIComponent(doc.id || doc.name)}/download`
-                      }
-                      target="_blank"
-                      rel="noreferrer"
-                      className="px-2.5 py-1 rounded-lg bg-indigo-50 text-indigo-700 hover:bg-indigo-100 font-bold text-[11px] flex items-center gap-1 transition shrink-0"
-                    >
-                      <Download className="h-3 w-3" /> View
-                    </a>
+                    <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200/60">
+                      <button
+                        type="button"
+                        onClick={() => handleViewDocument(doc)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white border border-slate-200 hover:bg-indigo-50 hover:text-indigo-700 text-slate-700 font-bold text-xs shadow-2xs transition cursor-pointer"
+                        title="Preview Document"
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        <span>View</span>
+                      </button>
+
+                      <button
+                        type="button"
+                        onClick={() => handleDownloadDocument(doc)}
+                        disabled={downloadingDocId === (doc.id || doc.name)}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white font-bold text-xs shadow-2xs transition cursor-pointer disabled:opacity-50"
+                        title="Download Original File"
+                      >
+                        <Download className="h-3.5 w-3.5" />
+                        <span>{downloadingDocId === (doc.id || doc.name) ? 'Downloading...' : 'Download'}</span>
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -632,6 +690,15 @@ export function DesignReviewDetailModal({
               </div>
             </motion.div>
           </div>
+        )}
+
+        {/* Document Previewer Modal */}
+        {viewingDoc && (
+          <DocumentViewerModal
+            document={viewingDoc}
+            isOpen={!!viewingDoc}
+            onClose={() => setViewingDoc(null)}
+          />
         )}
       </div>
     </AnimatePresence>

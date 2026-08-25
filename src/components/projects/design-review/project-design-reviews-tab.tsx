@@ -55,6 +55,8 @@ export function ProjectDesignReviewsTab({ projectId, projectName }: ProjectDesig
         approval_status: values.approval_status,
         description: values.description,
         notes: values.notes,
+        documents: values.documents,
+        files: values.files,
         findings: [],
       });
       showToast(`Design Review ${newReview.name} scheduled for ${projectId}`, 'success');
@@ -85,6 +87,8 @@ export function ProjectDesignReviewsTab({ projectId, projectName }: ProjectDesig
           approval_status: values.approval_status,
           description: values.description,
           notes: values.notes,
+          documents: values.documents,
+          files: values.files,
         },
       });
       showToast(`Design Review ${editingReview.name} updated`, 'success');

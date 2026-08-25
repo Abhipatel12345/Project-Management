@@ -46,6 +46,12 @@ export interface DesignReviewFormValues {
     uploaded_by?: string;
     uploaded_at?: string;
   }[];
+  files?: {
+    name: string;
+    size: number;
+    dataUrl: string;
+    mimeType?: string;
+  }[];
 }
 
 interface AttachedFileItem {
@@ -211,6 +217,11 @@ export function DesignReviewFormDialog({
       await onSubmit({
         ...values,
         documents: uploadedDocsList,
+        files: attachedFiles.map((att) => ({
+          name: att.name,
+          size: att.size,
+          dataUrl: att.dataUrl,
+        })),
       });
 
       auditService.logAction(

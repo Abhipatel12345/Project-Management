@@ -59,3 +59,21 @@ export function useDeleteDesignReview() {
     },
   });
 }
+
+export function useUploadDesignReviewDocument() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      name,
+      file,
+    }: {
+      name: string;
+      file: { name: string; size: number; dataUrl: string; mimeType?: string };
+    }) => designReviewService.uploadReviewDocument(name, file),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['design-reviews'] });
+      queryClient.invalidateQueries({ queryKey: ['documents'] });
+    },
+  });
+}
