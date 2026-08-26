@@ -8,6 +8,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { useAuth } from '@/providers/auth-context';
+import { accessControlService, getRoleLandingPage } from '@/services/access-control.service';
 import {
   Car,
   Eye,
@@ -33,7 +34,7 @@ type LoginFormValues = z.infer<typeof loginSchema>;
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login, isAuthenticated } = useAuth();
+  const { user, login, isAuthenticated } = useAuth();
   
   const [showPassword, setShowPassword] = useState(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
@@ -41,9 +42,19 @@ function LoginForm() {
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
-    if (isAuthenticated) {
-      const redirectPath = searchParams.get('redirect') || '/dashboard';
-      router.push(redirectPath);
+    if (isAuthenticated && user) {
+      const redirectQuery = searchParams.get('redirect');
+      let targetPath = getRoleLandingPage(user.role);
+
+      // If a redirect was requested, verify if this specific user role is authorized for it!
+      if (redirectQuery && redirectQuery !== '/login' && redirectQuery !== '/') {
+        const canAccess = accessControlService.canAccessPage(user, redirectQuery).allowed;
+        if (canAccess) {
+          targetPath = redirectQuery;
+        }
+      }
+
+      router.push(targetPath);
     }
 
     if (searchParams.get('session_expired') === 'true') {
@@ -51,7 +62,7 @@ function LoginForm() {
     } else if (searchParams.get('logout') === 'success') {
       setInfoMessage('You have been successfully logged out.');
     }
-  }, [isAuthenticated, searchParams, router]);
+  }, [isAuthenticated, user, searchParams, router]);
 
   const {
     register,

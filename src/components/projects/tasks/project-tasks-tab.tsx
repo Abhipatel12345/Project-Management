@@ -12,6 +12,7 @@ import { TaskMemberDetailModal } from '@/components/tasks/task-member-detail-mod
 import { TaskFormDialog } from '@/components/tasks/task-form-dialog';
 import { TaskDeleteDialog } from '@/components/tasks/task-delete-dialog';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
+import { TaskExcelUploadDialog } from '@/components/tasks/task-excel-upload-dialog';
 import { TaskFormValues } from '@/lib/validations/task.schema';
 import {
   Search,
@@ -22,6 +23,7 @@ import {
   AlertTriangle,
   Loader2,
   CheckSquare,
+  FileSpreadsheet,
 } from 'lucide-react';
 
 import { useToast } from '@/providers/toast-context';
@@ -42,6 +44,7 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
 
   // Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isExcelUploadOpen, setIsExcelUploadOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
   const [viewingTask, setViewingTask] = useState<Task | null>(null);
@@ -266,6 +269,15 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
           </div>
 
           <button
+            onClick={() => setIsExcelUploadOpen(true)}
+            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition cursor-pointer"
+            title="Upload Excel spreadsheet to batch create tasks"
+          >
+            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+            <span>Upload Excel</span>
+          </button>
+
+          <button
             onClick={() => setIsCreateOpen(true)}
             className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
           >
@@ -422,6 +434,16 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
         member={selectedMember}
         onClose={() => setSelectedMember(null)}
         onViewTask={(t) => setViewingTask(t)}
+      />
+
+      {/* Excel Task Import Dialog */}
+      <TaskExcelUploadDialog
+        isOpen={isExcelUploadOpen}
+        onClose={() => setIsExcelUploadOpen(false)}
+        projectId={projectId}
+        projectName={projectName}
+        existingTaskSubjects={tasks.map((t: Task) => t.subject)}
+        onSuccess={() => refetch()}
       />
     </div>
   );

@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQueryClient } from '@tanstack/react-query';
 import authService, { UserDetails, LoginPayload } from '@/services/auth.service';
 import { PDMRole, PDMPermissions } from '@/types/auth.types';
+import { getRoleLandingPage } from '@/services/access-control.service';
 
 interface AuthContextType {
   user: UserDetails | null;
@@ -53,15 +54,19 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setIsLoading(true);
     try {
       const res = await authService.login(credentials);
+      let loggedUser: UserDetails | null = null;
       if (res && res.user) {
+        loggedUser = res.user;
         setUser(res.user);
         if (typeof window !== 'undefined') {
           localStorage.setItem('pdm_user_session', JSON.stringify(res.user));
         }
       } else {
-        await checkSession();
+        loggedUser = await authService.getLoggedUser();
+        setUser(loggedUser);
       }
-      router.push('/dashboard');
+      const landing = getRoleLandingPage(loggedUser?.role);
+      router.push(landing);
     } catch (err) {
       setIsLoading(false);
       throw err;

@@ -78,11 +78,36 @@ export const ROLE_PAGE_PERMISSIONS: Record<PDMRole, string[]> = {
     '/gates/review',
     '/gates',
     '/design-review',
+    '/documents',
+    '/projects',
+    '/projects/[id]',
     '/notifications',
     '/connection-test',
     '/settings',
   ],
 };
+
+/**
+ * Resolves the primary landing page / dashboard URL for an authenticated user role
+ */
+export function getRoleLandingPage(role: PDMRole | null | undefined): string {
+  switch (role) {
+    case 'admin':
+      return '/dashboard';
+    case 'projectmanager':
+      return '/dashboard';
+    case 'gate_reviewer':
+      return '/dashboard';
+    case 'warehouse_user':
+      return '/warehouse';
+    case 'teammember':
+      return '/dashboard';
+    case 'it_admin':
+      return '/dashboard';
+    default:
+      return '/dashboard';
+  }
+}
 
 export const accessControlService = {
   /**
