@@ -4,7 +4,9 @@ import { ProjectBaseline } from '@/types/baseline.types';
 import { calculateDayDiff, calculateDurationDays } from '@/services/baseline.service';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskPriorityBadge } from './task-priority-badge';
-import { useTaskComments, useTaskAttachments, useTask, useTaskSubmissions } from '@/hooks/use-tasks';
+import { useTaskComments, useTaskAttachments, useTask, useTaskSubmissions, useTasks } from '@/hooks/use-tasks';
+import { useTaskDependencies, useDeleteDependency } from '@/hooks/use-task-dependencies';
+import { AddDependencyDialog } from './dependencies/add-dependency-dialog';
 import { resolveUserDisplayName } from '@/services/task.service';
 import { useIssues, useCreateIssue } from '@/hooks/use-issues';
 import { IssueFormDialog, IssueFormValues } from '@/components/issues/issue-form-dialog';
@@ -34,6 +36,11 @@ import {
   Eye,
   FileCheck,
   ExternalLink,
+  GitFork,
+  Lock,
+  ArrowRight,
+  ArrowDown,
+  Trash2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -52,10 +59,23 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
   >('overview');
   const [isCreateIssueOpen, setIsCreateIssueOpen] = useState(false);
   const [isSkipDialogOpen, setIsSkipDialogOpen] = useState(false);
+  const [isAddDependencyOpen, setIsAddDependencyOpen] = useState(false);
 
   const taskName = task?.name || '';
   const { data: freshTask } = useTask(taskName);
   const currentTask = freshTask || task;
+
+  // Task Dependencies
+  const { data: dependencyInfo, refetch: refetchDependencies } = useTaskDependencies(
+    taskName,
+    currentTask?.project
+  );
+  const { data: projectTasksData } = useTasks({
+    project: currentTask?.project,
+    pageSize: 100,
+  });
+  const projectTasks: Task[] = projectTasksData?.tasks || [];
+  const deleteDepMutation = useDeleteDependency();
 
   const { data: comments = [] } = useTaskComments(taskName);
   const { data: attachments = [] } = useTaskAttachments(taskName);
@@ -268,6 +288,18 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
             </button>
 
             <button
+              onClick={() => setActiveTab('dependencies')}
+              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
+                activeTab === 'dependencies' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
+              }`}
+            >
+              <GitFork className="h-3.5 w-3.5 text-sky-600" />
+              <span>
+                Dependencies ({(dependencyInfo?.predecessors?.length || 0) + (dependencyInfo?.successors?.length || 0)})
+              </span>
+            </button>
+
+            <button
               onClick={() => setActiveTab('assignment')}
               className={`pb-2.5 px-3 border-b-2 transition cursor-pointer ${
                 activeTab === 'assignment' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
@@ -308,6 +340,22 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
           <div className="p-6 space-y-6 max-h-[65vh] overflow-y-auto">
             {activeTab === 'overview' && (
               <div className="space-y-6">
+                {/* Blocked Dependency Alert */}
+                {dependencyInfo?.is_blocked && (
+                  <div className="p-4 rounded-2xl bg-amber-50 border border-amber-300 text-amber-950 text-xs space-y-1.5 shadow-2xs">
+                    <div className="flex items-center gap-2 font-black text-amber-900">
+                      <Lock className="h-4 w-4 text-amber-700 shrink-0" />
+                      <span>
+                        Blocked by Predecessor Task:{' '}
+                        {dependencyInfo.blocked_by.map((b: { subject: string }) => b.subject).join(', ')}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-amber-800 font-medium">
+                      Reason: {dependencyInfo.blocked_by[0]?.reason || 'Waiting for predecessor task to complete before this task can start.'}
+                    </p>
+                  </div>
+                )}
+
                 {/* Task Submission Notice & Deliverables Card */}
                 {submissions.length > 0 && (
                   <div className="p-4 rounded-2xl bg-sky-50/80 border border-sky-200 text-xs space-y-3 shadow-2xs">
@@ -493,6 +541,90 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
                   <p className="text-xs text-slate-700 leading-relaxed font-medium whitespace-pre-wrap">
                     {task.description || 'No detailed scope description provided for this work package.'}
                   </p>
+                </div>
+
+                {/* Task Dependencies Section */}
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between">
+                    <h4 className="text-xs font-black uppercase tracking-wider text-sky-800 flex items-center gap-1.5">
+                      <GitFork className="h-4 w-4 text-sky-600" />
+                      Task Dependencies ({((dependencyInfo?.predecessors?.length || 0) + (dependencyInfo?.successors?.length || 0))})
+                    </h4>
+                    <button
+                      type="button"
+                      onClick={() => setIsAddDependencyOpen(true)}
+                      className="px-2.5 py-1 rounded-xl bg-sky-600 text-white text-[11px] font-bold hover:bg-sky-500 transition shadow-2xs flex items-center gap-1 cursor-pointer"
+                    >
+                      <Plus className="h-3.5 w-3.5" /> Link Dependency
+                    </button>
+                  </div>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    {/* Predecessors */}
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                        Predecessors (Must Happen Before)
+                      </span>
+                      {dependencyInfo?.predecessors?.length === 0 ? (
+                        <p className="text-[11px] text-slate-400 italic">No predecessor constraints (Entry Task).</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {dependencyInfo?.predecessors.map((p: any) => (
+                            <div
+                              key={p.dependency_id}
+                              className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between gap-2 shadow-2xs"
+                            >
+                              <div className="truncate flex-1">
+                                <span className="font-mono text-[9px] text-sky-600 block">{p.task_id}</span>
+                                <span className="font-bold text-xs text-slate-900 truncate block">{p.subject}</span>
+                                {p.is_blocking && (
+                                  <span className="text-[10px] text-amber-700 font-medium flex items-center gap-1 mt-0.5">
+                                    <Lock className="h-2.5 w-2.5" /> Blocking
+                                  </span>
+                                )}
+                              </div>
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-sky-50 text-sky-700 font-bold border border-sky-200">
+                                  {p.dependency_type}
+                                </span>
+                                <TaskStatusBadge status={p.status} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Successors */}
+                    <div className="p-3 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                      <span className="text-[10px] font-black uppercase tracking-wider text-slate-400 block">
+                        Successors (Depends on this Task)
+                      </span>
+                      {dependencyInfo?.successors?.length === 0 ? (
+                        <p className="text-[11px] text-slate-400 italic">No successor constraints (Terminal Task).</p>
+                      ) : (
+                        <div className="space-y-1.5">
+                          {dependencyInfo?.successors.map((s: any) => (
+                            <div
+                              key={s.dependency_id}
+                              className="p-2 bg-white rounded-lg border border-slate-200 flex items-center justify-between gap-2 shadow-2xs"
+                            >
+                              <div className="truncate flex-1">
+                                <span className="font-mono text-[9px] text-sky-600 block">{s.task_id}</span>
+                                <span className="font-bold text-xs text-slate-900 truncate block">{s.subject}</span>
+                              </div>
+                              <div className="flex flex-col items-end gap-1">
+                                <span className="text-[9px] px-1.5 py-0.2 rounded bg-sky-50 text-sky-700 font-bold border border-sky-200">
+                                  {s.dependency_type}
+                                </span>
+                                <TaskStatusBadge status={s.status} />
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Task Issues Summary Box */}
@@ -824,6 +956,190 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
               </div>
             )}
 
+            {/* TAB: DEPENDENCIES */}
+            {activeTab === 'dependencies' && (
+              <div className="space-y-5 text-xs font-sans">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <h4 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                      <GitFork className="h-4 w-4 text-sky-600" />
+                      Task Execution Dependencies & Relationships
+                    </h4>
+                    <p className="text-[11px] text-slate-500 font-medium">
+                      Control execution sequencing, predecessors, and successor handoffs
+                    </p>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddDependencyOpen(true)}
+                    className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-xs transition flex items-center gap-1.5 cursor-pointer"
+                  >
+                    <Plus className="h-4 w-4" /> Link Dependency
+                  </button>
+                </div>
+
+                {/* Predecessors List */}
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <span className="font-black text-slate-800 text-xs flex items-center gap-1.5">
+                      <ArrowRight className="h-3.5 w-3.5 text-sky-600" />
+                      Predecessor Tasks (Must Happen Before "{task.subject}")
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 font-bold text-slate-600">
+                      {dependencyInfo?.predecessors?.length || 0}
+                    </span>
+                  </div>
+
+                  {dependencyInfo?.predecessors?.length === 0 ? (
+                    <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-1">
+                      <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto" />
+                      <p className="font-bold text-slate-700">No Predecessors Required</p>
+                      <p className="text-[11px] text-slate-400">
+                        This task has no inbound dependencies and can be started immediately.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {dependencyInfo?.predecessors.map((pred: any) => (
+                        <div
+                          key={pred.dependency_id}
+                          className={`p-3 rounded-xl border flex items-center justify-between gap-3 shadow-2xs transition ${
+                            pred.is_blocking
+                              ? 'bg-amber-50/70 border-amber-300'
+                              : 'bg-white border-slate-200 hover:bg-slate-50/70'
+                          }`}
+                        >
+                          <div className="truncate flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono font-bold text-sky-600">
+                                {pred.task_id}
+                              </span>
+                              <span className="font-bold text-slate-900 text-xs truncate">
+                                {pred.subject}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
+                              <span className="font-bold text-slate-700">
+                                Type: {pred.dependency_type === 'FS' ? 'Finish-to-Start (FS)' : pred.dependency_type}
+                              </span>
+                              <span>•</span>
+                              <span>Progress: {pred.progress}%</span>
+                              {pred.is_blocking && (
+                                <>
+                                  <span>•</span>
+                                  <span className="text-amber-700 font-bold flex items-center gap-1">
+                                    <Lock className="h-3 w-3" /> Waiting for completion
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <TaskStatusBadge status={pred.status} />
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await deleteDepMutation.mutateAsync({
+                                    projectId: task.project || '',
+                                    dependencyId: pred.dependency_id,
+                                  });
+                                  showToast('Dependency removed', 'info');
+                                  refetchDependencies();
+                                  onRefresh?.();
+                                } catch (err: any) {
+                                  showToast(err.message || 'Failed to remove dependency', 'error');
+                                }
+                              }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                              title="Remove Link"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Successors List */}
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+                  <div className="flex items-center justify-between border-b border-slate-100 pb-2">
+                    <span className="font-black text-slate-800 text-xs flex items-center gap-1.5">
+                      <ArrowRight className="h-3.5 w-3.5 text-indigo-600" />
+                      Successor Tasks (Waiting for "{task.subject}")
+                    </span>
+                    <span className="text-[10px] px-2 py-0.5 rounded-full bg-slate-100 font-bold text-slate-600">
+                      {dependencyInfo?.successors?.length || 0}
+                    </span>
+                  </div>
+
+                  {dependencyInfo?.successors?.length === 0 ? (
+                    <div className="p-6 text-center bg-slate-50 rounded-xl border border-dashed border-slate-200 space-y-1">
+                      <CheckCircle2 className="h-6 w-6 text-sky-500 mx-auto" />
+                      <p className="font-bold text-slate-700">No Successors Configured</p>
+                      <p className="text-[11px] text-slate-400">
+                        No downstream deliverables are currently blocked by this task.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {dependencyInfo?.successors.map((succ: any) => (
+                        <div
+                          key={succ.dependency_id}
+                          className="p-3 rounded-xl bg-white border border-slate-200 flex items-center justify-between gap-3 shadow-2xs hover:bg-slate-50/70 transition"
+                        >
+                          <div className="truncate flex-1">
+                            <div className="flex items-center gap-2">
+                              <span className="text-[10px] font-mono font-bold text-sky-600">
+                                {succ.task_id}
+                              </span>
+                              <span className="font-bold text-slate-900 text-xs truncate">
+                                {succ.subject}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-3 text-[11px] text-slate-500 mt-1">
+                              <span className="font-bold text-slate-700">
+                                Type: {succ.dependency_type === 'FS' ? 'Finish-to-Start (FS)' : succ.dependency_type}
+                              </span>
+                              <span>•</span>
+                              <span>Progress: {succ.progress}%</span>
+                            </div>
+                          </div>
+
+                          <div className="flex items-center gap-2 shrink-0">
+                            <TaskStatusBadge status={succ.status} />
+                            <button
+                              type="button"
+                              onClick={async () => {
+                                try {
+                                  await deleteDepMutation.mutateAsync({
+                                    projectId: task.project || '',
+                                    dependencyId: succ.dependency_id,
+                                  });
+                                  showToast('Dependency removed', 'info');
+                                  refetchDependencies();
+                                  onRefresh?.();
+                                } catch (err: any) {
+                                  showToast(err.message || 'Failed to remove dependency', 'error');
+                                }
+                              }}
+                              className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                              title="Remove Link"
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
+            )}
+
             {/* TAB: COMMENTS */}
             {activeTab === 'comments' && (
               <div className="space-y-3 text-xs">
@@ -912,6 +1228,21 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
             task={task}
             onClose={() => setIsSkipDialogOpen(false)}
             onSubmitSkipRequest={handleSkipRequestSubmit}
+          />
+        )}
+
+        {/* Add Dependency Dialog */}
+        {isAddDependencyOpen && (
+          <AddDependencyDialog
+            isOpen={isAddDependencyOpen}
+            onClose={() => setIsAddDependencyOpen(false)}
+            projectId={currentTask?.project || ''}
+            tasks={projectTasks}
+            initialSuccessorId={task.name}
+            onSuccess={() => {
+              refetchDependencies();
+              onRefresh?.();
+            }}
           />
         )}
       </div>

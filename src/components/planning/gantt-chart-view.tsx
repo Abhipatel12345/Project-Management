@@ -2,7 +2,9 @@ import React, { useState, useMemo } from 'react';
 import { Task } from '@/types/task.types';
 import { ProjectTeamMember } from '@/types/team.types';
 import { ProjectBaseline } from '@/types/baseline.types';
+import { TaskRelationship } from '@/types/task-dependency.types';
 import { TaskStatusBadge } from '@/components/tasks/task-status-badge';
+import { useProjectDependencies } from '@/hooks/use-task-dependencies';
 import {
   ChevronLeft,
   ChevronRight,
@@ -14,6 +16,8 @@ import {
   Bookmark,
   Layers,
   SkipForward,
+  GitFork,
+  Lock,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 
@@ -64,6 +68,9 @@ export function GanttChartView({
   const [searchQuery, setSearchQuery] = useState('');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [priorityFilter, setPriorityFilter] = useState('ALL');
+
+  const projectId = tasks[0]?.project;
+  const { data: projectDependencies = [] } = useProjectDependencies(projectId);
 
   // Parse date helpers
   const parseDate = (dStr?: string): Date => {
@@ -499,6 +506,20 @@ export function GanttChartView({
                 const isCritical = criticalPathTaskIds.has(t.name);
                 const isSkipped = t.status === 'Skipped';
 
+                const taskPreds = projectDependencies.filter((d: TaskRelationship) => d.successor_id === t.name);
+                const isBlocked = taskPreds.some((d: TaskRelationship) => {
+                  const p = tasks.find((pt: Task) => pt.name === d.predecessor_id);
+                  return (
+                    d.dependency_type === 'FS' &&
+                    p &&
+                    p.status !== 'Completed' &&
+                    p.status !== 'Skipped'
+                  );
+                });
+                const hasDeps =
+                  taskPreds.length > 0 ||
+                  projectDependencies.some((d: TaskRelationship) => d.predecessor_id === t.name);
+
                 // Baseline Reference Bar positioning
                 const btSnapshot = activeBaseline?.tasks.find((bt) => bt.task_id === t.name);
                 const baselineBarSpan = btSnapshot
@@ -542,8 +563,18 @@ export function GanttChartView({
                       />
 
                       {/* Label & Progress */}
-                      <span className="truncate max-w-[110px] z-10 font-bold" title={t.subject}>
-                        {t.subject}
+                      <span className="truncate max-w-[110px] z-10 font-bold flex items-center gap-1" title={t.subject}>
+                        {isBlocked && (
+                          <span title="Blocked by predecessor deliverable">
+                            <Lock className="h-3 w-3 text-amber-600 shrink-0" />
+                          </span>
+                        )}
+                        {hasDeps && !isBlocked && (
+                          <span title="Linked to task dependencies">
+                            <GitFork className="h-2.5 w-2.5 text-sky-600 shrink-0" />
+                          </span>
+                        )}
+                        <span className="truncate">{t.subject}</span>
                       </span>
                       <span className="font-mono z-10 shrink-0 font-black">{t.progress || 0}%</span>
                     </motion.div>

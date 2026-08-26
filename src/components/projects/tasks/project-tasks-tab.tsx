@@ -14,11 +14,13 @@ import { TaskDeleteDialog } from '@/components/tasks/task-delete-dialog';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
 import { TaskExcelUploadDialog } from '@/components/tasks/task-excel-upload-dialog';
 import { TaskFormValues } from '@/lib/validations/task.schema';
+import { TaskDependencyGraph } from '@/components/tasks/dependencies/task-dependency-graph';
 import {
   Search,
   Plus,
   List,
   Kanban,
+  GitFork,
   RefreshCw,
   AlertTriangle,
   Loader2,
@@ -35,7 +37,7 @@ interface ProjectTasksTabProps {
 
 export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps) {
   const { showToast } = useToast();
-  const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
+  const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'dependencies'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedPriority, setSelectedPriority] = useState('ALL');
@@ -266,6 +268,17 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
               <Kanban className="h-3.5 w-3.5" />
               <span>Kanban</span>
             </button>
+            <button
+              onClick={() => setViewMode('dependencies')}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+                viewMode === 'dependencies'
+                  ? 'bg-white text-slate-900 shadow-2xs'
+                  : 'text-slate-500 hover:text-slate-900'
+              }`}
+            >
+              <GitFork className="h-3.5 w-3.5 text-sky-600" />
+              <span>Task Dependencies</span>
+            </button>
           </div>
 
           <button
@@ -287,110 +300,121 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
         </div>
       </div>
 
-      {/* Summary Metrics */}
-      <TaskSummaryCards summary={summary} />
-
-      {/* Filter Toolbar */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-          {/* Search */}
-          <div className="relative lg:col-span-2">
-            <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
-            <input
-              type="text"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search project tasks..."
-              className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition"
-            />
-          </div>
-
-          {/* Status */}
-          <div>
-            <select
-              value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
-            >
-              <option value="ALL">All Statuses</option>
-              <option value="Open">Open</option>
-              <option value="Working">Working / In Progress</option>
-              <option value="Pending Review">Pending Review</option>
-              <option value="Completed">Completed</option>
-              <option value="Cancelled">Cancelled</option>
-            </select>
-          </div>
-
-          {/* Priority */}
-          <div>
-            <select
-              value={selectedPriority}
-              onChange={(e) => setSelectedPriority(e.target.value)}
-              className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
-            >
-              <option value="ALL">All Priorities</option>
-              <option value="Low">Low</option>
-              <option value="Medium">Medium</option>
-              <option value="High">High</option>
-              <option value="Urgent">Urgent / Critical</option>
-            </select>
-          </div>
-
-          {/* Overdue */}
-          <div>
-            <button
-              onClick={() => setShowOverdueOnly(!showOverdueOnly)}
-              className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                showOverdueOnly
-                  ? 'bg-rose-50 text-rose-700 border-rose-200 shadow-2xs'
-                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-              }`}
-            >
-              <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
-              <span>{showOverdueOnly ? 'Overdue Only' : 'Overdue Filter'}</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Loading / Content */}
-      {isLoading ? (
-        <div className="p-12 rounded-2xl bg-white border border-slate-200 text-center space-y-3 shadow-xs">
-          <Loader2 className="h-7 w-7 text-sky-600 animate-spin mx-auto" />
-          <p className="text-xs text-slate-500 font-bold">Loading tasks for project {projectId}...</p>
-        </div>
-      ) : isError ? (
-        <div className="p-8 rounded-2xl bg-rose-50 border border-rose-200 text-center space-y-2">
-          <AlertTriangle className="h-6 w-6 text-rose-600 mx-auto" />
-          <h3 className="text-sm font-bold text-rose-900">ERPNext Task Error</h3>
-          <p className="text-xs text-rose-700">{(error as any)?.message || 'Failed to fetch project tasks.'}</p>
-        </div>
+      {viewMode === 'dependencies' ? (
+        <TaskDependencyGraph
+          projectId={projectId}
+          tasks={tasks}
+          onViewTask={(t) => setViewingTask(t)}
+          onEditTask={(t) => setEditingTask(t)}
+        />
       ) : (
         <>
-          {viewMode === 'list' ? (
-            <TaskTable
-              tasks={tasks}
-              onViewTask={(t) => setViewingTask(t)}
-              onEditTask={(t) => setEditingTask(t)}
-              onDeleteTask={(t) => setDeletingTask(t)}
-            />
-          ) : (
-            <TaskKanban
-              tasks={tasks}
-              onViewTask={(t) => setViewingTask(t)}
-              onEditTask={(t) => setEditingTask(t)}
-              onStatusChange={handleStatusChange}
-            />
-          )}
+          {/* Summary Metrics */}
+          <TaskSummaryCards summary={summary} />
 
-          {/* Member Workload & Task Allocation Section */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4">
-            <TaskWorkloadChart workloads={memberWorkloads} />
-            <TaskWorkloadTable
-              workloads={memberWorkloads}
-              onSelectMember={(mw) => setSelectedMember(mw)}
-            />
+          {/* Filter Toolbar */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
+              {/* Search */}
+              <div className="relative lg:col-span-2">
+                <Search className="absolute left-3 top-3 h-4 w-4 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Search project tasks..."
+                  className="w-full pl-9 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium placeholder-slate-400 focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition"
+                />
+              </div>
+
+              {/* Status */}
+              <div>
+                <select
+                  value={selectedStatus}
+                  onChange={(e) => setSelectedStatus(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
+                >
+                  <option value="ALL">All Statuses</option>
+                  <option value="Open">Open</option>
+                  <option value="Working">Working / In Progress</option>
+                  <option value="Pending Review">Pending Review</option>
+                  <option value="Completed">Completed</option>
+                  <option value="Cancelled">Cancelled</option>
+                </select>
+              </div>
+
+              {/* Priority */}
+              <div>
+                <select
+                  value={selectedPriority}
+                  onChange={(e) => setSelectedPriority(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
+                >
+                  <option value="ALL">All Priorities</option>
+                  <option value="Low">Low</option>
+                  <option value="Medium">Medium</option>
+                  <option value="High">High</option>
+                  <option value="Urgent">Urgent / Critical</option>
+                </select>
+              </div>
+
+              {/* Overdue */}
+              <div>
+                <button
+                  onClick={() => setShowOverdueOnly(!showOverdueOnly)}
+                  className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                    showOverdueOnly
+                      ? 'bg-rose-50 text-rose-700 border-rose-200 shadow-2xs'
+                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+                  }`}
+                >
+                  <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
+                  <span>{showOverdueOnly ? 'Overdue Only' : 'Overdue Filter'}</span>
+                </button>
+              </div>
+            </div>
           </div>
+
+          {/* Loading / Content */}
+          {isLoading ? (
+            <div className="p-12 rounded-2xl bg-white border border-slate-200 text-center space-y-3 shadow-xs">
+              <Loader2 className="h-7 w-7 text-sky-600 animate-spin mx-auto" />
+              <p className="text-xs text-slate-500 font-bold">Loading tasks for project {projectId}...</p>
+            </div>
+          ) : isError ? (
+            <div className="p-8 rounded-2xl bg-rose-50 border border-rose-200 text-center space-y-2">
+              <AlertTriangle className="h-6 w-6 text-rose-600 mx-auto" />
+              <h3 className="text-sm font-bold text-rose-900">ERPNext Task Error</h3>
+              <p className="text-xs text-rose-700">{(error as any)?.message || 'Failed to fetch project tasks.'}</p>
+            </div>
+          ) : (
+            <>
+              {viewMode === 'list' ? (
+                <TaskTable
+                  tasks={tasks}
+                  onViewTask={(t) => setViewingTask(t)}
+                  onEditTask={(t) => setEditingTask(t)}
+                  onDeleteTask={(t) => setDeletingTask(t)}
+                />
+              ) : (
+                <TaskKanban
+                  tasks={tasks}
+                  onViewTask={(t) => setViewingTask(t)}
+                  onEditTask={(t) => setEditingTask(t)}
+                  onStatusChange={handleStatusChange}
+                />
+              )}
+
+              {/* Member Workload & Task Allocation Section */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4">
+                <TaskWorkloadChart workloads={memberWorkloads} />
+                <TaskWorkloadTable
+                  workloads={memberWorkloads}
+                  onSelectMember={(mw) => setSelectedMember(mw)}
+                />
+              </div>
+            </>
+          )}
         </>
       )}
 
