@@ -261,24 +261,35 @@ export const projectConnectionsService = {
 
       // Ensure required child table rows for Material Request in ERPNext
       if (doctype === 'Material Request' && (!payload.items || payload.items.length === 0)) {
+        const itemCode = payload.item_code || payload.item || payload.production_item;
+        if (!itemCode || typeof itemCode !== 'string' || !itemCode.trim()) {
+          throw new Error('Please select a valid Item Code.');
+        }
+
         payload.items = [
           {
-            item_code: payload.item_code || payload.item || 'RAW-MAT-001',
+            item_code: itemCode.trim(),
             qty: Number(payload.qty) || 1,
             schedule_date: payload.schedule_date || new Date().toISOString().split('T')[0],
-            uom: 'Nos',
+            uom: payload.uom || 'Nos',
           },
         ];
       }
 
       // Ensure required child table rows for BOM in ERPNext
       if (doctype === 'BOM' && (!payload.items || payload.items.length === 0)) {
+        const itemCode = payload.item || payload.item_code || payload.production_item;
+        if (!itemCode || typeof itemCode !== 'string' || !itemCode.trim()) {
+          throw new Error('Please select a valid Item Code.');
+        }
+
         payload.items = [
           {
-            item_code: 'PART-001',
-            qty: 1,
-            uom: 'Nos',
-            rate: 50,
+            item_code: itemCode.trim(),
+            qty: Number(payload.quantity) || Number(payload.qty) || 1,
+            uom: payload.uom || 'Nos',
+            rate: 10,
+            do_not_explode: 1,
           },
         ];
       }
