@@ -74,7 +74,7 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
 
   // Clean auth layout for login page
   if (isAuthPage) {
-    return <main className="h-screen w-screen overflow-y-auto bg-[#F7F9FC] text-slate-900">{children}</main>;
+    return <main className="min-h-screen w-screen overflow-y-auto bg-[#0B132B] text-slate-900">{children}</main>;
   }
 
   return (
