@@ -99,6 +99,13 @@ export function getRoleNavSections(user: PDMUserSession | null): NavSection[] {
     const validItems: NavItem[] = [];
 
     for (const item of section.items) {
+      // Administrator sidebar exclusion: hide Users
+      if (user.role === 'admin') {
+        if (item.href === '/users') {
+          continue;
+        }
+      }
+
       // Gate Reviewer sidebar exclusions: hide Projects and Documents
       if (user.role === 'gate_reviewer') {
         if (item.href === '/projects' || item.href === '/documents') {
