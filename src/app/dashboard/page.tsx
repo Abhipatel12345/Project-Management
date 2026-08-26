@@ -28,6 +28,7 @@ import { BackButton } from '@/components/shared/back-button';
 import { ImportExportControls } from '@/components/shared/import-export-controls';
 import { useToast } from '@/providers/toast-context';
 import { GateReviewerDashboard } from '@/components/dashboard/gate-reviewer-dashboard';
+import { CreateUserModal } from '@/components/users/create-user-modal';
 import { getUserRasicRole } from '@/utils/user-matcher';
 import { PieChart, Pie, Cell, ResponsiveContainer, Tooltip as RechartsTooltip } from 'recharts';
 import {
@@ -111,12 +112,6 @@ function ITAdminDashboard() {
 
   const [usersList, setUsersList] = useState<UserRecord[]>([]);
   const [addUserModalOpen, setAddUserModalOpen] = useState(false);
-  const [newFullName, setNewFullName] = useState('');
-  const [newEmail, setNewEmail] = useState('');
-  const [newEmpId, setNewEmpId] = useState('');
-  const [newFunction, setNewFunction] = useState('Engineering');
-  const [newRole, setNewRole] = useState<'projectmanager' | 'teammember' | 'gate_reviewer' | 'warehouse_user' | 'admin' | 'it_admin'>('teammember');
-  const [newDepartment, setNewDepartment] = useState('Engineering');
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
 
   const loadLocalData = async () => {
@@ -128,38 +123,6 @@ function ITAdminDashboard() {
   useEffect(() => {
     loadLocalData();
   }, []);
-
-  const handleCreateUserSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      await userManagementService.addUser({
-        fullName: newFullName,
-        email: newEmail,
-        employeeId: newEmpId,
-        functionName: newFunction,
-        role: newRole,
-        department: newDepartment,
-      });
-      auditService.logAction(
-        user?.fullName || 'IT Admin',
-        'Created ERPNext User',
-        'User',
-        newEmail,
-        `Created ${newFullName} as ${newRole} in ${newFunction}`,
-        'None',
-        newRole,
-        user?.roleLabel
-      );
-      setAddUserModalOpen(false);
-      setNewFullName('');
-      setNewEmail('');
-      setNewEmpId('');
-      await loadLocalData();
-      showToast(`User ${newFullName} created in ERPNext successfully!`, 'success');
-    } catch (err: any) {
-      showToast(err.message || 'Failed to create user in ERPNext', 'error');
-    }
-  };
 
   const activeUsersCount = usersList.filter((u) => u.isActive).length;
   const inactiveUsersCount = usersList.filter((u) => !u.isActive).length;
@@ -187,7 +150,8 @@ function ITAdminDashboard() {
             onClick={() => setAddUserModalOpen(true)}
             className="px-4 py-2.5 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-2 shadow-xs cursor-pointer self-start sm:self-auto"
           >
-            <UserPlus className="h-4 w-4" /> + Add User
+            <UserPlus className="h-4 w-4" />
+            <span>+ Create User</span>
           </button>
         </div>
 
@@ -402,99 +366,12 @@ function ITAdminDashboard() {
         )}
       </div>
 
-      {/* Add User Modal */}
-      {addUserModalOpen && (
-        <div className="fixed inset-0 bg-slate-900/40 backdrop-blur-xs z-50 flex items-center justify-center p-4">
-          <form onSubmit={handleCreateUserSubmit} className="bg-white border border-slate-200 rounded-3xl p-6 max-w-lg w-full space-y-4 shadow-2xl">
-            <div className="flex items-center justify-between border-b border-slate-200 pb-3">
-              <h2 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <UserPlus className="h-5 w-5 text-sky-600" /> IT Admin — Onboard System User
-              </h2>
-              <button
-                type="button"
-                onClick={() => setAddUserModalOpen(false)}
-                className="text-slate-400 hover:text-slate-600 cursor-pointer"
-              >
-                <X className="h-5 w-5" />
-              </button>
-            </div>
-            <div className="grid grid-cols-2 gap-3 text-xs">
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Full Name</label>
-                <input
-                  type="text"
-                  required
-                  placeholder="e.g. Sarah Connor"
-                  value={newFullName}
-                  onChange={(e) => setNewFullName(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Email Address</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="sarah@pdm.netlink.com"
-                  value={newEmail}
-                  onChange={(e) => setNewEmail(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Employee ID</label>
-                <input
-                  type="text"
-                  placeholder="EMP-501"
-                  value={newEmpId}
-                  onChange={(e) => setNewEmpId(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white"
-                />
-              </div>
-              <div className="space-y-1">
-                <label className="font-bold text-slate-700">Function</label>
-                <input
-                  type="text"
-                  placeholder="Engineering"
-                  value={newFunction}
-                  onChange={(e) => setNewFunction(e.target.value)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 focus:outline-none focus:border-sky-500 focus:bg-white"
-                />
-              </div>
-              <div className="space-y-1 col-span-2">
-                <label className="font-bold text-slate-700">Assigned PDM Role</label>
-                <select
-                  value={newRole}
-                  onChange={(e) => setNewRole(e.target.value as any)}
-                  className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:outline-none focus:border-sky-500 focus:bg-white cursor-pointer"
-                >
-                  <option value="projectmanager">Project Manager (PMO Portfolio Leader)</option>
-                  <option value="teammember">Team Member (Design / Project Engineer)</option>
-                  <option value="gate_reviewer">Gate Reviewer (Executive Gate Sign-off Board)</option>
-                  <option value="warehouse_user">Warehouse User (Materials & Stock Specialist)</option>
-                  <option value="admin">PDM Administrator (PMO / Business System Admin)</option>
-                  <option value="it_admin">IT Administrator (User & Identity Admin)</option>
-                </select>
-              </div>
-            </div>
-            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200">
-              <button
-                type="button"
-                onClick={() => setAddUserModalOpen(false)}
-                className="px-4 py-2 text-xs font-bold rounded-xl bg-slate-100 text-slate-700 hover:bg-slate-200 transition"
-              >
-                Cancel
-              </button>
-              <button
-                type="submit"
-                className="px-4 py-2 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white shadow-xs transition"
-              >
-                Create User
-              </button>
-            </div>
-          </form>
-        </div>
-      )}
+      {/* Create User Modal (Unified Single Source of Truth) */}
+      <CreateUserModal
+        isOpen={addUserModalOpen}
+        onClose={() => setAddUserModalOpen(false)}
+        onSuccess={loadLocalData}
+      />
     </div>
   );
 }
