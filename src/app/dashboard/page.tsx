@@ -251,29 +251,26 @@ function ITAdminDashboard() {
             <p className="text-[11px] text-sky-100">Create a new user account with employee ID & role.</p>
           </button>
 
-          <button
-            onClick={() => {
-              const el = document.getElementById('user-table-section');
-              if (el) el.scrollIntoView({ behavior: 'smooth' });
-            }}
-            className="p-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-left transition shadow-xs space-y-1 cursor-pointer"
+          <Link
+            href="/users"
+            className="p-4 rounded-2xl bg-white hover:bg-slate-50 border border-slate-200 text-slate-800 text-left transition shadow-xs space-y-1 block cursor-pointer"
           >
             <div className="flex items-center justify-between font-extrabold text-xs">
               <span>User Management</span>
               <Users className="h-4 w-4 text-sky-600" />
             </div>
             <p className="text-[11px] text-slate-500">View user directory and toggle account status.</p>
-          </button>
+          </Link>
 
           <Link
-            href="/connection-test"
-            className="p-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-left transition shadow-xs space-y-1 block"
+            href="/users"
+            className="p-4 rounded-2xl bg-slate-100 hover:bg-slate-200 text-slate-800 text-left transition shadow-xs space-y-1 block cursor-pointer"
           >
             <div className="flex items-center justify-between font-extrabold text-xs">
               <span>Manage Access</span>
-              <Activity className="h-4 w-4 text-slate-600" />
+              <ShieldCheck className="h-4 w-4 text-sky-600" />
             </div>
-            <p className="text-[11px] text-slate-500">Test ERPNext API connection & role permissions.</p>
+            <p className="text-[11px] text-slate-500">Manage user accounts, roles and system permissions.</p>
           </Link>
         </div>
       </div>
