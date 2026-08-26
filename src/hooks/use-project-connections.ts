@@ -79,7 +79,7 @@ export function useSubmitConnectionRecord() {
 }
 
 export function useErpItems() {
-  return useQuery<{ name: string; item_name: string; item_group?: string; stock_uom?: string }[]>({
+  return useQuery<{ name: string; item_name: string; item_group?: string; stock_uom?: string; description?: string | null }[]>({
     queryKey: ['erp-items'],
     queryFn: () => projectConnectionsService.getErpItems(),
     staleTime: 1000 * 60 * 5, // 5 minutes

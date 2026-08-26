@@ -295,9 +295,9 @@ export const projectConnectionsService = {
   /**
    * Fetch standard ERPNext Item Master records for item dropdown selects
    */
-  async getErpItems(): Promise<{ name: string; item_name: string; item_group?: string; stock_uom?: string }[]> {
+  async getErpItems(): Promise<{ name: string; item_name: string; item_group?: string; stock_uom?: string; description?: string | null }[]> {
     try {
-      const fields = JSON.stringify(['name', 'item_name', 'item_group', 'stock_uom']);
+      const fields = JSON.stringify(['name', 'item_name', 'item_group', 'stock_uom', 'description']);
       const url = `/api/resource/Item?fields=${encodeURIComponent(fields)}&limit_page_length=500&order_by=name%20asc`;
       const response = await api.get<{ data: any[] }>(url);
       return Array.isArray(response.data) ? response.data : [];
