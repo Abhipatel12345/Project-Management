@@ -83,7 +83,6 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
     title: 'LAUNCH & INTELLIGENCE',
     items: [
       { title: 'Connection Test', href: '/connection-test', icon: Activity },
-      { title: 'Settings', href: '/settings', icon: Settings },
     ],
   },
 ];
