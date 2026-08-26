@@ -676,12 +676,6 @@ export default function ProjectDetailPage() {
                     </div>
                   </div>
                   <div>
-                    <span className="text-slate-500 font-medium">Total Costing Amount:</span>
-                    <div className="font-bold text-slate-900 mt-1 font-mono">
-                      ${(project.total_costing_amount || 0).toLocaleString()}
-                    </div>
-                  </div>
-                  <div>
                     <span className="text-slate-500 font-medium">Department:</span>
                     <div className="font-bold text-slate-900 mt-1">
                       {project.department || 'Vehicle Development'}
