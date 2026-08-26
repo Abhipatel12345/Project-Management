@@ -64,7 +64,7 @@ export default function ProjectDetailPage() {
 
   // Workspace Tabs
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'team' | 'tasks' | 'planning' | 'documents' | 'reviews' | 'gates' | 'issues' | 'activity' | 'connections' | 'materials'
+    'overview' | 'team' | 'tasks' | 'planning' | 'documents' | 'reviews' | 'gates' | 'issues' | 'activity' | 'connections'
   >('overview');
 
   // Horizontal Tab Scroll & Overflow Management
@@ -553,22 +553,6 @@ export default function ProjectDetailPage() {
             <Network className="h-4 w-4" />
             <span>Connections</span>
           </button>
-
-          {/* Tab 11: Material Requisitions */}
-          <button
-            ref={(el) => {
-              tabRefs.current['materials'] = el;
-            }}
-            onClick={() => setActiveTab('materials')}
-            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 ${
-              activeTab === 'materials'
-                ? 'bg-amber-600 text-white font-bold shadow-2xs'
-                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
-            }`}
-          >
-            <Boxes className="h-4 w-4" />
-            <span>Material Requisitions</span>
-          </button>
         </div>
 
         {/* Right Scroll Arrow */}
@@ -809,42 +793,6 @@ export default function ProjectDetailPage() {
           projectId={projectId}
           projectName={project.project_name || project.name}
         />
-      )}
-
-      {/* Tab 9: MATERIALS (Material Requisitions) */}
-      {activeTab === 'materials' && (
-        <div className="bg-white rounded-2xl border border-slate-200 p-6 shadow-xs space-y-6">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-100">
-            <div>
-              <h3 className="text-base font-bold text-slate-900 flex items-center gap-2">
-                <Boxes className="h-5 w-5 text-sky-600" /> Material Requisitions ({project.project_name})
-              </h3>
-              <p className="text-xs text-slate-500 mt-0.5">
-                Request prototype components and materials from the warehouse, track bin status, and confirm receipt.
-              </p>
-            </div>
-            <Link
-              href="/warehouse"
-              className="px-4 py-2.5 text-xs font-bold rounded-xl bg-sky-600 hover:bg-sky-500 text-white transition flex items-center gap-2 shadow-xs shrink-0"
-            >
-              <Boxes className="h-4 w-4" /> Open Warehouse Depot
-            </Link>
-          </div>
-
-          <div className="p-8 text-center bg-slate-50 border border-dashed border-slate-200 rounded-2xl space-y-3">
-            <Boxes className="h-10 w-10 text-sky-600 mx-auto" />
-            <h4 className="text-sm font-bold text-slate-900">Project Material Requisition System Active</h4>
-            <p className="text-xs text-slate-500 max-w-md mx-auto">
-              Material requests created here are dispatched to the Warehouse Depot. Warehouse users check stock, reserve bin items, and issue materials directly to project engineers.
-            </p>
-            <Link
-              href="/warehouse"
-              className="inline-flex items-center gap-2 px-4 py-2 text-xs font-bold rounded-xl bg-sky-600 text-white hover:bg-sky-500 transition shadow-xs"
-            >
-              Go to Warehouse Requisition Manager <ArrowRight className="h-3.5 w-3.5" />
-            </Link>
-          </div>
-        </div>
       )}
 
       {/* Edit Form Modal */}
