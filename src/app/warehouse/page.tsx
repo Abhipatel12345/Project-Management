@@ -39,12 +39,20 @@ export default function WarehousePage() {
   const [availStockInput, setAvailStockInput] = useState<number>(0);
   const [shortageRemarks, setShortageRemarks] = useState('');
   const [actionLoading, setActionLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
 
-  const loadData = () => {
-    const data = materialRequestService.getRequests();
-    setRequests(data);
-    if (data.length > 0 && !selectedReq) {
-      setSelectedReq(data[0]);
+  const loadData = async () => {
+    try {
+      setLoading(true);
+      const data = await materialRequestService.getRequestsFromERPNext();
+      setRequests(data);
+      if (data.length > 0 && !selectedReq) {
+        setSelectedReq(data[0]);
+      }
+    } catch (err) {
+      console.warn('Failed to load warehouse data:', err);
+    } finally {
+      setLoading(false);
     }
   };
 

@@ -99,39 +99,68 @@ export const materialRequestService = {
    */
   async getRequestsFromERPNext(): Promise<MaterialRequestItem[]> {
     try {
-      const fields = JSON.stringify(['name', 'title', 'status', 'schedule_date', 'transaction_date', 'creation', 'company']);
+      const fields = JSON.stringify([
+        'name',
+        'title',
+        'status',
+        'docstatus',
+        'material_request_type',
+        'transaction_date',
+        'schedule_date',
+        'creation',
+        'company',
+        'owner',
+      ]);
       const response = await api.get<{ data: any[] }>(
-        `/api/resource/Material Request?fields=${encodeURIComponent(fields)}&limit_page_length=50`
+        `/api/resource/Material Request?fields=${encodeURIComponent(
+          fields
+        )}&limit_page_length=100&order_by=modified%20desc`
       );
       const erpList = response.data || [];
       if (erpList.length > 0) {
-        return erpList.map((m, idx) => ({
-          name: m.name,
-          project: 'PROJ-0001',
-          projectName: m.title || 'EV Door Module Development',
-          requestedBy: 'pm@pdm.netlink.com',
-          requestedByName: 'Alex Morgan (Project Manager)',
-          materialCode: 'MAT-EXT-01',
-          materialName: m.title || 'Extruded Aluminum Prototype Component',
-          quantity: 15,
-          requiredDate: m.schedule_date || '2026-03-15',
-          priority: 'High',
-          warehouse: 'Main Engineering Stores',
-          status: m.status === 'Stopped' ? 'CLOSED' : m.status === 'Submitted' ? 'ISSUED' : 'REQUESTED',
-          availableStock: 25,
-          auditTrail: [
-            {
-              status: 'REQUESTED',
-              timestamp: m.creation || new Date().toISOString(),
-              updatedBy: 'Alex Morgan (Project Manager)',
-              remarks: 'Material Requisition saved in ERPNext.',
-            },
-          ],
-          createdAt: m.creation || new Date().toISOString(),
-        }));
+        return erpList.map((m) => {
+          const isSubmitted = m.docstatus === 1 || m.status === 'Submitted' || m.status === 'Pending';
+          const isDraft = m.docstatus === 0 || m.status === 'Draft';
+          let status: MaterialRequestStatus = 'REQUESTED';
+          if (isDraft) {
+            status = 'REQUESTED';
+          } else if (m.status === 'Stopped' || m.status === 'Cancelled') {
+            status = 'CLOSED';
+          } else if (m.status === 'Transferred' || m.status === 'Received') {
+            status = 'ISSUED';
+          } else {
+            status = 'REQUESTED';
+          }
+
+          return {
+            name: m.name,
+            project: 'PROJ-0058',
+            projectName: m.title || 'Window lifting mechanism',
+            requestedBy: m.owner || 'Administrator',
+            requestedByName: m.owner || 'Administrator',
+            materialCode: 'PDM-ITEM-020',
+            materialName: m.title || 'Lubricant (PDM-ITEM-020)',
+            quantity: 5,
+            requiredDate: m.schedule_date || m.transaction_date || '2026-08-30',
+            priority: 'High',
+            warehouse: 'Main Engineering Stores',
+            status,
+            docstatus: m.docstatus,
+            availableStock: 25,
+            auditTrail: [
+              {
+                status: isSubmitted ? 'WAREHOUSE_REVIEW' : 'REQUESTED',
+                timestamp: m.creation || new Date().toISOString(),
+                updatedBy: m.owner || 'Administrator',
+                remarks: `Material Request ${m.name} ${isSubmitted ? 'Submitted to Warehouse' : 'Draft'} in ERPNext.`,
+              },
+            ],
+            createdAt: m.creation || new Date().toISOString(),
+          };
+        });
       }
-    } catch {
-      // Fallback to client cache
+    } catch (err) {
+      console.warn('[Warehouse] Error fetching ERPNext Material Requests:', err);
     }
     return this.getRequests();
   },

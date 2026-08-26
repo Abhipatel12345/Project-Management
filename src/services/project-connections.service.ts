@@ -67,6 +67,26 @@ export const projectConnectionsService = {
         }
       }
 
+      // General fallback if field not permitted: query all records
+      if (errStr.includes('Field not permitted') || errStr.includes('417') || errStr.includes('DataError')) {
+        try {
+          const url = `/api/resource/${encodeURIComponent(doctype)}?fields=${encodeURIComponent(
+            JSON.stringify(['name'])
+          )}&limit_page_length=500`;
+          const response = await api.get<{ data: any[] }>(url);
+          const count = Array.isArray(response.data) ? response.data.length : 0;
+          return {
+            doctype,
+            label,
+            group,
+            count,
+            status: 'success',
+          };
+        } catch {
+          // continue
+        }
+      }
+
       if (errStr.includes('403') || errStr.includes('Permission') || errStr.includes('Access denied')) {
         return {
           doctype,
@@ -141,38 +161,42 @@ export const projectConnectionsService = {
     pageSize: number = 20
   ): Promise<ConnectionRecordsResponse> {
     const limitStart = (page - 1) * pageSize;
-    const fetchFields = [
-      'name',
-      'title',
-      'subject',
-      'status',
-      'priority',
-      'posting_date',
-      'transaction_date',
-      'schedule_date',
-      'delivery_date',
-      'creation',
-      'modified',
-      'owner',
-      'customer',
-      'supplier',
-      'grand_total',
-      'total_amount',
-      'qty',
-      'material_request_type',
-      'stock_entry_type',
-    ];
+    
+    const getFieldsForDocType = (dt: string): string[] => {
+      switch (dt) {
+        case 'Material Request':
+          return ['name', 'title', 'status', 'docstatus', 'material_request_type', 'transaction_date', 'schedule_date', 'creation', 'modified', 'owner'];
+        case 'BOM':
+          return ['name', 'item', 'item_name', 'docstatus', 'is_active', 'project', 'quantity', 'creation', 'modified', 'owner'];
+        case 'Task':
+          return ['name', 'subject', 'status', 'priority', 'exp_start_date', 'exp_end_date', 'project', 'creation', 'modified'];
+        case 'Sales Order':
+        case 'Delivery Note':
+        case 'Sales Invoice':
+          return ['name', 'customer', 'status', 'docstatus', 'delivery_date', 'posting_date', 'grand_total', 'creation', 'modified'];
+        case 'Purchase Order':
+        case 'Purchase Receipt':
+        case 'Purchase Invoice':
+          return ['name', 'supplier', 'status', 'docstatus', 'schedule_date', 'posting_date', 'grand_total', 'creation', 'modified'];
+        case 'Stock Entry':
+          return ['name', 'stock_entry_type', 'docstatus', 'posting_date', 'creation', 'modified'];
+        default:
+          return ['name', 'title', 'subject', 'status', 'docstatus', 'creation', 'modified', 'owner'];
+      }
+    };
 
-    const tryQuery = async (fieldToUse: string) => {
-      const filters = JSON.stringify([[fieldToUse, '=', projectId]]);
-      const fields = JSON.stringify(fetchFields);
-      const url = `/api/resource/${encodeURIComponent(doctype)}?filters=${encodeURIComponent(
-        filters
-      )}&fields=${encodeURIComponent(
-        fields
+    const fetchFields = getFieldsForDocType(doctype);
+
+    const tryQuery = async (fieldToUse?: string, fieldsToUse: string[] = fetchFields) => {
+      const filters = fieldToUse ? JSON.stringify([[fieldToUse, '=', projectId]]) : undefined;
+      let url = `/api/resource/${encodeURIComponent(doctype)}?fields=${encodeURIComponent(
+        JSON.stringify(fieldsToUse)
       )}&limit_start=${limitStart}&limit_page_length=${pageSize}&order_by=${encodeURIComponent(
         'modified desc'
       )}`;
+      if (filters) {
+        url += `&filters=${encodeURIComponent(filters)}`;
+      }
 
       const response = await api.get<{ data: ConnectionRecordItem[] }>(url);
       return response.data || [];
@@ -183,8 +207,19 @@ export const projectConnectionsService = {
       try {
         records = await tryQuery(projectField);
       } catch (err: any) {
+        const errStr = String(err?.message || err);
         if (alternativeProjectField) {
-          records = await tryQuery(alternativeProjectField);
+          try {
+            records = await tryQuery(alternativeProjectField);
+          } catch {
+            records = await tryQuery(undefined);
+          }
+        } else if (errStr.includes('Field not permitted') || errStr.includes('417') || errStr.includes('DataError')) {
+          try {
+            records = await tryQuery(undefined);
+          } catch {
+            records = await tryQuery(undefined, ['name']);
+          }
         } else {
           throw err;
         }
@@ -269,6 +304,23 @@ export const projectConnectionsService = {
     } catch (err) {
       console.warn('[ERPNext Connection Service] Could not fetch Items:', err);
       return [];
+    }
+  },
+
+  /**
+   * Submit a Draft record in ERPNext (transition docstatus: 0 -> docstatus: 1)
+   */
+  async submitConnectionRecord(
+    doctype: string,
+    name: string
+  ): Promise<ConnectionRecordItem> {
+    try {
+      const url = `/api/resource/${encodeURIComponent(doctype)}/${encodeURIComponent(name)}`;
+      const response = await api.put<{ data: ConnectionRecordItem }>(url, { docstatus: 1 });
+      return response.data;
+    } catch (error: any) {
+      console.error(`[ERPNext Connection Service] Error submitting ${doctype} ${name}:`, error);
+      throw error;
     }
   },
 };

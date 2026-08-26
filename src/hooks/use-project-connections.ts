@@ -61,6 +61,23 @@ export function useCreateConnectionRecord() {
   });
 }
 
+export function useSubmitConnectionRecord() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      doctype,
+      name,
+    }: {
+      doctype: string;
+      name: string;
+    }) => projectConnectionsService.submitConnectionRecord(doctype, name),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: CONNECTION_KEYS.all });
+    },
+  });
+}
+
 export function useErpItems() {
   return useQuery<{ name: string; item_name: string; item_group?: string; stock_uom?: string }[]>({
     queryKey: ['erp-items'],
