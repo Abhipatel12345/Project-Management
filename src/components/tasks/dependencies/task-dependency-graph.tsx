@@ -314,14 +314,14 @@ export function TaskDependencyGraph({
       {/* VIEW 1: INTERACTIVE FLOW GRAPH */}
       {viewStyle === 'flow' && (
         <div
-          className="p-6 rounded-3xl bg-slate-900 border border-slate-800 shadow-xl overflow-x-auto min-h-[420px] transition-transform origin-top-left"
+          className="p-6 rounded-3xl bg-slate-50 border border-slate-200 shadow-xs overflow-x-auto min-h-[420px] transition-transform origin-top-left"
           style={{ transform: `scale(${zoomLevel / 100})`, transformOrigin: 'top left' }}
         >
           {filteredNodes.length === 0 ? (
             <div className="p-12 text-center text-slate-400 space-y-2">
-              <GitFork className="h-10 w-10 mx-auto text-slate-600" />
-              <p className="text-sm font-bold text-slate-300">No tasks found matching criteria.</p>
-              <p className="text-xs text-slate-500">Add tasks or create dependencies to start visualizing.</p>
+              <GitFork className="h-10 w-10 mx-auto text-slate-300" />
+              <p className="text-sm font-bold text-slate-700">No tasks found matching criteria.</p>
+              <p className="text-xs text-slate-400">Add tasks or create dependencies to start visualizing.</p>
             </div>
           ) : (
             <div className="flex flex-col items-center space-y-8 max-w-4xl mx-auto">
@@ -329,7 +329,7 @@ export function TaskDependencyGraph({
                 <React.Fragment key={stageIndex}>
                   {/* Stage Row */}
                   <div className="w-full space-y-2">
-                    <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-1">
+                    <div className="flex items-center justify-between text-[11px] font-black uppercase tracking-wider text-slate-500 border-b border-slate-200 pb-1.5">
                       <span>
                         Stage {stageIndex + 1} ({nodesInStage.length} {nodesInStage.length === 1 ? 'Task' : 'Tasks'})
                       </span>
@@ -341,19 +341,19 @@ export function TaskDependencyGraph({
                         return (
                           <div
                             key={t.name}
-                            className={`p-4 rounded-2xl border transition shadow-lg relative group ${
+                            className={`p-4 rounded-2xl border transition shadow-xs hover:shadow-md relative group ${
                               node.isBlocked
-                                ? 'bg-slate-800/95 border-amber-500/70 ring-1 ring-amber-500/40'
-                                : 'bg-slate-800/90 border-slate-700 hover:border-sky-500/60'
+                                ? 'bg-amber-50/40 border-amber-300 ring-2 ring-amber-500/20'
+                                : 'bg-white border-slate-200 hover:border-sky-300'
                             }`}
                           >
                             {/* Card Header */}
                             <div className="flex items-start justify-between gap-2">
                               <div>
-                                <span className="text-[10px] font-mono font-bold text-sky-400 block">
+                                <span className="text-[10px] font-mono font-bold text-sky-600 block">
                                   {t.name}
                                 </span>
-                                <h4 className="text-xs font-bold text-white line-clamp-1 group-hover:text-sky-300 transition">
+                                <h4 className="text-xs font-bold text-slate-900 line-clamp-1 group-hover:text-sky-600 transition">
                                   {t.subject}
                                 </h4>
                               </div>
@@ -362,59 +362,59 @@ export function TaskDependencyGraph({
 
                             {/* Blocked Indicator Alert Banner */}
                             {node.isBlocked && (
-                              <div className="mt-2.5 p-2 rounded-xl bg-amber-500/15 border border-amber-500/30 text-amber-300 text-[11px] space-y-0.5">
-                                <div className="flex items-center gap-1 font-bold">
-                                  <Lock className="h-3 w-3 text-amber-400 shrink-0" />
+                              <div className="mt-2.5 p-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-900 text-[11px] space-y-0.5">
+                                <div className="flex items-center gap-1 font-bold text-amber-800">
+                                  <Lock className="h-3 w-3 text-amber-600 shrink-0" />
                                   <span>Blocked by Predecessor</span>
                                 </div>
-                                <div className="text-[10px] text-amber-200/90 truncate">
+                                <div className="text-[10px] text-amber-700/90 truncate">
                                   {node.blockingPredecessors[0]?.reason}
                                 </div>
                               </div>
                             )}
 
                             {/* Assignee & Dates */}
-                            <div className="mt-3 pt-2.5 border-t border-slate-700/60 flex items-center justify-between text-[11px] text-slate-300">
+                            <div className="mt-3 pt-2.5 border-t border-slate-100 flex items-center justify-between text-[11px] text-slate-600">
                               <div className="flex items-center gap-1.5 truncate max-w-[60%]">
-                                <div className="h-5 w-5 rounded-full bg-sky-600/30 border border-sky-400/40 text-sky-300 flex items-center justify-center text-[9px] font-black shrink-0">
+                                <div className="h-5 w-5 rounded-full bg-sky-50 border border-sky-200 text-sky-700 flex items-center justify-center text-[9px] font-black shrink-0">
                                   {(t.assigned_employee_name || t.assigned_to || 'U')[0].toUpperCase()}
                                 </div>
-                                <span className="truncate">
+                                <span className="truncate font-semibold text-slate-700">
                                   {t.assigned_employee_name || t.assigned_to || 'Unassigned'}
                                 </span>
                               </div>
-                              <div className="flex items-center gap-1 text-[10px] text-slate-400 font-mono">
-                                <Calendar className="h-3 w-3 text-slate-500" />
+                              <div className="flex items-center gap-1 text-[10px] text-slate-500 font-mono">
+                                <Calendar className="h-3 w-3 text-slate-400" />
                                 <span>{t.exp_end_date ? t.exp_end_date.split(' ')[0] : 'No Due Date'}</span>
                               </div>
                             </div>
 
                             {/* Progress Bar */}
                             <div className="mt-2 space-y-1">
-                              <div className="flex justify-between text-[10px] text-slate-400 font-bold">
+                              <div className="flex justify-between text-[10px] text-slate-500 font-bold">
                                 <span>Progress</span>
-                                <span>{t.progress || 0}%</span>
+                                <span className="font-mono text-slate-700">{t.progress || 0}%</span>
                               </div>
-                              <div className="w-full bg-slate-700 h-1.5 rounded-full overflow-hidden">
+                              <div className="w-full bg-slate-100 h-1.5 rounded-full overflow-hidden">
                                 <div
-                                  className="h-full bg-gradient-to-r from-sky-500 to-blue-500 transition-all duration-300"
+                                  className="h-full bg-gradient-to-r from-sky-500 to-blue-600 transition-all duration-300"
                                   style={{ width: `${t.progress || 0}%` }}
                                 />
                               </div>
                             </div>
 
                             {/* Predecessors & Successors badges */}
-                            <div className="mt-3 flex items-center justify-between text-[10px] pt-2 border-t border-slate-700/60">
-                              <div className="text-slate-400">
-                                <span className="font-bold text-sky-400">{node.predecessors.length}</span> In •{' '}
-                                <span className="font-bold text-indigo-400">{node.successors.length}</span> Out
+                            <div className="mt-3 flex items-center justify-between text-[10px] pt-2 border-t border-slate-100">
+                              <div className="text-slate-500 font-medium">
+                                <span className="font-bold text-sky-600">{node.predecessors.length}</span> In •{' '}
+                                <span className="font-bold text-indigo-600">{node.successors.length}</span> Out
                               </div>
 
                               <div className="flex items-center gap-1">
                                 <button
                                   type="button"
                                   onClick={() => handleOpenAddForTask(t.name, true)}
-                                  className="px-2 py-0.5 rounded-lg bg-sky-500/20 hover:bg-sky-500/30 text-sky-300 font-bold text-[10px] transition cursor-pointer"
+                                  className="px-2 py-0.5 rounded-lg bg-sky-50 hover:bg-sky-100 text-sky-700 font-bold text-[10px] border border-sky-200 transition cursor-pointer"
                                   title="Add Successor Task"
                                 >
                                   + Link
@@ -423,7 +423,7 @@ export function TaskDependencyGraph({
                                   <button
                                     type="button"
                                     onClick={() => onViewTask(t)}
-                                    className="p-1 rounded-lg bg-slate-700 hover:bg-slate-600 text-slate-300 transition cursor-pointer"
+                                    className="p-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-600 transition cursor-pointer"
                                     title="Open Task Details"
                                   >
                                     <Eye className="h-3 w-3" />
@@ -439,10 +439,10 @@ export function TaskDependencyGraph({
 
                   {/* Connecting Arrow between Stages */}
                   {idx < topologicalStages.length - 1 && (
-                    <div className="flex items-center justify-center my-2 text-sky-400">
-                      <div className="flex flex-col items-center bg-slate-800/80 px-3 py-1 rounded-full border border-sky-500/30 shadow-md">
-                        <ArrowDown className="h-4 w-4 animate-bounce" />
-                        <span className="text-[9px] font-black tracking-wider uppercase">Execution Flow</span>
+                    <div className="flex items-center justify-center my-2 text-sky-600">
+                      <div className="flex flex-col items-center bg-white px-3.5 py-1 rounded-full border border-sky-200 shadow-xs">
+                        <ArrowDown className="h-4 w-4 text-sky-600 animate-bounce" />
+                        <span className="text-[9px] font-black tracking-wider uppercase text-sky-700">Execution Flow</span>
                       </div>
                     </div>
                   )}
