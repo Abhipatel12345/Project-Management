@@ -104,7 +104,6 @@ function LoginForm() {
   const {
     register,
     handleSubmit,
-    setValue,
     formState: { errors },
   } = useForm<LoginFormValues>({
     resolver: zodResolver(loginSchema),
@@ -131,12 +130,6 @@ function LoginForm() {
     } finally {
       setIsSubmitting(false);
     }
-  };
-
-  const handleQuickRole = (usr: string, pwd: string = 'password') => {
-    setValue('usr', usr);
-    setValue('pwd', pwd);
-    onSubmit({ usr, pwd, rememberMe: true });
   };
 
   return (
@@ -403,63 +396,6 @@ function LoginForm() {
               </button>
             </div>
           </form>
-
-          {/* Quick Role Fill Buttons for Easy Executive Demo Testing */}
-          <div className="pt-3 border-t border-slate-100 space-y-2">
-            <div className="text-[10px] font-bold uppercase tracking-wider text-slate-400 text-center">
-              Executive Demo Quick Test Roles
-            </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 text-[11px]">
-              <button
-                type="button"
-                onClick={() => handleQuickRole('it_admin')}
-                className="py-2 px-2 rounded-xl bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 border border-slate-200 text-slate-700 font-semibold transition text-center truncate cursor-pointer shadow-2xs"
-                title="IT Admin — User Management"
-              >
-                1. IT Admin
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickRole('Administrator')}
-                className="py-2 px-2 rounded-xl bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 border border-slate-200 text-slate-700 font-semibold transition text-center truncate cursor-pointer shadow-2xs"
-                title="Administrator — Full Access"
-              >
-                2. Administrator
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickRole('sarahjenkins@gmail.com')}
-                className="py-2 px-2 rounded-xl bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 border border-slate-200 text-slate-700 font-semibold transition text-center truncate cursor-pointer shadow-2xs"
-                title="Project Manager (Sarah Jenkins) — Full PM Visibility"
-              >
-                3. Sarah Jenkins
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickRole('teammember@netlink.com')}
-                className="py-2 px-2 rounded-xl bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 border border-slate-200 text-slate-700 font-semibold transition text-center truncate cursor-pointer shadow-2xs"
-                title="Team Member (Yash) — Execution & My Tasks"
-              >
-                4. Yash
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickRole('warehousemanager@netlink.com')}
-                className="py-2 px-2 rounded-xl bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 border border-slate-200 text-slate-700 font-semibold transition text-center truncate cursor-pointer shadow-2xs"
-                title="Warehouse — Reserve & Issue Materials"
-              >
-                5. Warehouse
-              </button>
-              <button
-                type="button"
-                onClick={() => handleQuickRole('gatereviewer@netlink.com')}
-                className="py-2 px-2 rounded-xl bg-slate-50 hover:bg-sky-50 hover:text-sky-700 hover:border-sky-200 border border-slate-200 text-slate-700 font-semibold transition text-center truncate cursor-pointer shadow-2xs"
-                title="Gate Reviewer — Board Approval"
-              >
-                6. Gate Reviewer
-              </button>
-            </div>
-          </div>
 
           {/* Security Footer */}
           <div className="pt-3 border-t border-slate-100 text-center flex items-center justify-center gap-1.5 text-[11px] font-medium text-slate-500">
