@@ -99,6 +99,13 @@ export function getRoleNavSections(user: PDMUserSession | null): NavSection[] {
     const validItems: NavItem[] = [];
 
     for (const item of section.items) {
+      // Gate Reviewer sidebar exclusions: hide Projects and Documents
+      if (user.role === 'gate_reviewer') {
+        if (item.href === '/projects' || item.href === '/documents') {
+          continue;
+        }
+      }
+
       const canAccessMain = accessControlService.canAccessPage(user, item.href).allowed;
       let filteredChildren: NavChildItem[] | undefined = undefined;
 
