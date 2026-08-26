@@ -13,7 +13,6 @@ import {
   Calendar,
   DollarSign,
   Tag,
-  Percent,
   Layers,
   Sliders,
   AlertCircle,
@@ -84,7 +83,6 @@ export function ProjectFormDialog({
       project_type: 'Internal',
       custom_project_category: '',
       custom_product_group: '',
-      percent_complete: 0,
       expected_start_date: '',
       expected_end_date: '',
       estimated_cost: 0,
@@ -110,7 +108,6 @@ export function ProjectFormDialog({
         project_type: initialData.project_type || 'Internal',
         custom_project_category: initialData.custom_project_category || '',
         custom_product_group: initialData.custom_product_group || '',
-        percent_complete: initialData.percent_complete || 0,
         expected_start_date: initialData.expected_start_date || '',
         expected_end_date: initialData.expected_end_date || '',
         estimated_cost: initialData.estimated_cost || 0,
@@ -127,7 +124,6 @@ export function ProjectFormDialog({
         project_type: 'Internal',
         custom_project_category: '',
         custom_product_group: '',
-        percent_complete: 0,
         expected_start_date: '',
         expected_end_date: '',
         estimated_cost: 0,
@@ -438,38 +434,22 @@ export function ProjectFormDialog({
               </div>
             </div>
 
-            {/* Type & Percent Complete Row */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Project Type</label>
-                <div className="relative">
-                  <Tag className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
-                  <select
-                    {...register('project_type')}
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
-                  >
-                    <option value="">Select Project Type...</option>
-                    {PROJECT_TYPES.map((pt) => (
-                      <option key={pt} value={pt}>
-                        {pt}
-                      </option>
-                    ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Percent Complete (%)</label>
-                <div className="relative">
-                  <Percent className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
-                  <input
-                    {...register('percent_complete', { valueAsNumber: true })}
-                    type="number"
-                    min="0"
-                    max="100"
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition"
-                  />
-                </div>
+            {/* Project Type */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700">Project Type</label>
+              <div className="relative">
+                <Tag className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
+                <select
+                  {...register('project_type')}
+                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
+                >
+                  <option value="">Select Project Type...</option>
+                  {PROJECT_TYPES.map((pt) => (
+                    <option key={pt} value={pt}>
+                      {pt}
+                    </option>
+                  ))}
+                </select>
               </div>
             </div>
 

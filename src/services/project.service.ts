@@ -71,9 +71,16 @@ const cleanPayload = (data: Partial<Project>): Record<string, any> => {
   }
   delete payload.estimated_cost;
 
-  // Ensure percent_complete is a number
+  // Handle percent_complete: only include if explicitly provided as a valid number
   if (data.percent_complete !== undefined && data.percent_complete !== null && !Number.isNaN(Number(data.percent_complete))) {
     payload.percent_complete = Number(data.percent_complete);
+  } else {
+    delete payload.percent_complete;
+  }
+
+  // Ensure ERPNext required company field is always populated
+  if (!payload.company || typeof payload.company !== 'string' || payload.company.trim() === '') {
+    payload.company = 'Netlink';
   }
 
   // ERPNext select mappings
@@ -81,11 +88,16 @@ const cleanPayload = (data: Partial<Project>): Record<string, any> => {
     payload.priority = 'High';
   }
 
+  // Project Type fallback
+  if (!payload.project_type || payload.project_type.trim() === '') {
+    payload.project_type = 'Internal';
+  }
+
   // Remove empty string or default "Select..." entries for custom fields
-  if (payload.custom_project_category === 'Select' || payload.custom_project_category === '') {
+  if (payload.custom_project_category === 'Select' || payload.custom_project_category === '' || !payload.custom_project_category) {
     delete payload.custom_project_category;
   }
-  if (payload.custom_product_group === 'Select' || payload.custom_product_group === '') {
+  if (payload.custom_product_group === 'Select' || payload.custom_product_group === '' || !payload.custom_product_group) {
     delete payload.custom_product_group;
   }
 
@@ -104,8 +116,13 @@ const cleanPayload = (data: Partial<Project>): Record<string, any> => {
     }
   }
 
-  // Strip non-existent ERPNext fields
+  // Strip non-DocType fields and metadata fields that must not be sent in creation payload
   delete payload.custom_product_line;
+  delete payload.custom_upload_document;
+  delete payload.owner;
+  if (!payload.department || payload.department.trim() === '') {
+    delete payload.department;
+  }
 
   // Log final payload before POST/PUT request (STEP 1)
   console.log('[ERPNext API Request] Project Payload:', JSON.stringify(payload, null, 2));

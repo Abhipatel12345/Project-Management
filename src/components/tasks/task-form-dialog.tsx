@@ -415,22 +415,6 @@ export function TaskFormDialog({
               </div>
             </div>
 
-            {/* Progress % */}
-            <div className="space-y-1.5 p-3 rounded-2xl bg-slate-50 border border-slate-200">
-              <div className="flex justify-between items-center text-xs">
-                <label className="font-bold text-slate-700">Task Completion Progress</label>
-                <span className="font-mono font-black text-sky-600">{watch('progress') || 0}%</span>
-              </div>
-              <input
-                {...register('progress')}
-                type="range"
-                min="0"
-                max="100"
-                step="5"
-                className="w-full accent-sky-600 cursor-pointer"
-              />
-            </div>
-
             {/* Description */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700">Engineering Description & Scope</label>

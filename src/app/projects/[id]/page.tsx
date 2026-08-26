@@ -690,10 +690,6 @@ export default function ProjectDetailPage() {
                 <h3 className="text-sm font-bold text-slate-900">System Metadata</h3>
                 <div className="space-y-3 text-xs">
                   <div className="flex justify-between py-1.5 border-b border-slate-100">
-                    <span className="text-slate-500 font-medium">ERPNext DocType:</span>
-                    <span className="font-mono font-bold text-sky-600 bg-sky-50 px-2 py-0.5 rounded border border-sky-100">Project</span>
-                  </div>
-                  <div className="flex justify-between py-1.5 border-b border-slate-100">
                     <span className="text-slate-500 font-medium">Created:</span>
                     <span className="text-slate-800 font-bold font-mono">
                       {project.creation ? new Date(project.creation).toLocaleDateString() : 'N/A'}

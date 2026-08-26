@@ -24,7 +24,7 @@ export const projectFormSchema = z.object({
   custom_project_category: z.string().optional(),
   custom_product_group: z.string().optional(),
   custom_product_line: z.string().optional(),
-  percent_complete: preprocessNumber(0),
+  percent_complete: preprocessNumber(undefined),
   expected_start_date: z.string().optional(),
   expected_end_date: z.string().optional(),
   estimated_cost: preprocessNumber(undefined),
