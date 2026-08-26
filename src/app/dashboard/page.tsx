@@ -172,10 +172,10 @@ function ITAdminDashboard() {
           <div className="space-y-1">
             <div className="flex items-center gap-2">
               <h1 className="text-xl font-bold tracking-tight text-slate-900">
-                {user?.fullName || 'IT Administrator'}
+                {user?.fullName || 'IT Admin'}
               </h1>
               <span className="px-2.5 py-0.5 text-[10px] font-extrabold uppercase tracking-wider rounded-md bg-sky-50 text-sky-700 border border-sky-200">
-                {user?.roleLabel || 'PDM User Administrator'}
+                {user?.roleLabel || 'IT Admin'}
               </span>
             </div>
             <p className="text-xs text-slate-500">

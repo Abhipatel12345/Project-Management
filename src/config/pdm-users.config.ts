@@ -20,7 +20,7 @@ export const PDM_ROLE_PERMISSIONS: Record<PDMRole, { label: string; permissions:
     },
   },
   it_admin: {
-    label: 'IT Administrator',
+    label: 'IT Admin',
     permissions: {
       manageUsers: true,
       manageProjects: false,
@@ -126,9 +126,9 @@ export const STANDARD_PDM_USERS: Record<string, Omit<PDMUserSession, 'permission
   it_admin: {
     username: 'it_admin',
     email: 'itadmin@pdm.netlink.com',
-    fullName: 'IT Security & User Admin',
+    fullName: 'IT Admin',
     role: 'it_admin',
-    roleLabel: 'IT Administrator',
+    roleLabel: 'IT Admin',
     department: 'Information Technology',
     functionName: 'IT',
     employeeId: 'EMP-002',

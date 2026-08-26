@@ -8,6 +8,7 @@ export interface AccessCheckResult {
 export const ROLE_PAGE_PERMISSIONS: Record<PDMRole, string[]> = {
   admin: [
     '/dashboard',
+    '/users',
     '/projects',
     '/projects/[id]',
     '/projects/detail',
@@ -33,6 +34,7 @@ export const ROLE_PAGE_PERMISSIONS: Record<PDMRole, string[]> = {
   ],
   it_admin: [
     '/dashboard',
+    '/users',
     '/connection-test',
     '/settings',
   ],

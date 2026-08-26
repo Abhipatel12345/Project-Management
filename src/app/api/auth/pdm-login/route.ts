@@ -56,7 +56,7 @@ function derivePersonaFromERPNextRoles(
   ) {
     return {
       role: 'it_admin',
-      roleLabel: 'PDM User Administrator',
+      roleLabel: 'IT Admin',
       permissions: {
         manageUsers: true,
         manageProjects: false,
@@ -190,10 +190,10 @@ function derivePersonaFromERPNextRoles(
   }
 
   // --- ROLE FALLBACKS FOR GENERIC ACCOUNTS ---
-  if (roleSet.has('PDM User Administrator') || roleSet.has('User Manager')) {
+  if (roleSet.has('PDM User Administrator') || roleSet.has('User Manager') || roleSet.has('System Administrator')) {
     return {
       role: 'it_admin',
-      roleLabel: 'PDM User Administrator',
+      roleLabel: 'IT Admin',
       permissions: {
         manageUsers: true,
         manageProjects: false,
@@ -455,7 +455,10 @@ export async function POST(req: NextRequest) {
       // non-blocking
     }
 
-    const fullName = erpUserData?.full_name || erpUserData?.name || cleanUsr.split('@')[0];
+    const fullName =
+      cleanUsr === 'it_admin' || cleanUsr === 'itadmin' || role === 'it_admin'
+        ? 'IT Admin'
+        : (erpUserData?.full_name || erpUserData?.name || cleanUsr.split('@')[0]);
     const email = erpUserData?.email || (cleanUsr.includes('@') ? cleanUsr : `${cleanUsr}@pdm.netlink.com`);
 
     const userSession: PDMUserSession = {

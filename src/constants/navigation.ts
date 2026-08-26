@@ -44,6 +44,7 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
     title: 'PRODUCT EXECUTION',
     items: [
       { title: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
+      { title: 'Users', href: '/users', icon: Users },
       {
         title: 'Projects',
         href: '/projects',
