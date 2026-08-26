@@ -8,6 +8,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { useAuth } from '@/providers/auth-context';
 import { RouteGuard } from '@/components/shared/route-guard';
 import { NAVIGATION_SECTIONS, NavItem, NavSection, getRoleNavSections } from '@/constants/navigation';
+import { NetlinkLogo } from '@/components/common/netlink-logo';
 import {
   Sun,
   Moon,
@@ -102,18 +103,8 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
           )}
         >
           {/* Netlink Brand Header */}
-          <div className="h-16 px-5 flex items-center gap-3 border-b border-slate-200 bg-white shrink-0">
-            <div className="h-9 w-9 rounded-xl bg-gradient-to-tr from-sky-500 to-blue-600 flex items-center justify-center font-black text-lg text-white shadow-md shadow-sky-500/20 shrink-0">
-              N
-            </div>
-            <div className="flex flex-col">
-              <span className="font-extrabold text-sm tracking-wide text-slate-900 uppercase font-sans">
-                NETLINK
-              </span>
-              <span className="text-[10px] font-bold text-[#0B74DE] tracking-wider uppercase">
-                PROJECT MANAGEMENT
-              </span>
-            </div>
+          <div className="h-16 px-5 flex items-center border-b border-slate-200 bg-white shrink-0">
+            <NetlinkLogo variant="sidebar" />
           </div>
 
           {/* Sidebar Nav Items (Scrolls Internally If Items Exceed Viewport) */}
@@ -229,6 +220,10 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
               >
                 {sidebarOpen ? <X className="h-5 w-5" /> : <Menu className="h-5 w-5" />}
               </button>
+
+              <div className="lg:hidden flex items-center">
+                <NetlinkLogo variant="sidebar" />
+              </div>
 
               <div className="relative hidden md:block w-80">
                 <Search className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-slate-400" />

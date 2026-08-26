@@ -18,6 +18,10 @@ export const metadata: Metadata = {
   title: 'Automotive Product Development Management System (PDM)',
   description:
     'Enterprise Automotive PDM Platform with Gate Reviews, APQP Workflows, and ERPNext Integration',
+  icons: {
+    icon: '/netlink-logo.png',
+    apple: '/netlink-logo.png',
+  },
 };
 
 export default function RootLayout({

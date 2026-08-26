@@ -24,6 +24,7 @@ import {
   Loader2,
   Sparkles,
 } from 'lucide-react';
+import { NetlinkLogo } from '@/components/common/netlink-logo';
 import { cn } from '@/utils/cn';
 
 const loginSchema = z.object({
@@ -146,19 +147,7 @@ function LoginForm() {
 
         {/* Top Header Branding */}
         <div className="relative z-10">
-          <div className="flex items-center gap-3">
-            <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-sky-600 to-blue-500 flex items-center justify-center shadow-lg shadow-sky-500/20 text-white border border-sky-400/30">
-              <FolderKanban className="h-5 w-5" />
-            </div>
-            <div>
-              <div className="text-[11px] font-black tracking-widest text-sky-400 uppercase leading-tight">
-                NETLINK
-              </div>
-              <div className="text-sm font-bold text-white tracking-wide leading-tight">
-                PROJECT MANAGEMENT
-              </div>
-            </div>
-          </div>
+          <NetlinkLogo variant="login-hero" />
         </div>
 
         {/* Hero Section & Feature Cards */}
@@ -233,18 +222,8 @@ function LoginForm() {
         <div className="w-full max-w-md bg-white border border-slate-200/90 rounded-3xl p-7 sm:p-9 shadow-xl shadow-slate-200/60 space-y-6">
           {/* Right Panel Header */}
           <div className="space-y-1.5 text-center sm:text-left">
-            <div className="flex items-center gap-2 justify-center sm:justify-start">
-              <div className="h-8 w-8 rounded-xl bg-sky-600 text-white flex items-center justify-center shadow-xs">
-                <FolderKanban className="h-4 w-4" />
-              </div>
-              <div>
-                <div className="text-[10px] font-black tracking-widest text-sky-600 uppercase leading-none">
-                  NETLINK
-                </div>
-                <div className="text-[11px] font-bold text-slate-500 tracking-wider uppercase leading-none mt-0.5">
-                  PROJECT MANAGEMENT
-                </div>
-              </div>
+            <div className="flex justify-center sm:justify-start">
+              <NetlinkLogo variant="login-card" />
             </div>
             <h2 className="text-2xl sm:text-3xl font-black tracking-tight text-slate-900 pt-2">
               Welcome back
