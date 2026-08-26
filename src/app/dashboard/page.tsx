@@ -291,7 +291,6 @@ function ITAdminDashboard() {
               <tr className="bg-slate-50 text-slate-500 uppercase text-[10px] font-bold border-b border-slate-200">
                 <th className="py-3 px-4">User Name</th>
                 <th className="py-3 px-4">Email / ID</th>
-                <th className="py-3 px-4">Function</th>
                 <th className="py-3 px-4">Assigned PDM Role</th>
                 <th className="py-3 px-4">Status</th>
                 <th className="py-3 px-4 text-right">Action</th>
@@ -302,7 +301,6 @@ function ITAdminDashboard() {
                 <tr key={u.email} className="hover:bg-slate-50 transition">
                   <td className="py-3 px-4 font-bold text-slate-900">{u.fullName}</td>
                   <td className="py-3 px-4 font-mono text-slate-500">{u.email} ({u.employeeId || 'N/A'})</td>
-                  <td className="py-3 px-4 font-semibold text-slate-700">{u.functionName || u.department}</td>
                   <td className="py-3 px-4">
                     <span className="px-2.5 py-1 rounded-lg text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
                       {u.roleLabel}
