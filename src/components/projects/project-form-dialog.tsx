@@ -90,7 +90,7 @@ export function ProjectFormDialog({
       project_name: '',
       status: 'Open',
       priority: 'Medium',
-      project_type: 'Internal',
+      project_type: 'A',
       custom_project_category: '',
       custom_product_group: '',
       custom_pdp_category: 'A',
@@ -98,7 +98,8 @@ export function ProjectFormDialog({
       expected_end_date: '',
       estimated_cost: 0,
       notes: '',
-      owner: 'Sarah Jenkins (sarah.jenkins@inteva.com)',
+      custom_project_manager: 'sarahjenkins@gmail.com',
+      owner: 'sarahjenkins@gmail.com',
     },
   });
 
@@ -114,28 +115,32 @@ export function ProjectFormDialog({
     if (initialData) {
       const p = initialData.priority as any;
       const safePriority = p === 'Critical' ? 'High' : p || 'Medium';
+      const pdpCat = (initialData.custom_pdp_category as any) || 'A';
+      const projType = (initialData.project_type === 'A' || initialData.project_type === 'D') ? initialData.project_type : pdpCat;
+      const pmVal = initialData.custom_project_manager || initialData.owner || 'sarahjenkins@gmail.com';
       reset({
         project_name: initialData.project_name || '',
         status: (initialData.status as any) || 'Open',
         priority: safePriority,
-        project_type: initialData.project_type || 'Internal',
+        project_type: projType,
         custom_project_category: initialData.custom_project_category || '',
         custom_product_group: initialData.custom_product_group || '',
-        custom_pdp_category: (initialData.custom_pdp_category as any) || 'A',
+        custom_pdp_category: pdpCat,
         expected_start_date: initialData.expected_start_date || '',
         expected_end_date: initialData.expected_end_date || '',
         estimated_cost: initialData.estimated_cost || 0,
         company: initialData.company || '',
         department: initialData.department || '',
         notes: initialData.notes || '',
-        owner: initialData.owner || 'Sarah Jenkins (sarah.jenkins@inteva.com)',
+        custom_project_manager: pmVal,
+        owner: pmVal,
       });
     } else {
       reset({
         project_name: '',
         status: 'Open',
         priority: 'Medium',
-        project_type: 'Internal',
+        project_type: 'A',
         custom_project_category: '',
         custom_product_group: '',
         custom_pdp_category: 'A',
@@ -145,7 +150,8 @@ export function ProjectFormDialog({
         company: '',
         department: '',
         notes: '',
-        owner: 'Sarah Jenkins (sarah.jenkins@inteva.com)',
+        custom_project_manager: 'sarahjenkins@gmail.com',
+        owner: 'sarahjenkins@gmail.com',
       });
     }
   }, [initialData, reset, isOpen]);
@@ -390,12 +396,12 @@ export function ProjectFormDialog({
                 Assigned Project Manager <span className="text-rose-500">*</span>
               </label>
               <SearchableSelect
-                {...register('owner')}
+                {...register('custom_project_manager')}
                 searchPlaceholder="Search project manager..."
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
               >
                 {AVAILABLE_PROJECT_MANAGERS.map((pm) => (
-                  <option key={pm.email} value={`${pm.name} (${pm.email})`}>
+                  <option key={pm.email} value={pm.email}>
                     {pm.name} — {pm.title} ({pm.email})
                   </option>
                 ))}
@@ -422,11 +428,13 @@ export function ProjectFormDialog({
                   tabIndex={0}
                   onClick={() => {
                     setValue('custom_pdp_category', 'A', { shouldValidate: true });
+                    setValue('project_type', 'A');
                     if (errors.custom_pdp_category) clearErrors('custom_pdp_category');
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       setValue('custom_pdp_category', 'A', { shouldValidate: true });
+                      setValue('project_type', 'A');
                     }
                   }}
                   className={cn(
@@ -461,11 +469,13 @@ export function ProjectFormDialog({
                   tabIndex={0}
                   onClick={() => {
                     setValue('custom_pdp_category', 'D', { shouldValidate: true });
+                    setValue('project_type', 'D');
                     if (errors.custom_pdp_category) clearErrors('custom_pdp_category');
                   }}
                   onKeyDown={(e) => {
                     if (e.key === 'Enter' || e.key === ' ') {
                       setValue('custom_pdp_category', 'D', { shouldValidate: true });
+                      setValue('project_type', 'D');
                     }
                   }}
                   className={cn(

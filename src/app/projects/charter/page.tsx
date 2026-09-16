@@ -127,7 +127,7 @@ export default function ProjectCharterPage() {
 
       {/* Conditional Display: Full Charter View vs Active Program Charters Grid */}
       {selectedProjectId && selectedProject ? (
-        <ProjectCharterView project={selectedProject} onRefresh={refetchProject} />
+        <ProjectCharterView key={selectedProject.name} project={selectedProject} onRefresh={refetchProject} />
       ) : (
         <div className="space-y-6">
           {/* Header Banner */}

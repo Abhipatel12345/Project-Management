@@ -604,7 +604,7 @@ export default function ProjectDetailPage() {
 
       {/* Tab: CHARTER */}
       {activeTab === 'charter' && (
-        <ProjectCharterView project={project} onRefresh={refetch} />
+        <ProjectCharterView key={project.name} project={project} onRefresh={refetch} />
       )}
 
       {/* Tab: TIMING STATUS */}

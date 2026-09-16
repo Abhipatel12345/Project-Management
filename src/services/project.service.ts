@@ -107,7 +107,13 @@ const cleanPayload = (data: Partial<Project>): Record<string, any> => {
     payload.priority = 'High';
   }
 
-  // Project Type handling: preserve provided value (A, D, etc.)
+  // Project Type handling: ensure alignment with custom_pdp_category (Category A or D)
+  // In Inteva PM Charter requirements, Project Type is the PMO-Maintained PDP Category (A / D)
+  if (payload.custom_pdp_category === 'A' || payload.custom_pdp_category === 'D') {
+    if (!payload.project_type || payload.project_type === 'Internal' || payload.project_type === 'External' || payload.project_type === 'Other') {
+      payload.project_type = payload.custom_pdp_category;
+    }
+  }
   if (payload.project_type && typeof payload.project_type === 'string') {
     payload.project_type = payload.project_type.trim();
   }
@@ -152,6 +158,13 @@ const cleanPayload = (data: Partial<Project>): Record<string, any> => {
     if (!Number.isNaN(parsedYear)) {
       payload.custom_model_year = String(parsedYear);
     }
+  }
+
+  // Project Manager: map to custom_project_manager from custom_project_manager or legacy owner field
+  const pm = data.custom_project_manager || (data as any).owner;
+  if (pm && typeof pm === 'string' && pm.trim() !== '') {
+    const match = pm.match(/\(([^)]+@.+)\)/);
+    payload.custom_project_manager = match ? match[1].trim() : pm.trim();
   }
 
   // Strip non-DocType fields and metadata fields that must not be sent in creation payload

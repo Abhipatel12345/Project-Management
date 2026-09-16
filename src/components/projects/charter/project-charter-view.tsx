@@ -36,6 +36,20 @@ interface ProjectCharterViewProps {
   onRefresh?: () => void;
 }
 
+const formatPersonDisplay = (val?: string): string => {
+  if (!val || val.trim() === '') return 'Unassigned';
+  const trimmed = val.trim();
+  const lower = trimmed.toLowerCase();
+  if (lower === 'sarahjenkins@gmail.com') return 'Sarah Jenkins (sarahjenkins@gmail.com)';
+  if (lower === 'admin@pdm.netlink.com' || lower === 'admin@example.com') return 'Administrator';
+  if (lower === 'sarah@pdm.netlink.com') return 'Sarah Connor (sarah@pdm.netlink.com)';
+  if (lower === 'quality@netlink.com') return 'Quality Lead (quality@netlink.com)';
+  if (lower === 'robert@pdm.netlink.com') return 'Robert Sterling (robert@pdm.netlink.com)';
+  if (lower === 'teammember@netlink.com') return 'Yash (teammember@netlink.com)';
+  if (lower === 'gatereviewer@netlink.com') return 'Gate Reviewer (gatereviewer@netlink.com)';
+  return trimmed;
+};
+
 export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewProps) {
   const { user } = useAuth();
   const updateProjectMutation = useUpdateProject();
@@ -83,7 +97,9 @@ export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewPro
     setFormData({
       custom_project_manager: project.custom_project_manager || '',
       custom_project_sponsor: project.custom_project_sponsor || '',
-      project_type: project.project_type || 'A',
+      project_type: (project.project_type === 'A' || project.project_type === 'D')
+        ? project.project_type
+        : (project.custom_pdp_category === 'D' ? 'D' : 'A'),
       notes: project.notes || '',
       custom_product_image: project.custom_product_image || '',
       custom_ar_no: project.custom_ar_no || '',
@@ -207,7 +223,9 @@ export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewPro
     setFormData({
       custom_project_manager: project.custom_project_manager || '',
       custom_project_sponsor: project.custom_project_sponsor || '',
-      project_type: project.project_type || 'A',
+      project_type: (project.project_type === 'A' || project.project_type === 'D')
+        ? project.project_type
+        : (project.custom_pdp_category === 'D' ? 'D' : 'A'),
       notes: project.notes || '',
       custom_product_image: project.custom_product_image || '',
       custom_ar_no: project.custom_ar_no || '',
@@ -335,7 +353,7 @@ export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewPro
                   1. Project Manager
                 </span>
                 <p className="text-xs font-bold text-slate-900 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                  {formData.custom_project_manager || 'Unassigned'}
+                  {formatPersonDisplay(formData.custom_project_manager)}
                 </p>
               </div>
             )}
@@ -354,7 +372,7 @@ export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewPro
                   2. Project Sponsor
                 </span>
                 <p className="text-xs font-bold text-slate-900 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                  {formData.custom_project_sponsor || 'Unassigned'}
+                  {formatPersonDisplay(formData.custom_project_sponsor)}
                 </p>
               </div>
             )}
@@ -378,7 +396,7 @@ export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewPro
                 </select>
               ) : (
                 <p className="text-xs font-bold text-slate-900 bg-slate-50 p-2.5 rounded-xl border border-slate-100">
-                  Category {formData.project_type || 'A'}
+                  Category {formData.project_type || (project.custom_pdp_category === 'D' ? 'D' : 'A')}
                 </p>
               )}
             </div>

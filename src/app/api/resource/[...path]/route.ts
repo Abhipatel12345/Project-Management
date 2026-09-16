@@ -569,13 +569,38 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
         }
 
         // 4e. Sanitize Payload for Native ERPNext Persistence
+        const rawPm = parsedBodyObj.custom_project_manager || parsedBodyObj.owner;
+        let pmValue: string | undefined = undefined;
+        if (rawPm && typeof rawPm === 'string' && rawPm.trim() !== '') {
+          const match = rawPm.match(/\(([^)]+@.+)\)/);
+          pmValue = match ? match[1].trim() : rawPm.trim();
+        }
+
         const erpPayload: Record<string, any> = {
           ...parsedBodyObj,
           project_name: projectName,
           custom_product_group: productGroup,
           custom_pdp_category: pdpCategory,
+          project_type: (parsedBodyObj.project_type === 'A' || parsedBodyObj.project_type === 'D')
+            ? parsedBodyObj.project_type
+            : pdpCategory,
           company: parsedBodyObj.company?.trim() || 'Netlink',
         };
+
+        if (pmValue) {
+          erpPayload.custom_project_manager = pmValue;
+          if (pmValue.includes('@')) {
+            const currentUsers = Array.isArray(erpPayload.users) ? [...erpPayload.users] : [];
+            if (!currentUsers.some((u: any) => (u.user || u.email || '').toLowerCase() === pmValue.toLowerCase())) {
+              currentUsers.push({
+                user: pmValue,
+                email: pmValue,
+                welcome_email_sent: 1,
+              });
+              erpPayload.users = currentUsers;
+            }
+          }
+        }
 
         // If custom_project_category is provided, ensure it matches ERPNext options; otherwise remove to prevent validation failure
         if (
