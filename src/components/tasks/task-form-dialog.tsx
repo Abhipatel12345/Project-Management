@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { taskFormSchema, TaskFormValues } from '@/lib/validations/task.schema';
@@ -9,7 +9,10 @@ import { useProjectTeam, useAvailableEmployees } from '@/hooks/use-project-team'
 import { ProjectTeamMember, EmployeeOption } from '@/types/team.types';
 import { findMatchingTeamMember } from '@/utils/auto-assignment';
 import { validateTaskDatesAgainstProject } from '@/utils/date-utils';
-import { X, Loader2, Calendar, User, ShieldCheck, CheckSquare, Edit3 } from 'lucide-react';
+import { getProjectPhases, formatPhaseName, inferTaskPhase, STANDARD_PROJECT_PHASES, ProjectPhase } from '@/constants/phases';
+import { useProjectPhases } from '@/hooks/use-project-phases';
+import { CreatePhaseDialog } from './create-phase-dialog';
+import { X, Loader2, Calendar, User, ShieldCheck, CheckSquare, Edit3, Layers } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface TaskFormDialogProps {
@@ -18,6 +21,7 @@ interface TaskFormDialogProps {
   onSubmit: (values: TaskFormValues) => Promise<void>;
   initialData?: Task | null;
   defaultProjectId?: string;
+  defaultPhase?: string;
   isLoading?: boolean;
 }
 
@@ -27,9 +31,11 @@ export function TaskFormDialog({
   onSubmit,
   initialData,
   defaultProjectId,
+  defaultPhase,
   isLoading = false,
 }: TaskFormDialogProps) {
   const isEditing = !!initialData;
+  const [isCreatePhaseOpen, setIsCreatePhaseOpen] = React.useState(false);
 
   const { data: projectsData } = useProjects({ page: 1, pageSize: 50 });
   const projects = projectsData?.projects || [];
@@ -47,6 +53,7 @@ export function TaskFormDialog({
     defaultValues: {
       subject: '',
       project: defaultProjectId || '',
+      phase: defaultPhase || 'Phase 1: Concept & Planning',
       status: 'Open',
       priority: 'Medium',
       exp_start_date: '',
@@ -66,6 +73,38 @@ export function TaskFormDialog({
   });
 
   const selectedProjectId = watch('project') || defaultProjectId || '';
+  const { data: projectPhases = STANDARD_PROJECT_PHASES } = useProjectPhases(selectedProjectId);
+  const availablePhases = useMemo(() => {
+    const rawList = (!selectedProjectId ? STANDARD_PROJECT_PHASES : projectPhases) || STANDARD_PROJECT_PHASES;
+    const seenNames = new Set<string>();
+    const seenIds = new Set<string>();
+    const uniqueList: ProjectPhase[] = [];
+
+    rawList.forEach((p, idx) => {
+      const pName = (p.name || '').trim();
+      if (!pName) return;
+
+      const normName = pName.toLowerCase();
+      if (seenNames.has(normName)) return;
+      seenNames.add(normName);
+
+      let cleanId = (p.id || '').trim();
+      if (!cleanId || seenIds.has(cleanId)) {
+        cleanId = `phase-${p.phase_number || idx + 1}-${encodeURIComponent(pName)}`;
+      }
+      seenIds.add(cleanId);
+
+      uniqueList.push({
+        ...p,
+        id: cleanId,
+        name: pName,
+      });
+    });
+
+    return uniqueList.length > 0 ? uniqueList : STANDARD_PROJECT_PHASES;
+  }, [selectedProjectId, projectPhases]);
+  const currentPhase = watch('phase') || defaultPhase || 'Phase 1: Concept & Planning';
+
   const { data: teamMembers = [] } = useProjectTeam(selectedProjectId);
   const { data: availableEmployees = [] } = useAvailableEmployees('');
   const { data: selectedProject } = useProject(selectedProjectId);
@@ -136,9 +175,14 @@ export function TaskFormDialog({
         ? initialData.exp_end_date.split(' ')[0].split('T')[0]
         : '';
 
+      const taskPhase = initialData.phase
+        ? formatPhaseName(initialData.phase)
+        : inferTaskPhase(initialData);
+
       reset({
         subject: initialData.subject || '',
         project: initialData.project || defaultProjectId || '',
+        phase: taskPhase,
         status: (initialData.status as any) || 'Open',
         priority: (initialData.priority as any) || 'Medium',
         exp_start_date: cleanStartDate,
@@ -159,6 +203,7 @@ export function TaskFormDialog({
       reset({
         subject: '',
         project: defaultProjectId || firstProjectName,
+        phase: defaultPhase || 'Phase 1: Concept & Planning',
         status: 'Open',
         priority: 'Medium',
         exp_start_date: '',
@@ -176,7 +221,7 @@ export function TaskFormDialog({
         rasic_informed: '',
       });
     }
-  }, [isOpen, initialTaskIdentifier, defaultProjectId, firstProjectName, reset, matchOptionValue, initialData]);
+  }, [isOpen, initialTaskIdentifier, defaultProjectId, defaultPhase, firstProjectName, reset, matchOptionValue, initialData]);
 
   const onFormSubmit = async (values: TaskFormValues) => {
     // Perform date validation against active project bounds before calling ERPNext API
@@ -217,9 +262,10 @@ export function TaskFormDialog({
   if (!isOpen) return null;
 
   return (
-    <AnimatePresence>
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto font-sans">
+    <>
+      <div key="task-form-dialog-overlay" className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-xs overflow-y-auto font-sans">
         <motion.div
+          key="task-form-dialog-modal-card"
           initial={{ opacity: 0, scale: 0.95, y: 10 }}
           animate={{ opacity: 1, scale: 1, y: 0 }}
           exit={{ opacity: 0, scale: 0.95, y: 10 }}
@@ -236,7 +282,7 @@ export function TaskFormDialog({
                   {isEditing ? `Edit Task: ${initialData?.name}` : 'Create New Work Package Task'}
                 </h3>
                 <p className="text-xs text-slate-500 font-medium">
-                  Define technical deliverable details, assign team members, set milestones & RASIC.
+                  Define technical deliverable details, assign project phase, team members & RASIC.
                 </p>
               </div>
             </div>
@@ -267,7 +313,7 @@ export function TaskFormDialog({
               )}
             </div>
 
-            {/* Project & Assigned To */}
+            {/* Project & Project Phase */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {/* Project */}
               <div className="space-y-1.5">
@@ -276,11 +322,17 @@ export function TaskFormDialog({
                 </label>
                 <select
                   {...register('project')}
+                  onChange={(e) => {
+                    const newProj = e.target.value;
+                    setValue('project', newProj, { shouldValidate: true });
+                    // Clear currently selected phase on project change to fetch project-specific phases
+                    setValue('phase', '', { shouldValidate: false });
+                  }}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
                 >
-                  <option value="">Select Project</option>
+                  <option key="project-opt-placeholder" value="">Select Project</option>
                   {projects.map((p: Project) => (
-                    <option key={p.name} value={p.name}>
+                    <option key={`project-opt-${p.name}`} value={p.name}>
                       {p.project_name} ({p.name})
                     </option>
                   ))}
@@ -290,57 +342,103 @@ export function TaskFormDialog({
                 )}
               </div>
 
-              {/* Assigned To (Shows Project Team members + Auto-Assign button) */}
+              {/* Project Phase */}
               <div className="space-y-1.5">
-                <div className="flex items-center justify-between">
-                  <label className="block text-xs font-bold text-slate-700">
-                    Assigned Team Member
-                  </label>
-                  <button
-                    type="button"
-                    onClick={() => {
-                      const subject = watch('subject');
-                      const match = findMatchingTeamMember(
-                        subject,
-                        '',
-                        allSelectableUsers.map((u) => ({
-                          id: u.id,
-                          employee_name: u.name,
-                          user_email: u.email,
-                          role: u.role,
-                          function_name: 'Lead Engineering',
-                          department: u.department,
-                          project_id: selectedProjectId,
-                          is_board_member: false,
-                          status: 'Active' as const,
-                        }))
-                      );
-                      if (match) {
-                        const targetVal = match.member.user_email || match.member.employee_name;
-                        setValue('assigned_to', targetVal);
-                        if (!watch('rasic_responsible')) {
-                          setValue('rasic_responsible', targetVal);
-                        }
-                      }
-                    }}
-                    className="text-[10px] font-extrabold text-sky-700 hover:text-sky-900 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200 transition cursor-pointer"
-                    title="Automatically find matching team member based on role/skills"
-                  >
-                    ⚡ Auto-Assign
-                  </button>
-                </div>
+                <label className="block text-xs font-bold text-slate-700 flex items-center justify-between">
+                  <span>Project Phase <span className="text-rose-500">*</span></span>
+                  <span className="text-[10px] text-slate-400 font-medium">APQP Stage</span>
+                </label>
                 <select
-                  {...register('assigned_to')}
+                  value={currentPhase || ''}
+                  onChange={(e) => {
+                    const val = e.target.value;
+                    if (val === '__CREATE_NEW_PHASE__') {
+                      if (!selectedProjectId) {
+                        setError('project', {
+                          message: 'Please select an Associated Project first before creating a phase.',
+                        });
+                        return;
+                      }
+                      setIsCreatePhaseOpen(true);
+                    } else {
+                      setValue('phase', val, { shouldValidate: true });
+                    }
+                  }}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
                 >
-                  <option value="">Unassigned</option>
-                  {allSelectableUsers.map((u) => (
-                    <option key={u.id} value={u.email || u.name}>
-                      {u.name} ({u.role}{u.department ? ` — ${u.department}` : ''})
+                  {!currentPhase && (
+                    <option key="phase-opt-placeholder" value="">
+                      Select Project Phase
+                    </option>
+                  )}
+                  {availablePhases.map((phase) => (
+                    <option key={`phase-opt-${phase.id}`} value={phase.name}>
+                      {phase.name}
                     </option>
                   ))}
+                  <option key="phase-separator-divider" disabled value="">
+                    ────────────────────────
+                  </option>
+                  <option key="create-phase-action" value="__CREATE_NEW_PHASE__" className="font-extrabold text-sky-600">
+                    + Create Phase
+                  </option>
                 </select>
+                {errors.phase && (
+                  <p className="text-[11px] text-rose-500 font-bold">{errors.phase.message}</p>
+                )}
               </div>
+            </div>
+
+            {/* Assigned To */}
+            <div className="space-y-1.5">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-700">
+                  Assigned Team Member
+                </label>
+                <button
+                  type="button"
+                  onClick={() => {
+                    const subject = watch('subject');
+                    const match = findMatchingTeamMember(
+                       subject,
+                      '',
+                      allSelectableUsers.map((u) => ({
+                        id: u.id,
+                        employee_name: u.name,
+                        user_email: u.email,
+                        role: u.role,
+                        function_name: 'Lead Engineering',
+                        department: u.department,
+                        project_id: selectedProjectId,
+                        is_board_member: false,
+                        status: 'Active' as const,
+                      }))
+                    );
+                    if (match) {
+                      const targetVal = match.member.user_email || match.member.employee_name;
+                      setValue('assigned_to', targetVal);
+                      if (!watch('rasic_responsible')) {
+                        setValue('rasic_responsible', targetVal);
+                      }
+                    }
+                  }}
+                  className="text-[10px] font-extrabold text-sky-700 hover:text-sky-900 bg-sky-50 px-2 py-0.5 rounded-md border border-sky-200 transition cursor-pointer"
+                  title="Automatically find matching team member based on role/skills"
+                >
+                  ⚡ Auto-Assign
+                </button>
+              </div>
+              <select
+                {...register('assigned_to')}
+                className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
+              >
+                <option key="assignee-opt-unassigned" value="">Unassigned</option>
+                {allSelectableUsers.map((u, idx) => (
+                  <option key={`assignee-opt-${u.id || u.email || u.name || idx}`} value={u.email || u.name}>
+                    {u.name} ({u.role}{u.department ? ` — ${u.department}` : ''})
+                  </option>
+                ))}
+              </select>
             </div>
 
             {/* Status & Priority */}
@@ -353,12 +451,12 @@ export function TaskFormDialog({
                   {...register('status')}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
                 >
-                  <option value="Open">Open</option>
-                  <option value="Working">Working / In Progress</option>
-                  <option value="Pending Review">Pending Review</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Skipped">Skipped</option>
-                  <option value="Cancelled">Cancelled</option>
+                  <option key="status-opt-open" value="Open">Open</option>
+                  <option key="status-opt-working" value="Working">Working / In Progress</option>
+                  <option key="status-opt-pending-review" value="Pending Review">Pending Review</option>
+                  <option key="status-opt-completed" value="Completed">Completed</option>
+                  <option key="status-opt-skipped" value="Skipped">Skipped</option>
+                  <option key="status-opt-cancelled" value="Cancelled">Cancelled</option>
                 </select>
               </div>
 
@@ -370,10 +468,10 @@ export function TaskFormDialog({
                   {...register('priority')}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
                 >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Urgent">Urgent / Critical</option>
+                  <option key="priority-opt-low" value="Low">Low</option>
+                  <option key="priority-opt-medium" value="Medium">Medium</option>
+                  <option key="priority-opt-high" value="High">High</option>
+                  <option key="priority-opt-urgent" value="Urgent">Urgent / Critical</option>
                 </select>
               </div>
             </div>
@@ -439,9 +537,9 @@ export function TaskFormDialog({
                     {...register('rasic_responsible')}
                     className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
                   >
-                    <option value="">Select Member</option>
-                    {allSelectableUsers.map((u) => (
-                      <option key={u.id} value={u.email || u.name}>
+                    <option key="rasic-r-placeholder" value="">Select Member</option>
+                    {allSelectableUsers.map((u, idx) => (
+                      <option key={`rasic-r-user-${u.id || u.email || u.name || idx}`} value={u.email || u.name}>
                         {u.name} ({u.role})
                       </option>
                     ))}
@@ -453,9 +551,9 @@ export function TaskFormDialog({
                     {...register('rasic_accountable')}
                     className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
                   >
-                    <option value="">Select Member</option>
-                    {allSelectableUsers.map((u) => (
-                      <option key={u.id} value={u.email || u.name}>
+                    <option key="rasic-a-placeholder" value="">Select Member</option>
+                    {allSelectableUsers.map((u, idx) => (
+                      <option key={`rasic-a-user-${u.id || u.email || u.name || idx}`} value={u.email || u.name}>
                         {u.name} ({u.role})
                       </option>
                     ))}
@@ -467,9 +565,9 @@ export function TaskFormDialog({
                     {...register('rasic_support')}
                     className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
                   >
-                    <option value="">Select Member</option>
-                    {allSelectableUsers.map((u) => (
-                      <option key={u.id} value={u.email || u.name}>
+                    <option key="rasic-s-placeholder" value="">Select Member</option>
+                    {allSelectableUsers.map((u, idx) => (
+                      <option key={`rasic-s-user-${u.id || u.email || u.name || idx}`} value={u.email || u.name}>
                         {u.name} ({u.role})
                       </option>
                     ))}
@@ -481,9 +579,9 @@ export function TaskFormDialog({
                     {...register('rasic_consulted')}
                     className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
                   >
-                    <option value="">Select Member</option>
-                    {allSelectableUsers.map((u) => (
-                      <option key={u.id} value={u.email || u.name}>
+                    <option key="rasic-c-placeholder" value="">Select Member</option>
+                    {allSelectableUsers.map((u, idx) => (
+                      <option key={`rasic-c-user-${u.id || u.email || u.name || idx}`} value={u.email || u.name}>
                         {u.name} ({u.role})
                       </option>
                     ))}
@@ -495,9 +593,9 @@ export function TaskFormDialog({
                     {...register('rasic_informed')}
                     className="w-full px-2 py-1.5 rounded-lg bg-white border border-sky-200 text-slate-800 text-[11px] font-bold mt-1 cursor-pointer"
                   >
-                    <option value="">Select Member</option>
-                    {allSelectableUsers.map((u) => (
-                      <option key={u.id} value={u.email || u.name}>
+                    <option key="rasic-i-placeholder" value="">Select Member</option>
+                    {allSelectableUsers.map((u, idx) => (
+                      <option key={`rasic-i-user-${u.id || u.email || u.name || idx}`} value={u.email || u.name}>
                         {u.name} ({u.role})
                       </option>
                     ))}
@@ -528,6 +626,20 @@ export function TaskFormDialog({
           </form>
         </motion.div>
       </div>
-    </AnimatePresence>
+
+      {/* Create Custom Phase Modal */}
+      {isCreatePhaseOpen && (
+        <CreatePhaseDialog
+          key="task-form-create-phase-dialog"
+          isOpen={isCreatePhaseOpen}
+          onClose={() => setIsCreatePhaseOpen(false)}
+          projectId={selectedProjectId}
+          projectName={selectedProject?.project_name || selectedProjectId}
+          onPhaseCreated={(newPhaseName) => {
+            setValue('phase', newPhaseName, { shouldValidate: true });
+          }}
+        />
+      )}
+    </>
   );
 }

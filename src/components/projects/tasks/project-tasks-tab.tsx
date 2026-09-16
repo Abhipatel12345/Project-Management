@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useMemo } from 'react';
+import { useAuth } from '@/providers/auth-context';
 import { useTasks, useCreateTask, useUpdateTask, useDeleteTask } from '@/hooks/use-tasks';
 import { Task, MemberWorkload, TaskStatus } from '@/types/task.types';
 import { TaskSummaryCards } from '@/components/tasks/task-summary-cards';
@@ -16,6 +17,13 @@ import { TaskExcelUploadDialog } from '@/components/tasks/task-excel-upload-dial
 import { TaskFormValues } from '@/lib/validations/task.schema';
 import { TaskDependencyGraph } from '@/components/tasks/dependencies/task-dependency-graph';
 import {
+  STANDARD_PROJECT_PHASES,
+  formatPhaseName,
+  getPhaseBadgeColors,
+  inferTaskPhase,
+} from '@/constants/phases';
+import { useProjectPhases } from '@/hooks/use-project-phases';
+import {
   Search,
   Plus,
   List,
@@ -26,8 +34,14 @@ import {
   Loader2,
   CheckSquare,
   FileSpreadsheet,
+  Layers,
+  ChevronDown,
+  ChevronRight,
+  CheckCircle2,
+  Clock,
+  SlidersHorizontal,
 } from 'lucide-react';
-
+import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/providers/toast-context';
 
 interface ProjectTasksTabProps {
@@ -37,15 +51,28 @@ interface ProjectTasksTabProps {
 
 export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps) {
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const canCreateTasks = user?.role === 'admin' || user?.role === 'projectmanager';
   const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'dependencies'>('list');
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedPhase, setSelectedPhase] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedPriority, setSelectedPriority] = useState('ALL');
   const [selectedAssignee, setSelectedAssignee] = useState('ALL');
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
 
+  // Accordion open/close state for each phase (default all open)
+  const [openPhases, setOpenPhases] = useState<Record<string, boolean>>({
+    'phase-1': true,
+    'phase-2': true,
+    'phase-3': true,
+    'phase-4': true,
+    'phase-5': true,
+  });
+
   // Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [createDefaultPhase, setCreateDefaultPhase] = useState<string | undefined>(undefined);
   const [isExcelUploadOpen, setIsExcelUploadOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<Task | null>(null);
   const [deletingTask, setDeletingTask] = useState<Task | null>(null);
@@ -56,15 +83,28 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
   const { data, isLoading, isError, error, refetch } = useTasks({
     project: projectId,
     search: searchQuery,
+    phase: selectedPhase !== 'ALL' ? selectedPhase : undefined,
     status: selectedStatus,
     priority: selectedPriority,
     assigned_to: selectedAssignee,
     is_overdue: showOverdueOnly,
     page: 1,
-    pageSize: 100,
+    pageSize: 150,
   });
 
-  const tasks = data?.tasks || [];
+  const rawTasks: Task[] = data?.tasks || [];
+
+  // Normalize all tasks so 100% of tasks have an assigned phase and are never lost
+  const tasks: Task[] = useMemo(() => {
+    return rawTasks.map((t: Task) => {
+      const phase = t.phase ? formatPhaseName(t.phase) : inferTaskPhase(t);
+      return {
+        ...t,
+        phase,
+      };
+    });
+  }, [rawTasks]);
+
   const summary = data?.summary || {
     totalTasks: 0,
     openTasks: 0,
@@ -74,6 +114,47 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
     unassignedTasks: 0,
     avgCompletionRate: 0,
   };
+
+  const { data: projectPhases = STANDARD_PROJECT_PHASES } = useProjectPhases(projectId);
+
+  // Group tasks by project phase
+  const phaseGroupedTasks = useMemo(() => {
+    const map = new Map<string, Task[]>();
+    const allPhases = projectPhases.length > 0 ? projectPhases : STANDARD_PROJECT_PHASES;
+
+    allPhases.forEach((p) => {
+      map.set(p.name, []);
+    });
+
+    tasks.forEach((task) => {
+      const pName = formatPhaseName(task.phase);
+      if (!map.has(pName)) {
+        map.set(pName, []);
+      }
+      map.get(pName)!.push(task);
+    });
+
+    return allPhases.map((phase) => {
+      const phaseTasks = map.get(phase.name) || [];
+      const completedCount = phaseTasks.filter((t) => t.status === 'Completed').length;
+      const progress = phaseTasks.length > 0 ? Math.round((completedCount / phaseTasks.length) * 100) : 0;
+
+      return {
+        phase,
+        tasks: phaseTasks,
+        total: phaseTasks.length,
+        completed: completedCount,
+        progress,
+      };
+    });
+  }, [tasks, projectPhases]);
+
+  // Filtered phase groups if a specific phase is selected in the dropdown
+  const displayedPhaseGroups = useMemo(() => {
+    if (selectedPhase === 'ALL') return phaseGroupedTasks;
+    const target = formatPhaseName(selectedPhase);
+    return phaseGroupedTasks.filter((g) => g.phase.name === target || g.phase.id === selectedPhase);
+  }, [phaseGroupedTasks, selectedPhase]);
 
   // Mutations
   const createTaskMutation = useCreateTask();
@@ -106,7 +187,7 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
       mw.tasks.push(t);
 
       if (t.status === 'Open') mw.open += 1;
-      else if (t.status === 'Working' || t.status === 'In Progress') mw.inProgress += 1;
+      else if (t.status === 'Working' || t.status === 'In Progress' || t.status === 'Submitted') mw.inProgress += 1;
       else if (t.status === 'Completed') mw.completed += 1;
 
       if (t.is_overdue) mw.overdue += 1;
@@ -125,12 +206,20 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
     return list;
   }, [tasks]);
 
+  const togglePhase = (phaseId: string) => {
+    setOpenPhases((prev) => ({
+      ...prev,
+      [phaseId]: !prev[phaseId],
+    }));
+  };
+
   // Handlers
   const handleCreateSubmit = async (values: TaskFormValues) => {
     try {
       await createTaskMutation.mutateAsync({
         subject: values.subject,
         project: projectId, // Strictly auto-associate with current Project ID!
+        phase: values.phase || createDefaultPhase || 'Phase 1: Concept & Planning',
         status: values.status,
         priority: values.priority,
         exp_start_date: values.exp_start_date,
@@ -150,6 +239,8 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
         },
       });
       showToast('Task created successfully in ERPNext!', 'success');
+      setIsCreateOpen(false);
+      setCreateDefaultPhase(undefined);
       refetch();
     } catch (err: any) {
       showToast(err.message || 'Failed to create task in ERPNext', 'error');
@@ -164,6 +255,7 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
         data: {
           subject: values.subject,
           project: projectId,
+          phase: values.phase,
           status: values.status,
           priority: values.priority,
           exp_start_date: values.exp_start_date,
@@ -235,7 +327,7 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
           </div>
         </div>
 
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3">
           <button
             onClick={() => refetch()}
             className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition cursor-pointer"
@@ -255,7 +347,7 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
               }`}
             >
               <List className="h-3.5 w-3.5" />
-              <span>List</span>
+              <span>Phase Hierarchy</span>
             </button>
             <button
               onClick={() => setViewMode('kanban')}
@@ -281,22 +373,29 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
             </button>
           </div>
 
-          <button
-            onClick={() => setIsExcelUploadOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition cursor-pointer"
-            title="Upload Excel spreadsheet to batch create tasks"
-          >
-            <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
-            <span>Upload Excel</span>
-          </button>
+          {canCreateTasks && (
+            <>
+              <button
+                onClick={() => setIsExcelUploadOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold shadow-2xs transition cursor-pointer"
+                title="Upload Excel spreadsheet to batch create tasks"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-emerald-600" />
+                <span>Upload Excel</span>
+              </button>
 
-          <button
-            onClick={() => setIsCreateOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>+ Create Task</span>
-          </button>
+              <button
+                onClick={() => {
+                  setCreateDefaultPhase(undefined);
+                  setIsCreateOpen(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+                <span>+ Create Task</span>
+              </button>
+            </>
+          )}
         </div>
       </div>
 
@@ -327,6 +426,22 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
                 />
               </div>
 
+              {/* Phase Filter */}
+              <div>
+                <select
+                  value={selectedPhase}
+                  onChange={(e) => setSelectedPhase(e.target.value)}
+                  className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
+                >
+                  <option key="proj-tab-phase-all" value="ALL">All Project Phases</option>
+                  {projectPhases.map((p, idx) => (
+                    <option key={`proj-tab-phase-${p.id || p.name || idx}`} value={p.name}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+
               {/* Status */}
               <div>
                 <select
@@ -334,12 +449,12 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
                   onChange={(e) => setSelectedStatus(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
                 >
-                  <option value="ALL">All Statuses</option>
-                  <option value="Open">Open</option>
-                  <option value="Working">Working / In Progress</option>
-                  <option value="Pending Review">Pending Review</option>
-                  <option value="Completed">Completed</option>
-                  <option value="Cancelled">Cancelled</option>
+                  <option key="proj-tab-status-all" value="ALL">All Statuses</option>
+                  <option key="proj-tab-status-open" value="Open">Open</option>
+                  <option key="proj-tab-status-working" value="Working">Working / In Progress</option>
+                  <option key="proj-tab-status-submitted" value="Submitted">Submitted / Under Review</option>
+                  <option key="proj-tab-status-completed" value="Completed">Completed</option>
+                  <option key="proj-tab-status-cancelled" value="Cancelled">Cancelled</option>
                 </select>
               </div>
 
@@ -350,27 +465,12 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
                   onChange={(e) => setSelectedPriority(e.target.value)}
                   className="w-full px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
                 >
-                  <option value="ALL">All Priorities</option>
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Urgent">Urgent / Critical</option>
+                  <option key="proj-tab-priority-all" value="ALL">All Priorities</option>
+                  <option key="proj-tab-priority-low" value="Low">Low</option>
+                  <option key="proj-tab-priority-medium" value="Medium">Medium</option>
+                  <option key="proj-tab-priority-high" value="High">High</option>
+                  <option key="proj-tab-priority-urgent" value="Urgent">Urgent / Critical</option>
                 </select>
-              </div>
-
-              {/* Overdue */}
-              <div>
-                <button
-                  onClick={() => setShowOverdueOnly(!showOverdueOnly)}
-                  className={`w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
-                    showOverdueOnly
-                      ? 'bg-rose-50 text-rose-700 border-rose-200 shadow-2xs'
-                      : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
-                  }`}
-                >
-                  <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
-                  <span>{showOverdueOnly ? 'Overdue Only' : 'Overdue Filter'}</span>
-                </button>
               </div>
             </div>
           </div>
@@ -390,12 +490,120 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
           ) : (
             <>
               {viewMode === 'list' ? (
-                <TaskTable
-                  tasks={tasks}
-                  onViewTask={(t) => setViewingTask(t)}
-                  onEditTask={(t) => setEditingTask(t)}
-                  onDeleteTask={(t) => setDeletingTask(t)}
-                />
+                /* Phase-Wise Grouped Hierarchy View */
+                <div className="space-y-4">
+                  {displayedPhaseGroups.map(({ phase, tasks: phaseTasks, total, completed, progress }) => {
+                    const isOpen = openPhases[phase.id] ?? true;
+
+                    return (
+                      <div
+                        key={phase.id}
+                        className="rounded-3xl border border-slate-200 bg-white overflow-hidden shadow-xs transition duration-150"
+                      >
+                        {/* Phase Header Bar */}
+                        <div className="p-4 sm:p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-50/80 border-b border-slate-100">
+                          <div className="flex items-center gap-3">
+                            <button
+                              type="button"
+                              onClick={() => togglePhase(phase.id)}
+                              className="p-1.5 rounded-xl bg-white border border-slate-200 text-slate-500 hover:text-slate-900 hover:bg-slate-100 transition cursor-pointer"
+                              title={isOpen ? 'Collapse Phase' : 'Expand Phase'}
+                            >
+                              {isOpen ? (
+                                <ChevronDown className="h-4 w-4 text-slate-700" />
+                              ) : (
+                                <ChevronRight className="h-4 w-4 text-slate-700" />
+                              )}
+                            </button>
+
+                            <div>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span
+                                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider border ${phase.color.badge}`}
+                                >
+                                  <span className={`h-2 w-2 rounded-full ${phase.color.dot}`} />
+                                  <span>{phase.name}</span>
+                                </span>
+
+                                <span className="px-2.5 py-0.5 rounded-full bg-slate-200/80 text-slate-700 text-[11px] font-extrabold">
+                                  {total} {total === 1 ? 'Task' : 'Tasks'}
+                                </span>
+
+                                {total > 0 && (
+                                  <span className="text-[11px] text-slate-500 font-medium">
+                                    • {completed} of {total} Completed ({progress}%)
+                                  </span>
+                                )}
+                              </div>
+                              <p className="text-[11px] text-slate-500 font-medium mt-0.5">
+                                {phase.description}
+                              </p>
+                            </div>
+                          </div>
+
+                          {canCreateTasks && (
+                            <div className="flex items-center gap-2 self-end sm:self-auto">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setCreateDefaultPhase(phase.name);
+                                  setIsCreateOpen(true);
+                                }}
+                                className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-sky-50 border border-slate-200 hover:border-sky-300 text-sky-700 text-xs font-bold shadow-2xs transition cursor-pointer"
+                              >
+                                <Plus className="h-3.5 w-3.5" />
+                                <span>+ Add to {phase.name.split(':')[0]}</span>
+                              </button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Phase Tasks Content Accordion */}
+                        <AnimatePresence initial={false}>
+                          {isOpen && (
+                            <motion.div
+                              initial={{ height: 0, opacity: 0 }}
+                              animate={{ height: 'auto', opacity: 1 }}
+                              exit={{ height: 0, opacity: 0 }}
+                              transition={{ duration: 0.2 }}
+                            >
+                              {phaseTasks.length === 0 ? (
+                                <div className="p-8 text-center bg-white space-y-2">
+                                  <p className="text-xs text-slate-400 font-medium">
+                                    No tasks recorded in {phase.name} for this project.
+                                  </p>
+                                  {canCreateTasks && (
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setCreateDefaultPhase(phase.name);
+                                        setIsCreateOpen(true);
+                                      }}
+                                      className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl bg-sky-50 text-sky-700 hover:bg-sky-100 text-xs font-bold transition cursor-pointer"
+                                    >
+                                      <Plus className="h-3.5 w-3.5" />
+                                      <span>Create First Task for {phase.name.split(':')[0]}</span>
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <div className="p-0">
+                                  <TaskTable
+                                    tasks={phaseTasks}
+                                    hideProjectColumn
+                                    onViewTask={(t) => setViewingTask(t)}
+                                    onEditTask={(t) => setEditingTask(t)}
+                                    onDeleteTask={(t) => setDeletingTask(t)}
+                                  />
+                                </div>
+                              )}
+                            </motion.div>
+                          )}
+                        </AnimatePresence>
+                      </div>
+                    );
+                  })}
+                </div>
               ) : (
                 <TaskKanban
                   tasks={tasks}
@@ -421,9 +629,13 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
       {/* Modals */}
       <TaskFormDialog
         isOpen={isCreateOpen}
-        onClose={() => setIsCreateOpen(false)}
+        onClose={() => {
+          setIsCreateOpen(false);
+          setCreateDefaultPhase(undefined);
+        }}
         onSubmit={handleCreateSubmit}
         defaultProjectId={projectId}
+        defaultPhase={createDefaultPhase}
         isLoading={createTaskMutation.isPending}
       />
 

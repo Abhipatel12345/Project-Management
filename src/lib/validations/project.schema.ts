@@ -9,11 +9,33 @@ const preprocessNumber = (fallback: number | undefined) =>
     return Number.isNaN(parsed) ? fallback : parsed;
   }, fallback !== undefined ? z.number().min(0).max(100).default(fallback) : z.number().min(0).optional());
 
+import { PRODUCT_GROUPS, PDP_CATEGORIES } from '@/types/project.types';
+
 export const projectFormSchema = z.object({
   project_name: z
-    .string()
-    .min(3, 'Project name must be at least 3 characters long')
-    .max(140, 'Project name cannot exceed 140 characters'),
+    .string({ required_error: 'Project Name is required' })
+    .min(1, 'Project Name is mandatory')
+    .refine((val) => val.trim().length > 0, {
+      message: 'Project Name cannot be empty or contain only whitespace',
+    })
+    .refine((val) => val.trim().length >= 3, {
+      message: 'Project Name must be at least 3 characters long',
+    })
+    .refine((val) => val.trim().length <= 140, {
+      message: 'Project Name cannot exceed 140 characters',
+    }),
+  custom_product_group: z
+    .string({ required_error: 'Product Group is mandatory. Please select a Product Group.' })
+    .min(1, 'Product Group is mandatory. Please select a Product Group.')
+    .refine((val) => PRODUCT_GROUPS.includes(val as any), {
+      message: 'Please select a valid Product Group from the controlled master list.',
+    }),
+  custom_pdp_category: z
+    .enum(['A', 'D'], {
+      errorMap: () => ({
+        message: 'PDP Category is mandatory. Please select Category A or Category D.',
+      }),
+    }),
   status: z.enum(['Open', 'In Progress', 'Completed', 'Cancelled', 'On Hold'], {
     required_error: 'Please select a project status',
   }),
@@ -22,7 +44,6 @@ export const projectFormSchema = z.object({
   }),
   project_type: z.string().optional(),
   custom_project_category: z.string().optional(),
-  custom_product_group: z.string().optional(),
   custom_product_line: z.string().optional(),
   percent_complete: preprocessNumber(undefined),
   expected_start_date: z.string().optional(),

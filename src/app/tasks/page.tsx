@@ -23,6 +23,7 @@ import { TaskWorkloadChart } from '@/components/tasks/task-workload-chart';
 import { TaskFormDialog } from '@/components/tasks/task-form-dialog';
 import { TaskDeleteDialog } from '@/components/tasks/task-delete-dialog';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
+import { ProjectSearchSelector } from '@/components/projects/project-search-selector';
 import { TaskSkipApprovalsView } from '@/components/tasks/task-skip-approvals-view';
 import { useSkipRequests } from '@/hooks/use-skip-requests';
 import { IssueFormDialog, IssueFormValues } from '@/components/issues/issue-form-dialog';
@@ -32,9 +33,17 @@ import { BackButton } from '@/components/shared/back-button';
 import { Pagination } from '@/components/shared/pagination';
 import { ImportExportControls } from '@/components/shared/import-export-controls';
 import { useAuth } from '@/providers/auth-context';
+import { isTaskAssignedToUser } from '@/utils/rbac';
 import { useToast } from '@/providers/toast-context';
 import documentService from '@/services/document.service';
 import { auditService } from '@/services/audit.service';
+import { isProjectManagedByUser } from '@/utils/user-matcher';
+import {
+  STANDARD_PROJECT_PHASES,
+  formatPhaseName,
+  getPhaseBadgeColors,
+  inferTaskPhase,
+} from '@/constants/phases';
 import {
   Search,
   Plus,
@@ -70,6 +79,7 @@ export default function GlobalTaskManagementPage() {
   const { user } = useAuth();
   const searchParams = useSearchParams();
   const initialTabParam = searchParams ? searchParams.get('tab') : null;
+  const initialProjectParam = searchParams ? searchParams.get('project') : null;
 
   // Main Tabs: 'tasks' | 'submission' | 'issues' | 'skip-requests'
   const [mainTab, setMainTab] = useState<'tasks' | 'submission' | 'issues' | 'skip-requests'>(
@@ -92,13 +102,21 @@ export default function GlobalTaskManagementPage() {
 
   const [viewMode, setViewMode] = useState<'list' | 'kanban'>('list');
   const [searchQuery, setSearchQuery] = useState('');
-  const [selectedProject, setSelectedProject] = useState('ALL');
+  const [selectedProject, setSelectedProject] = useState(initialProjectParam || 'ALL');
+  const [selectedPhase, setSelectedPhase] = useState('ALL');
   const [selectedStatus, setSelectedStatus] = useState('ALL');
   const [selectedPriority, setSelectedPriority] = useState('ALL');
   const [selectedAssignee, setSelectedAssignee] = useState('ALL');
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
+
+  useEffect(() => {
+    if (initialProjectParam) {
+      setSelectedProject(initialProjectParam);
+      setPage(1);
+    }
+  }, [initialProjectParam]);
 
   // Dialog & Modal State
   const [isCreateOpen, setIsCreateOpen] = useState(false);
@@ -125,12 +143,13 @@ export default function GlobalTaskManagementPage() {
   const [viewingIssue, setViewingIssue] = useState<Issue | null>(null);
   const [issueFilterTask, setIssueFilterTask] = useState<string>('');
 
-  // Data Fetching
-  const { data: projectsData } = useProjects({ page: 1, pageSize: 50 });
+  // Data Fetching: load all authorized projects for real-time search
+  const { data: projectsData, isLoading: isLoadingProjects } = useProjects({ page: 1, pageSize: 500 });
   const projects = projectsData?.projects || [];
 
   const { data, isLoading, isError, refetch } = useTasks({
     project: selectedProject,
+    phase: selectedPhase !== 'ALL' ? selectedPhase : undefined,
     search: searchQuery,
     status: selectedStatus,
     priority: selectedPriority,
@@ -140,16 +159,68 @@ export default function GlobalTaskManagementPage() {
     pageSize,
   });
 
-  const tasks = data?.tasks || [];
-  const summary = data?.summary || {
-    totalTasks: 0,
-    openTasks: 0,
-    inProgressTasks: 0,
-    completedTasks: 0,
-    overdueTasks: 0,
-    unassignedTasks: 0,
-    avgCompletionRate: 0,
-  };
+  const isTeamMember = user?.role === 'teammember';
+
+  const rawTasks: Task[] = data?.tasks || [];
+  const rawAllTasks: Task[] = data?.allTasks || data?.tasks || [];
+
+  const scopedRawTasks = useMemo(() => {
+    if (!isTeamMember) return rawTasks;
+    return rawTasks.filter((t: Task) => isTaskAssignedToUser(t, user));
+  }, [rawTasks, isTeamMember, user]);
+
+  const scopedRawAllTasks = useMemo(() => {
+    if (!isTeamMember) return rawAllTasks;
+    return rawAllTasks.filter((t: Task) => isTaskAssignedToUser(t, user));
+  }, [rawAllTasks, isTeamMember, user]);
+
+  const tasks: Task[] = useMemo(() => {
+    return scopedRawTasks.map((t: Task) => ({
+      ...t,
+      phase: t.phase ? formatPhaseName(t.phase) : inferTaskPhase(t),
+    }));
+  }, [scopedRawTasks]);
+
+  const allTasks: Task[] = useMemo(() => {
+    return scopedRawAllTasks.map((t: Task) => ({
+      ...t,
+      phase: t.phase ? formatPhaseName(t.phase) : inferTaskPhase(t),
+    }));
+  }, [scopedRawAllTasks]);
+
+  const summary = useMemo(() => {
+    if (!isTeamMember) {
+      return data?.summary || {
+        totalTasks: 0,
+        openTasks: 0,
+        inProgressTasks: 0,
+        completedTasks: 0,
+        overdueTasks: 0,
+        unassignedTasks: 0,
+        avgCompletionRate: 0,
+      };
+    }
+
+    const total = scopedRawAllTasks.length;
+    const open = scopedRawAllTasks.filter((t) => t.status === 'Open').length;
+    const inProgress = scopedRawAllTasks.filter(
+      (t) => t.status === 'Working' || t.status === 'In Progress' || t.status === 'Submitted' || t.status === 'Under Review'
+    ).length;
+    const completed = scopedRawAllTasks.filter((t) => t.status === 'Completed').length;
+    const overdue = scopedRawAllTasks.filter((t) => t.is_overdue).length;
+    const totalProgress = scopedRawAllTasks.reduce((acc, t) => acc + (t.progress || 0), 0);
+    const avgRate = total > 0 ? Math.round(totalProgress / total) : 0;
+
+    return {
+      totalTasks: total,
+      openTasks: open,
+      inProgressTasks: inProgress,
+      completedTasks: completed,
+      overdueTasks: overdue,
+      unassignedTasks: 0,
+      avgCompletionRate: avgRate,
+    };
+  }, [data?.summary, isTeamMember, scopedRawAllTasks]);
 
   // Fetch Real ERPNext Issues
   const {
@@ -187,10 +258,10 @@ export default function GlobalTaskManagementPage() {
   const updateIssueMutation = useUpdateIssue();
   const deleteIssueMutation = useDeleteIssue();
 
-  // Compute Member Workload dynamically
+  // Compute Member Workload dynamically across all project tasks
   const memberWorkloads = useMemo(() => {
     const map = new Map<string, MemberWorkload>();
-    tasks.forEach((t: Task) => {
+    allTasks.forEach((t: Task) => {
       const name = t.assigned_employee_name || t.assigned_to || 'Unassigned';
       if (!map.has(name)) {
         map.set(name, {
@@ -217,21 +288,60 @@ export default function GlobalTaskManagementPage() {
       mw.completionRate = Math.round((mw.completed / mw.totalAssigned) * 100);
     });
     return Array.from(map.values());
-  }, [tasks]);
+  }, [allTasks]);
 
-  // Tasks Ready for Submission (Assignee View)
+  // Tasks Ready for Submission (Assignee View) across all project tasks
   const readyForSubmissionTasks = useMemo(() => {
-    return tasks.filter(
+    if (isTeamMember) {
+      return allTasks.filter(
+        (t: Task) =>
+          t.status !== 'Completed' &&
+          t.status !== 'Cancelled' &&
+          t.status !== 'Skipped' &&
+          t.status !== 'Submitted' &&
+          t.status !== 'Under Review' &&
+          t.status !== 'Pending Review'
+      );
+    }
+    return allTasks.filter(
       (t: Task) => t.status !== 'Completed' && t.status !== 'Cancelled' && t.status !== 'Skipped'
     );
-  }, [tasks]);
+  }, [allTasks, isTeamMember]);
 
-  // Tasks Submitted for Review (Reviewer View)
+  // Tasks Submitted by User (Team Member View)
+  const mySubmittedTasks = useMemo(() => {
+    return allTasks.filter((t: Task) => {
+      return (
+        t.status === 'Submitted' ||
+        t.status === 'Under Review' ||
+        t.status === 'Pending Review' ||
+        (t.submissions && t.submissions.length > 0)
+      );
+    });
+  }, [allTasks]);
+
+  // Tasks Submitted for Review (Reviewer View - Scoped strictly to PM's Managed Projects - NEVER visible to team members)
   const pendingReviewTasks = useMemo(() => {
-    return tasks.filter(
-      (t: Task) => t.status === 'Submitted' || t.status === 'Under Review' || t.status === 'Pending Review'
-    );
-  }, [tasks]);
+    if (isTeamMember) return [];
+    return allTasks.filter((t: Task) => {
+      const isSubmitted =
+        t.status === 'Submitted' ||
+        t.status === 'Under Review' ||
+        t.status === 'Pending Review' ||
+        (t.submissions && t.submissions.length > 0 && t.submissions[0].status === 'Submitted');
+
+      if (!isSubmitted) return false;
+
+      // Role Scoping: Project Managers ONLY see submissions for projects they manage
+      if (user?.role === 'projectmanager') {
+        const projectObj = projects.find((p: Project) => p.name === t.project);
+        return isProjectManagedByUser(projectObj, user);
+      }
+
+      // Admins & Gate Reviewers see all project submissions
+      return true;
+    });
+  }, [allTasks, user, projects, isTeamMember]);
 
   // Handlers
   const handleCreateSubmit = async (values: TaskFormValues) => {
@@ -503,7 +613,7 @@ export default function GlobalTaskManagementPage() {
           }`}
         >
           <Layers className="h-4 w-4" />
-          <span>Tasks ({tasks.length})</span>
+          <span>Tasks ({isTeamMember ? scopedRawAllTasks.length : (data?.totalCount ?? allTasks.length)})</span>
         </button>
 
         <button
@@ -514,9 +624,14 @@ export default function GlobalTaskManagementPage() {
         >
           <Send className="h-4 w-4" />
           <span>Task Submission ({readyForSubmissionTasks.length})</span>
-          {pendingReviewTasks.length > 0 && (
+          {!isTeamMember && pendingReviewTasks.length > 0 && (
             <span className="px-2 py-0.5 rounded-full bg-amber-500 text-white text-[10px] font-black">
               {pendingReviewTasks.length} Pending Review
+            </span>
+          )}
+          {isTeamMember && mySubmittedTasks.length > 0 && (
+            <span className="px-2 py-0.5 rounded-full bg-emerald-500 text-white text-[10px] font-black">
+              {mySubmittedTasks.length} Submitted
             </span>
           )}
         </button>
@@ -561,22 +676,41 @@ export default function GlobalTaskManagementPage() {
                 type="text"
                 placeholder="Search tasks by subject, ID, or description..."
                 value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
+                onChange={(e) => {
+                  setSearchQuery(e.target.value);
+                  setPage(1);
+                }}
                 className="w-full pl-10 pr-4 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs text-slate-800 font-medium focus:outline-none focus:ring-2 focus:ring-sky-500 transition"
               />
             </div>
 
             <div className="flex flex-wrap items-center gap-2 text-xs">
-              {/* Project Filter */}
+              {/* Searchable Project Filter */}
+              <ProjectSearchSelector
+                projects={projects}
+                selectedProjectId={selectedProject}
+                onSelectProject={(pId) => {
+                  setSelectedProject(pId);
+                  setPage(1);
+                }}
+                isLoading={isLoadingProjects}
+                includeAllOption={true}
+                allOptionLabel="All Projects"
+              />
+
+              {/* Phase Filter */}
               <select
-                value={selectedProject}
-                onChange={(e) => setSelectedProject(e.target.value)}
+                value={selectedPhase}
+                onChange={(e) => {
+                  setSelectedPhase(e.target.value);
+                  setPage(1);
+                }}
                 className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
               >
-                <option value="ALL">All Projects</option>
-                {projects.map((p: Project) => (
-                  <option key={p.name} value={p.name}>
-                    {p.project_name || p.name}
+                <option key="task-page-phase-all" value="ALL">All Project Phases</option>
+                {STANDARD_PROJECT_PHASES.map((p, idx) => (
+                  <option key={`task-page-phase-${p.id || p.name || idx}`} value={p.name}>
+                    {p.name}
                   </option>
                 ))}
               </select>
@@ -584,15 +718,18 @@ export default function GlobalTaskManagementPage() {
               {/* Status Filter */}
               <select
                 value={selectedStatus}
-                onChange={(e) => setSelectedStatus(e.target.value)}
+                onChange={(e) => {
+                  setSelectedStatus(e.target.value);
+                  setPage(1);
+                }}
                 className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
               >
-                <option value="ALL">All Statuses</option>
-                <option value="Open">Open</option>
-                <option value="Working">Working / In Progress</option>
-                <option value="Submitted">Submitted / Under Review</option>
-                <option value="Completed">Completed</option>
-                <option value="Skipped">Skipped</option>
+                <option key="task-page-status-all" value="ALL">All Statuses</option>
+                <option key="task-page-status-open" value="Open">Open</option>
+                <option key="task-page-status-working" value="Working">Working / In Progress</option>
+                <option key="task-page-status-submitted" value="Submitted">Submitted / Under Review</option>
+                <option key="task-page-status-completed" value="Completed">Completed</option>
+                <option key="task-page-status-skipped" value="Skipped">Skipped</option>
               </select>
 
               {/* View Mode Toggle */}
@@ -642,7 +779,7 @@ export default function GlobalTaskManagementPage() {
                 />
               ) : (
                 <TaskKanban
-                  tasks={tasks}
+                  tasks={allTasks}
                   onViewTask={(t) => setViewingTask(t)}
                   onEditTask={(t) => setEditingTask(t)}
                   onStatusChange={async (tName, newStatus) => {
@@ -657,11 +794,14 @@ export default function GlobalTaskManagementPage() {
 
               <Pagination
                 currentPage={page}
-                totalPages={Math.ceil(tasks.length / pageSize) || 1}
-                totalRecords={tasks.length}
+                totalPages={Math.ceil((data?.totalCount || 0) / pageSize) || 1}
+                totalRecords={data?.totalCount || 0}
                 pageSize={pageSize}
                 onPageChange={setPage}
-                onPageSizeChange={setPageSize}
+                onPageSizeChange={(newSize) => {
+                  setPageSize(newSize);
+                  setPage(1);
+                }}
               />
 
               {/* Team Workload Chart */}
@@ -693,19 +833,68 @@ export default function GlobalTaskManagementPage() {
               <div className="px-3 py-2 rounded-xl bg-sky-50 border border-sky-200 text-sky-700">
                 <span className="text-sky-700 font-extrabold">{readyForSubmissionTasks.length}</span> Ready for Submission
               </div>
-              <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
-                <span className="text-amber-700 font-extrabold">{pendingReviewTasks.length}</span> Pending PM Review
-              </div>
+              {isTeamMember ? (
+                <div className="px-3 py-2 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">
+                  <span className="text-emerald-700 font-extrabold">{mySubmittedTasks.length}</span> My Submitted Tasks
+                </div>
+              ) : (
+                <div className="px-3 py-2 rounded-xl bg-amber-50 border border-amber-200 text-amber-800">
+                  <span className="text-amber-700 font-extrabold">{pendingReviewTasks.length}</span> Pending PM Review
+                </div>
+              )}
             </div>
           </div>
 
-          {/* Section A: Pending Review Submissions (For PM / Reviewers) */}
-          {pendingReviewTasks.length > 0 && (
+          {/* Filters Bar for Submissions */}
+          <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col sm:flex-row items-center justify-between gap-3">
+            <div className="text-xs font-bold text-slate-700 flex items-center gap-1.5">
+              <Filter className="h-3.5 w-3.5 text-sky-600" />
+              <span>Filter Submissions & Reviews:</span>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2 text-xs w-full sm:w-auto">
+              {/* Project Filter */}
+              <select
+                value={selectedProject}
+                onChange={(e) => setSelectedProject(e.target.value)}
+                className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+              >
+                <option value="ALL">All Projects</option>
+                {projects.map((p: Project) => (
+                  <option key={p.name} value={p.name}>
+                    {p.project_name || p.name}
+                  </option>
+                ))}
+              </select>
+
+              {/* Phase Filter */}
+              <select
+                value={selectedPhase}
+                onChange={(e) => setSelectedPhase(e.target.value)}
+                className="px-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 font-bold text-slate-700 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+              >
+                <option value="ALL">All Project Phases</option>
+                {STANDARD_PROJECT_PHASES.map((p) => (
+                  <option key={p.id} value={p.name}>
+                    {p.name}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* Section A: Pending Review Submissions (For PM / Reviewers - NEVER shown to Team Members) */}
+          {!isTeamMember && pendingReviewTasks.length > 0 && (
             <div className="p-6 rounded-3xl bg-white border border-amber-200 shadow-xs space-y-4">
-              <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
-                <Clock className="h-4 w-4 text-amber-600" />
-                Submissions Pending PM Review & Sign-off ({pendingReviewTasks.length})
-              </h3>
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <Clock className="h-4 w-4 text-amber-600" />
+                  Submissions Pending PM Review & Sign-off ({pendingReviewTasks.length})
+                </h3>
+                <span className="text-[11px] text-amber-700 font-bold bg-amber-50 px-2.5 py-1 rounded-lg border border-amber-200">
+                  {user?.role === 'projectmanager' ? 'Scoped to Your Managed Projects' : 'All Project Submissions'}
+                </span>
+              </div>
 
               <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
                 <table className="w-full text-left text-xs text-slate-700">
@@ -713,8 +902,10 @@ export default function GlobalTaskManagementPage() {
                     <tr>
                       <th className="p-3">Task ID & Subject</th>
                       <th className="p-3">Project</th>
+                      <th className="p-3">Phase</th>
                       <th className="p-3">Assigned Assignee</th>
                       <th className="p-3">Submitted Progress</th>
+                      <th className="p-3">Deliverables</th>
                       <th className="p-3">Open Issues</th>
                       <th className="p-3 text-right">Review Action</th>
                     </tr>
@@ -722,6 +913,10 @@ export default function GlobalTaskManagementPage() {
                   <tbody className="divide-y divide-slate-100 font-medium">
                     {pendingReviewTasks.map((t: Task) => {
                       const openCount = taskIssueCounts[t.name] || 0;
+                      const phaseName = formatPhaseName(t.phase);
+                      const phaseColors = getPhaseBadgeColors(phaseName);
+                      const subDocsCount = t.submissions?.[0]?.attachments?.length || 0;
+
                       return (
                         <tr key={t.name} className="hover:bg-slate-50/70">
                           <td className="p-3 font-bold text-slate-900">
@@ -729,8 +924,25 @@ export default function GlobalTaskManagementPage() {
                             <div className="text-[10px] font-mono text-slate-400">{t.name}</div>
                           </td>
                           <td className="p-3 font-bold text-sky-700">{t.project || 'Global'}</td>
+                          <td className="p-3">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs ${phaseColors.badge}`}
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${phaseColors.dot}`} />
+                              <span className="truncate max-w-[130px]">{phaseName}</span>
+                            </span>
+                          </td>
                           <td className="p-3 text-slate-800">{t.assigned_employee_name || t.assigned_to || 'Assignee'}</td>
                           <td className="p-3 font-mono font-bold text-emerald-600">{t.progress || 100}%</td>
+                          <td className="p-3">
+                            {subDocsCount > 0 ? (
+                              <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-bold">
+                                📎 {subDocsCount} File{subDocsCount > 1 ? 's' : ''}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">No files</span>
+                            )}
+                          </td>
                           <td className="p-3">
                             {openCount > 0 ? (
                               <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">
@@ -743,7 +955,7 @@ export default function GlobalTaskManagementPage() {
                           <td className="p-3 text-right">
                             <button
                               onClick={() => setReviewingTask(t)}
-                              className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-xs shadow-xs transition"
+                              className="px-3.5 py-1.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-xs shadow-xs transition cursor-pointer"
                             >
                               Review Submission
                             </button>
@@ -761,7 +973,7 @@ export default function GlobalTaskManagementPage() {
           <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
             <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
               <Send className="h-4 w-4 text-sky-600" />
-              Work Packages Ready for Submission
+              {isTeamMember ? 'My Tasks Ready for Submission' : 'Work Packages Ready for Submission'}
             </h3>
 
             <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
@@ -770,6 +982,7 @@ export default function GlobalTaskManagementPage() {
                   <tr>
                     <th className="p-3">Task ID & Subject</th>
                     <th className="p-3">Project</th>
+                    <th className="p-3">Phase</th>
                     <th className="p-3">Current Status</th>
                     <th className="p-3">Progress</th>
                     <th className="p-3">Open Issues</th>
@@ -777,48 +990,168 @@ export default function GlobalTaskManagementPage() {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100 font-medium">
-                  {readyForSubmissionTasks.map((t: Task) => {
-                    const openCount = taskIssueCounts[t.name] || 0;
-                    return (
-                      <tr key={t.name} className="hover:bg-slate-50/70">
-                        <td className="p-3">
-                          <div className="font-bold text-slate-900">{t.subject}</div>
-                          <div className="text-[10px] font-mono text-slate-400">{t.name}</div>
-                        </td>
-                        <td className="p-3 font-bold text-sky-700">{t.project || 'Global'}</td>
-                        <td className="p-3">
-                          <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-700 font-bold text-[10px] border border-sky-200">
-                            {t.status}
-                          </span>
-                        </td>
-                        <td className="p-3 font-mono font-bold text-slate-900">{t.progress || 0}%</td>
-                        <td className="p-3">
-                          {openCount > 0 ? (
-                            <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">
-                              🔴 {openCount} Open Issue{openCount > 1 ? 's' : ''}
+                  {readyForSubmissionTasks.length === 0 ? (
+                    <tr>
+                      <td colSpan={7} className="p-8 text-center text-slate-400">
+                        No work packages currently ready for submission.
+                      </td>
+                    </tr>
+                  ) : (
+                    readyForSubmissionTasks.map((t: Task) => {
+                      const openCount = taskIssueCounts[t.name] || 0;
+                      const phaseName = formatPhaseName(t.phase);
+                      const phaseColors = getPhaseBadgeColors(phaseName);
+
+                      return (
+                        <tr key={t.name} className="hover:bg-slate-50/70">
+                          <td className="p-3">
+                            <div className="font-bold text-slate-900">{t.subject}</div>
+                            <div className="text-[10px] font-mono text-slate-400">{t.name}</div>
+                          </td>
+                          <td className="p-3 font-bold text-sky-700">{t.project || 'Global'}</td>
+                          <td className="p-3">
+                            <span
+                              className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs ${phaseColors.badge}`}
+                            >
+                              <span className={`h-1.5 w-1.5 rounded-full ${phaseColors.dot}`} />
+                              <span className="truncate max-w-[130px]">{phaseName}</span>
                             </span>
-                          ) : (
-                            <span className="text-slate-400 text-[10px]">0 Issues</span>
-                          )}
-                        </td>
-                        <td className="p-3 text-right">
-                          <button
-                            onClick={() => {
-                              setSubmittingTask(t);
-                              setSubmissionProgress(Math.max(t.progress || 0, 100));
-                            }}
-                            className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-xs transition"
-                          >
-                            Submit Task
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
+                          </td>
+                          <td className="p-3">
+                            <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-700 font-bold text-[10px] border border-sky-200">
+                              {t.status}
+                            </span>
+                          </td>
+                          <td className="p-3 font-mono font-bold text-slate-900">{t.progress || 0}%</td>
+                          <td className="p-3">
+                            {openCount > 0 ? (
+                              <span className="px-2 py-0.5 rounded bg-rose-50 text-rose-700 border border-rose-200 text-[10px] font-bold">
+                                🔴 {openCount} Open Issue{openCount > 1 ? 's' : ''}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400 text-[10px]">0 Issues</span>
+                            )}
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              onClick={() => {
+                                setSubmittingTask(t);
+                                setSubmissionProgress(Math.max(t.progress || 0, 100));
+                              }}
+                              className="px-3.5 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-xs transition cursor-pointer"
+                            >
+                              Submit Task
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
+                  )}
                 </tbody>
               </table>
             </div>
           </div>
+
+          {/* Section C: My Submitted Tasks (Exclusively for Team Member tracking) */}
+          {isTeamMember && (
+            <div className="p-6 rounded-3xl bg-white border border-slate-200 shadow-xs space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-sm font-black text-slate-900 flex items-center gap-2">
+                  <CheckCircle2 className="h-4 w-4 text-emerald-600" />
+                  My Submitted Tasks ({mySubmittedTasks.length})
+                </h3>
+                <span className="text-[11px] text-emerald-700 font-bold bg-emerald-50 px-2.5 py-1 rounded-lg border border-emerald-200">
+                  Read-Only Status & PM Review Feedback
+                </span>
+              </div>
+
+              <div className="overflow-x-auto rounded-2xl border border-slate-200 bg-white">
+                <table className="w-full text-left text-xs text-slate-700">
+                  <thead className="bg-slate-50 text-[10px] font-extrabold uppercase text-slate-500 border-b border-slate-200">
+                    <tr>
+                      <th className="p-3">Task ID & Subject</th>
+                      <th className="p-3">Project</th>
+                      <th className="p-3">Phase</th>
+                      <th className="p-3">Status</th>
+                      <th className="p-3">Progress</th>
+                      <th className="p-3">Submissions</th>
+                      <th className="p-3">PM Feedback</th>
+                      <th className="p-3 text-right">Details</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100 font-medium">
+                    {mySubmittedTasks.length === 0 ? (
+                      <tr>
+                        <td colSpan={8} className="p-8 text-center text-slate-400">
+                          No tasks submitted yet. When you submit a task deliverable, it will appear here for tracking.
+                        </td>
+                      </tr>
+                    ) : (
+                      mySubmittedTasks.map((t: Task) => {
+                        const phaseName = formatPhaseName(t.phase);
+                        const phaseColors = getPhaseBadgeColors(phaseName);
+                        const latestSub = t.submissions && t.submissions.length > 0 ? t.submissions[0] : null;
+                        const subDocsCount = latestSub?.attachments?.length || 0;
+                        const pmFeedback = latestSub?.review_comments || 'Awaiting PM review';
+
+                        return (
+                          <tr key={t.name} className="hover:bg-slate-50/70">
+                            <td className="p-3 font-bold text-slate-900">
+                              <div>{t.subject}</div>
+                              <div className="text-[10px] font-mono text-slate-400">{t.name}</div>
+                            </td>
+                            <td className="p-3 font-bold text-sky-700">{t.project || 'Global'}</td>
+                            <td className="p-3">
+                              <span
+                                className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs ${phaseColors.badge}`}
+                              >
+                                <span className={`h-1.5 w-1.5 rounded-full ${phaseColors.dot}`} />
+                                <span className="truncate max-w-[130px]">{phaseName}</span>
+                              </span>
+                            </td>
+                            <td className="p-3">
+                              <span
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold border ${
+                                  t.status === 'Completed'
+                                    ? 'bg-emerald-50 text-emerald-700 border-emerald-200'
+                                    : t.status === 'Submitted' || t.status === 'Under Review'
+                                    ? 'bg-amber-50 text-amber-700 border-amber-200'
+                                    : 'bg-slate-50 text-slate-700 border-slate-200'
+                                }`}
+                              >
+                                {t.status}
+                              </span>
+                            </td>
+                            <td className="p-3 font-mono font-bold text-emerald-600">{t.progress || 100}%</td>
+                            <td className="p-3">
+                              {subDocsCount > 0 ? (
+                                <span className="px-2 py-0.5 rounded bg-sky-50 text-sky-700 border border-sky-200 text-[10px] font-bold">
+                                  📎 {subDocsCount} File{subDocsCount > 1 ? 's' : ''}
+                                </span>
+                              ) : (
+                                <span className="text-slate-400 text-[10px]">No files</span>
+                              )}
+                            </td>
+                            <td className="p-3 max-w-[200px] truncate text-slate-600 italic">
+                              {pmFeedback}
+                            </td>
+                            <td className="p-3 text-right">
+                              <button
+                                onClick={() => setViewingTask(t)}
+                                className="px-3 py-1 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-xs transition cursor-pointer"
+                              >
+                                View
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
         </div>
       )}
 
@@ -1116,13 +1449,36 @@ export default function GlobalTaskManagementPage() {
                 <div className="p-2.5 rounded-2xl bg-amber-50 text-amber-600 border border-amber-200">
                   <FileCheck className="h-5 w-5" />
                 </div>
-                <div>
-                  <h3 className="text-base font-black text-slate-900">Review Submitted Task</h3>
-                  <p className="text-xs text-slate-500 font-medium">{reviewingTask.name} — {reviewingTask.subject}</p>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <h3 className="text-base font-black text-slate-900">Review Submitted Task</h3>
+                    {(() => {
+                      const phaseName = formatPhaseName(reviewingTask.phase);
+                      const phaseColors = getPhaseBadgeColors(phaseName);
+                      return (
+                        <span
+                          className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs ${phaseColors.badge}`}
+                        >
+                          <span className={`h-1.5 w-1.5 rounded-full ${phaseColors.dot}`} />
+                          <span className="truncate max-w-[140px]">{phaseName}</span>
+                        </span>
+                      );
+                    })()}
+                  </div>
+                  <p className="text-xs text-slate-500 font-medium truncate">
+                    {reviewingTask.name} • Project: <span className="font-bold text-slate-800">{reviewingTask.project || 'Global'}</span>
+                  </p>
                 </div>
               </div>
 
               <div className="space-y-4 text-xs">
+                {/* Warning if task has open issues */}
+                {taskIssueCounts[reviewingTask.name] > 0 && (
+                  <div className="p-3 rounded-2xl bg-rose-50 border border-rose-200 text-rose-800 flex items-center gap-2 font-bold text-xs">
+                    <AlertTriangle className="h-4 w-4 text-rose-600 shrink-0" />
+                    <span>This task currently has {taskIssueCounts[reviewingTask.name]} open issue(s) logged.</span>
+                  </div>
+                )}
                 {/* Submission Details & Attached Deliverables */}
                 {reviewingTask.submissions && reviewingTask.submissions.length > 0 ? (
                   <div className="p-4 rounded-2xl bg-amber-50/70 border border-amber-200/80 space-y-3">

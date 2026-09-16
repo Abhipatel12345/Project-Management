@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useProjects } from '@/hooks/use-projects';
 import {
   useGates,
@@ -22,17 +22,37 @@ import { GateFormDialog, GateFormValues } from '@/components/gates/gate-form-dia
 import { GateDetailModal } from '@/components/gates/gate-detail-modal';
 import { Gate, GateCriterion, GateDeliverable } from '@/types/gate.types';
 import { Project } from '@/types/project.types';
+import { useSearchParams, useRouter } from 'next/navigation';
 import { BackButton } from '@/components/shared/back-button';
 import { Pagination } from '@/components/shared/pagination';
 import { ImportExportControls } from '@/components/shared/import-export-controls';
 import { Loader2, AlertCircle, RefreshCw } from 'lucide-react';
 
-export default function GateManagementPage() {
+function GateManagementContent() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const projectParam = searchParams.get('project') || 'ALL';
+
   const { showToast } = useToast();
   const { data: projectsData, isLoading: isLoadingProjects } = useProjects({ page: 1, pageSize: 50 });
   const projects: Project[] = projectsData?.projects || [];
 
-  const [selectedProjectId, setSelectedProjectId] = useState<string>('ALL');
+  const [selectedProjectId, setSelectedProjectId] = useState<string>(projectParam);
+
+  useEffect(() => {
+    if (projectParam && projectParam !== selectedProjectId) {
+      setSelectedProjectId(projectParam);
+    }
+  }, [projectParam]);
+
+  const handleSelectProject = (id: string) => {
+    setSelectedProjectId(id);
+    if (id === 'ALL') {
+      router.replace('/gates');
+    } else {
+      router.replace(`/gates?project=${encodeURIComponent(id)}`);
+    }
+  };
 
   const {
     data: gateListData,
@@ -220,7 +240,11 @@ export default function GateManagementPage() {
     }
   };
 
-  const handleAddGateReview = async (review: { reviewer: string; decision: 'Approved' | 'Approved with Conditions' | 'Rejected'; comments?: string }) => {
+  const handleAddGateReview = async (review: {
+    reviewer: string;
+    decision: 'Approved' | 'Approved with Conditions' | 'Rejected' | 'Pass' | 'Pass with Follow up' | 'Escalate';
+    comments?: string;
+  }) => {
     if (!viewingGate) return;
     try {
       const updated = await addGateReviewMutation.mutateAsync({
@@ -263,7 +287,7 @@ export default function GateManagementPage() {
       <GateHeaderSummary
         projects={projects}
         selectedProjectId={selectedProjectId}
-        onSelectProject={(id: string) => setSelectedProjectId(id)}
+        onSelectProject={handleSelectProject}
         summary={summary}
         onCreateClick={() => setIsCreateOpen(true)}
         onRefreshClick={() => refetch()}
@@ -344,5 +368,20 @@ export default function GateManagementPage() {
         />
       )}
     </div>
+  );
+}
+
+export default function GateManagementPage() {
+  return (
+    <React.Suspense
+      fallback={
+        <div className="flex items-center justify-center py-32 space-x-3 text-slate-500 font-sans">
+          <Loader2 className="h-6 w-6 animate-spin text-emerald-600" />
+          <span className="text-sm font-bold">Loading Gate Management Module...</span>
+        </div>
+      }
+    >
+      <GateManagementContent />
+    </React.Suspense>
   );
 }

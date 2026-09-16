@@ -25,8 +25,27 @@ const STANDARD_PROJECT_FIELDS = [
 const PROJECT_FIELDS = [
   ...STANDARD_PROJECT_FIELDS,
   'custom_project_category',
+  'custom_pdp_category',
   'custom_product_group',
   'custom_upload_document',
+  'custom_project_manager',
+  'custom_project_sponsor',
+  'custom_product_image',
+  'custom_ar_no',
+  'custom_region',
+  'custom_country',
+  'custom_manufacturing_plant',
+  'custom_direct_customer',
+  'custom_final_oem',
+  'custom_model_year',
+  'custom_project_assumptions',
+  'custom_sop_date',
+  'custom_vehicle',
+  'custom_segment',
+  'custom_life',
+  'custom_customer_volume_annually',
+  'custom_ihs_volume_annually',
+  'custom_customer_assembly',
 ];
 
 const normalizeProject = (p: Project): Project => ({
@@ -57,9 +76,9 @@ const formatErpDate = (val?: string | null): string | undefined => {
 const cleanPayload = (data: Partial<Project>): Record<string, any> => {
   const payload: Record<string, any> = {};
 
-  // Copy valid non-empty fields
+  // Copy valid fields
   for (const [key, value] of Object.entries(data)) {
-    if (value !== '' && value !== null && value !== undefined && !(typeof value === 'number' && Number.isNaN(value))) {
+    if (value !== null && value !== undefined && !(typeof value === 'number' && Number.isNaN(value))) {
       payload[key] = value;
     }
   }
@@ -78,8 +97,8 @@ const cleanPayload = (data: Partial<Project>): Record<string, any> => {
     delete payload.percent_complete;
   }
 
-  // Ensure ERPNext required company field is always populated
-  if (!payload.company || typeof payload.company !== 'string' || payload.company.trim() === '') {
+  // Ensure ERPNext required company field is populated if setting or creating
+  if (payload.company !== undefined && (!payload.company || typeof payload.company !== 'string' || payload.company.trim() === '')) {
     payload.company = 'Netlink';
   }
 
@@ -88,20 +107,23 @@ const cleanPayload = (data: Partial<Project>): Record<string, any> => {
     payload.priority = 'High';
   }
 
-  // Project Type fallback
-  if (!payload.project_type || payload.project_type.trim() === '') {
-    payload.project_type = 'Internal';
+  // Project Type handling: preserve provided value (A, D, etc.)
+  if (payload.project_type && typeof payload.project_type === 'string') {
+    payload.project_type = payload.project_type.trim();
   }
 
-  // Remove empty string or default "Select..." entries for custom fields
-  if (payload.custom_project_category === 'Select' || payload.custom_project_category === '' || !payload.custom_project_category) {
+  // Remove placeholder "Select..." entries for custom fields
+  if (payload.custom_project_category === 'Select') {
     delete payload.custom_project_category;
   }
-  if (payload.custom_product_group === 'Select' || payload.custom_product_group === '' || !payload.custom_product_group) {
+  if (payload.custom_pdp_category === 'Select') {
+    delete payload.custom_pdp_category;
+  }
+  if (payload.custom_product_group === 'Select') {
     delete payload.custom_product_group;
   }
 
-  // Format date fields to YYYY-MM-DD, or remove if empty/invalid
+  // Format standard date fields to YYYY-MM-DD
   const dateFields = ['expected_start_date', 'expected_end_date', 'actual_start_date', 'actual_end_date'];
   for (const df of dateFields) {
     if (payload[df]) {
@@ -111,8 +133,24 @@ const cleanPayload = (data: Partial<Project>): Record<string, any> => {
       } else {
         delete payload[df];
       }
+    }
+  }
+
+  // Format custom_sop_date
+  if (payload.custom_sop_date) {
+    const formattedSop = formatErpDate(payload.custom_sop_date);
+    if (formattedSop && formattedSop.trim() !== '') {
+      payload.custom_sop_date = formattedSop;
     } else {
-      delete payload[df];
+      delete payload.custom_sop_date;
+    }
+  }
+
+  // Handle Model Year numeric sanitation
+  if (payload.custom_model_year !== undefined && payload.custom_model_year !== '') {
+    const parsedYear = Number(payload.custom_model_year);
+    if (!Number.isNaN(parsedYear)) {
+      payload.custom_model_year = String(parsedYear);
     }
   }
 

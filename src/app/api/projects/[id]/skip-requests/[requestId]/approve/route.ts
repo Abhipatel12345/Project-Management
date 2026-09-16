@@ -2,17 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PDMUserSession } from '@/types/auth.types';
 import { accessControlService } from '@/services/access-control.service';
 import { approveSkipRequest, getSkipRequestById } from '@/lib/server/skip-request-store';
-
-function getSessionFromRequest(req: NextRequest): PDMUserSession | null {
-  try {
-    const cookie = req.cookies.get('pdm_session')?.value;
-    if (!cookie) return null;
-    const jsonStr = Buffer.from(cookie, 'base64').toString('utf-8');
-    return JSON.parse(jsonStr);
-  } catch {
-    return null;
-  }
-}
+import { getSessionFromRequest } from '@/lib/server/session';
 
 const getErpUrl = (): string => {
   return (process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');

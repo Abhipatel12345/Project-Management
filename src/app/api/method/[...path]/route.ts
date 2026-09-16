@@ -25,26 +25,38 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
     const apiKey = getApiKey();
     const apiSecret = getApiSecret();
 
+    const incomingContentType = req.headers.get('content-type') || '';
+    const isMultipart = incomingContentType.includes('multipart/form-data');
+
     const headers: Record<string, string> = {
-      'Content-Type': 'application/json',
       Accept: 'application/json',
     };
+
+    if (isMultipart) {
+      headers['Content-Type'] = incomingContentType;
+    } else {
+      headers['Content-Type'] = 'application/json';
+    }
 
     if (apiKey && apiSecret) {
       headers['Authorization'] = `token ${apiKey}:${apiSecret}`;
     }
 
     const method = req.method;
-    let body: string | undefined = undefined;
+    let body: any = undefined;
 
     if (method !== 'GET' && method !== 'HEAD') {
-      try {
-        const text = await req.text();
-        if (text && text.trim() !== '') {
-          body = text;
+      if (isMultipart) {
+        body = await req.arrayBuffer();
+      } else {
+        try {
+          const text = await req.text();
+          if (text && text.trim() !== '') {
+            body = text;
+          }
+        } catch {
+          // body unreadable or empty
         }
-      } catch {
-        // body unreadable or empty
       }
     }
 

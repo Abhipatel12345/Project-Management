@@ -133,3 +133,36 @@ export function getUserRasicRole(
   return null;
 }
 
+/**
+ * Check if the user is authorized as the Project Manager for a given project.
+ */
+export function isProjectManagedByUser(
+  project: { owner?: string; project_manager?: string; project_manager_id?: string; custom_project_manager?: string; users?: any[] } | null | undefined,
+  user: PDMUserSession | { email?: string; username?: string; fullName?: string; employeeId?: string; role?: string } | null | undefined
+): boolean {
+  if (!project || !user) return false;
+  if (user.role === 'admin' || user.role === 'it_admin') return true;
+
+  if (project.owner && isUserMatch(project.owner, user)) return true;
+  const pmField = project.project_manager || project.project_manager_id || project.custom_project_manager;
+  if (pmField && isUserMatch(pmField, user)) return true;
+
+  const users = project.users || [];
+  if (Array.isArray(users)) {
+    const isMatched = users.some((u: any) => {
+      const uEmail = u.user || u.email;
+      const uName = u.full_name;
+      return isUserMatch(uEmail, user) || isUserMatch(uName, user);
+    });
+    if (isMatched) return true;
+  }
+
+  // Fallback for Project Manager role with active project access
+  if (user.role === 'projectmanager' && !pmField && !project.owner) {
+    return true;
+  }
+
+  return false;
+}
+
+

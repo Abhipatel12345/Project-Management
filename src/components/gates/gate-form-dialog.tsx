@@ -6,6 +6,7 @@ import { useProjects } from '@/hooks/use-projects';
 import { useAvailableEmployees } from '@/hooks/use-project-team';
 import { X, Loader2, Lock, User, ShieldCheck } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { SearchableSelect } from '@/components/shared/searchable-select';
 
 export interface GateFormValues {
   gate_name: string;
@@ -171,8 +172,9 @@ export function GateFormDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700">Associated Project</label>
-                <select
+                <SearchableSelect
                   {...register('project')}
+                  searchPlaceholder="Search project..."
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                 >
                   <option value="">No Specific Project</option>
@@ -181,15 +183,22 @@ export function GateFormDialog({
                       {p.project_name || p.name} ({p.name})
                     </option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700">Gate Type / Phase</label>
-                <select
+                <SearchableSelect
                   {...register('gate_type')}
+                  searchPlaceholder="Search gate type..."
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                 >
+                  <option value="1. PL">1. PL (Project Launch)</option>
+                  <option value="2. VC">2. VC (Concept Validation)</option>
+                  <option value="3. TKO">3. TKO (Tool Kick-Off)</option>
+                  <option value="4. VL">4. VL (Design Validation)</option>
+                  <option value="5. CPA">5. CPA (Production Readiness)</option>
+                  <option value="6. CT">6. CT (Customer Transition / SOP)</option>
                   <option value="Concept & Charter">Concept & Charter</option>
                   <option value="APQP Stage-Gate">APQP Stage-Gate</option>
                   <option value="Design Freeze">Design Freeze</option>
@@ -198,7 +207,7 @@ export function GateFormDialog({
                   <option value="Production Readiness">Production Readiness</option>
                   <option value="Flawless Launch">Flawless Launch</option>
                   <option value="Final Approval">Final Executive Approval</option>
-                </select>
+                </SearchableSelect>
               </div>
             </div>
 
@@ -206,7 +215,7 @@ export function GateFormDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700">Gate Owner / Lead</label>
-                <select
+                <SearchableSelect
                   {...register('gate_owner')}
                   onChange={(e) => {
                     const selectedName = e.target.value;
@@ -216,6 +225,7 @@ export function GateFormDialog({
                       setValue('gate_owner_id', matched.email || matched.name);
                     }
                   }}
+                  searchPlaceholder="Search gate owner..."
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 transition cursor-pointer"
                 >
                   {employees.length > 0 ? (
@@ -232,7 +242,7 @@ export function GateFormDialog({
                       <option value="Administrator">Administrator (PMO / Administrator)</option>
                     </>
                   )}
-                </select>
+                </SearchableSelect>
               </div>
 
               <div className="space-y-1.5">
@@ -240,7 +250,7 @@ export function GateFormDialog({
                   <ShieldCheck className="h-3.5 w-3.5 text-emerald-600" />
                   <span>Assigned Gate Reviewer</span>
                 </label>
-                <select
+                <SearchableSelect
                   {...register('gate_reviewer')}
                   onChange={(e) => {
                     const selectedName = e.target.value;
@@ -250,6 +260,7 @@ export function GateFormDialog({
                       setValue('reviewer_user_id', matched.email || matched.name);
                     }
                   }}
+                  searchPlaceholder="Search reviewer..."
                   className="w-full px-3.5 py-2.5 rounded-xl bg-emerald-50/50 border border-emerald-200 text-slate-900 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 transition cursor-pointer"
                 >
                   {employees.length > 0 ? (
@@ -266,7 +277,7 @@ export function GateFormDialog({
                       <option value="Yash">Yash (Team Member)</option>
                     </>
                   )}
-                </select>
+                </SearchableSelect>
               </div>
             </div>
 
@@ -295,8 +306,9 @@ export function GateFormDialog({
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700">Gate Execution Status</label>
-                <select
+                <SearchableSelect
                   {...register('status')}
+                  searchPlaceholder="Search status..."
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                 >
                   <option value="Not Started">Not Started</option>
@@ -306,20 +318,21 @@ export function GateFormDialog({
                   <option value="Rejected">Rejected</option>
                   <option value="Blocked">Blocked</option>
                   <option value="Completed">Completed</option>
-                </select>
+                </SearchableSelect>
               </div>
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700">Governance Sign-off Decision</label>
-                <select
+                <SearchableSelect
                   {...register('approval_status')}
+                  searchPlaceholder="Search sign-off..."
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                 >
                   <option value="Pending">Pending Review</option>
                   <option value="Approved">Approved</option>
                   <option value="Approved with Conditions">Approved with Conditions</option>
                   <option value="Rejected">Rejected</option>
-                </select>
+                </SearchableSelect>
               </div>
             </div>
 

@@ -3,6 +3,7 @@
 import React, { useState } from 'react';
 import { useProjects } from '@/hooks/use-projects';
 import { useTasks, useUpdateTask, useCreateTask, useDeleteTask } from '@/hooks/use-tasks';
+import { useGates } from '@/hooks/use-gates';
 import {
   useProjectBaselines,
   useCreateBaseline,
@@ -35,7 +36,7 @@ export default function PlanningPage() {
   const searchParams = useSearchParams();
   const initialProjectParam = searchParams ? searchParams.get('project') : null;
 
-  const { data: projectsData, isLoading: isLoadingProjects } = useProjects({ page: 1, pageSize: 50 });
+  const { data: projectsData, isLoading: isLoadingProjects } = useProjects({ page: 1, pageSize: 500 });
   const projects: Project[] = projectsData?.projects || [];
   const [selectedProjectId, setSelectedProjectId] = useState<string>(initialProjectParam || '');
 
@@ -60,6 +61,8 @@ export default function PlanningPage() {
 
   const tasks: Task[] = taskListData?.tasks || [];
   const { data: teamMembers = [] } = useProjectTeam(selectedProjectId);
+  const { data: gateListData } = useGates({ project: selectedProjectId, pageSize: 100 });
+  const gates = gateListData?.gates || [];
 
   // Fetch project-isolated baselines
   const { data: baselines = [], refetch: refetchBaselines } = useProjectBaselines(selectedProjectId);
@@ -276,6 +279,87 @@ export default function PlanningPage() {
     }
   };
 
+  const handleCreateCustomTask = async (taskData: Partial<Task>) => {
+    try {
+      await createTaskMutation.mutateAsync({
+        ...taskData,
+        project: selectedProjectId,
+      });
+      showToast(`Custom task created successfully for ${selectedProjectId}!`, 'success');
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create custom task', 'error');
+    }
+  };
+
+  const handleCreateCustomMilestone = async (milestoneData: Partial<Task>) => {
+    try {
+      await createTaskMutation.mutateAsync({
+        ...milestoneData,
+        project: selectedProjectId,
+      });
+      showToast(`Custom milestone created successfully for ${selectedProjectId}!`, 'success');
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create custom milestone', 'error');
+    }
+  };
+
+  const handleDeleteTask = async (task: Task) => {
+    if (task.is_mandatory_pdp) {
+      showToast('Mandatory PDP tasks are protected by system governance and cannot be deleted.', 'error');
+      return;
+    }
+    try {
+      await deleteTaskMutation.mutateAsync(task.name);
+      showToast(`Custom task "${task.subject}" deleted successfully!`, 'success');
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete task', 'error');
+    }
+  };
+
+  const handleRetimeTask = async (
+    task: Task,
+    retimedToGate: string,
+    newStart: string,
+    newEnd: string,
+    reason: string
+  ) => {
+    try {
+      await updateTaskMutation.mutateAsync({
+        name: task.name,
+        data: {
+          exp_start_date: newStart,
+          exp_end_date: newEnd,
+          custom_retimed_to: retimedToGate,
+          custom_skip_reason: reason,
+        },
+      });
+      showToast(`Task "${task.subject}" retimed to ${retimedToGate}!`, 'success');
+      refetch();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to retime task', 'error');
+    }
+  };
+
+  const handleImportTasks = async (importedTasks: any[]) => {
+    let successCount = 0;
+    for (const it of importedTasks) {
+      try {
+        await createTaskMutation.mutateAsync({
+          ...it,
+          project: selectedProjectId,
+        });
+        successCount++;
+      } catch (err) {
+        console.warn('Failed to import task:', it.subject, err);
+      }
+    }
+    showToast(`Successfully imported ${successCount} tasks for ${selectedProjectId}!`, 'success');
+    refetch();
+  };
+
   if (isLoadingProjects) {
     return (
       <div className="flex items-center justify-center py-32 space-x-3 text-slate-500">
@@ -319,10 +403,18 @@ export default function PlanningPage() {
         <GanttChartView
           tasks={tasks}
           teamMembers={teamMembers}
+          gates={gates}
+          projectId={selectedProjectId}
+          projectName={selectedProject?.project_name || selectedProjectId}
           onEditTask={(t: Task) => setEditingTask(t)}
           onViewTask={(t: Task) => setViewingTask(t)}
           onSkipTask={(t: Task) => setSkippingTask(t)}
           onDateChange={handleDateChange}
+          onCreateCustomTask={handleCreateCustomTask}
+          onCreateCustomMilestone={handleCreateCustomMilestone}
+          onDeleteTask={handleDeleteTask}
+          onRetimeTask={handleRetimeTask}
+          onImportTasks={handleImportTasks}
           viewMode={viewMode}
           setViewMode={setViewMode}
           showCriticalPathOnly={showCriticalPathOnly}

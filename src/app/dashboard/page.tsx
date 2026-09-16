@@ -3,6 +3,7 @@
 export const dynamic = 'force-dynamic';
 
 import React, { useState, useMemo, useEffect } from 'react';
+import { isTaskAssignedToUser } from '@/utils/rbac';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-context';
@@ -974,7 +975,10 @@ function TeamMemberDashboard() {
     pageSize: 100,
   });
 
-  const rawTasks: Task[] = taskListData?.tasks || [];
+  const allFetchedTasks: Task[] = taskListData?.tasks || [];
+  const rawTasks: Task[] = useMemo(() => {
+    return allFetchedTasks.filter((t) => isTaskAssignedToUser(t, user));
+  }, [allFetchedTasks, user]);
 
   // Fetch Issues
   const { data: issueListData, refetch: refetchIssues } = useIssues({
@@ -1662,16 +1666,16 @@ function TeamMemberDashboard() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <button
-              onClick={() => setIsCreateOpen(true)}
-              className="p-4 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white text-left transition shadow-sm space-y-1 cursor-pointer"
+            <Link
+              href="/tasks"
+              className="p-4 rounded-2xl bg-sky-600 hover:bg-sky-500 text-white text-left transition shadow-sm space-y-1 block"
             >
               <div className="flex items-center justify-between font-extrabold text-xs">
-                <span>+ Create Task</span>
+                <span>My Assigned Tasks</span>
                 <ArrowRight className="h-4 w-4" />
               </div>
-              <p className="text-[11px] text-sky-100">Log a new work package or engineering action in ERPNext.</p>
-            </button>
+              <p className="text-[11px] text-sky-100">View and execute your assigned work packages.</p>
+            </Link>
 
             <Link
               href="/tasks?tab=submission"

@@ -32,6 +32,8 @@ import {
   Lock,
 } from 'lucide-react';
 
+import { formatPhaseName, getPhaseBadgeColors } from '@/constants/phases';
+
 interface TaskDependencyGraphProps {
   projectId: string;
   tasks: Task[];
@@ -349,10 +351,24 @@ export function TaskDependencyGraph({
                           >
                             {/* Card Header */}
                             <div className="flex items-start justify-between gap-2">
-                              <div>
-                                <span className="text-[10px] font-mono font-bold text-sky-600 block">
-                                  {t.name}
-                                </span>
+                              <div className="min-w-0 flex-1">
+                                <div className="flex items-center gap-1.5 flex-wrap mb-0.5">
+                                  <span className="text-[10px] font-mono font-bold text-sky-600">
+                                    {t.name}
+                                  </span>
+                                  {(() => {
+                                    const pName = formatPhaseName(t.phase);
+                                    const pColors = getPhaseBadgeColors(pName);
+                                    return (
+                                      <span
+                                        className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[9px] font-bold border shadow-2xs ${pColors.badge}`}
+                                      >
+                                        <span className={`h-1 w-1 rounded-full ${pColors.dot}`} />
+                                        <span className="truncate max-w-[100px]">{pName.split(':')[0]}</span>
+                                      </span>
+                                    );
+                                  })()}
+                                </div>
                                 <h4 className="text-xs font-bold text-slate-900 line-clamp-1 group-hover:text-sky-600 transition">
                                   {t.subject}
                                 </h4>

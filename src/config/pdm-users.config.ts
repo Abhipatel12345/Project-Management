@@ -60,7 +60,7 @@ export const PDM_ROLE_PERMISSIONS: Record<PDMRole, { label: string; permissions:
     permissions: {
       manageUsers: false,
       manageProjects: false,
-      manageTasks: true,
+      manageTasks: false,
       manageDeliverables: true,
       manageTeamMembers: false,
       manageBoardMembers: false,

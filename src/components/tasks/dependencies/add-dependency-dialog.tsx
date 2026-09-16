@@ -10,11 +10,10 @@ import {
   GitFork,
   ArrowRight,
   AlertCircle,
-  CheckCircle2,
   Loader2,
-  Clock,
   Info,
 } from 'lucide-react';
+import { formatPhaseName } from '@/constants/phases';
 
 interface AddDependencyDialogProps {
   isOpen: boolean;
@@ -69,7 +68,15 @@ export function AddDependencyDialog({
   const [successorId, setSuccessorId] = useState<string>(initialSuccessorId || '');
   const [dependencyType, setDependencyType] = useState<DependencyType>('FS');
   const [lagDays, setLagDays] = useState<number>(0);
+  const [reason, setReason] = useState<string>('');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
+
+  // Pre-fill when opened with initial IDs
+  React.useEffect(() => {
+    if (initialPredecessorId) setPredecessorId(initialPredecessorId);
+    if (initialSuccessorId) setSuccessorId(initialSuccessorId);
+    setErrorMessage(null);
+  }, [initialPredecessorId, initialSuccessorId, isOpen]);
 
   if (!isOpen) return null;
 
@@ -91,44 +98,42 @@ export function AddDependencyDialog({
       return;
     }
     if (predecessorId === successorId) {
-      setErrorMessage('Cannot create dependency: a task cannot depend on itself.');
+      setErrorMessage('A task cannot depend on itself (Self-dependency).');
       return;
     }
 
     try {
       await createMutation.mutateAsync({
-        project: projectId,
+        project_id: projectId,
         predecessor_id: predecessorId,
         successor_id: successorId,
         dependency_type: dependencyType,
         lag_days: Number(lagDays) || 0,
+        reason: reason.trim() || undefined,
       });
 
-      showToast(`Task relationship created successfully!`, 'success');
-      onSuccess?.();
+      showToast(`Task dependency established successfully!`, 'success');
+      if (onSuccess) onSuccess();
       onClose();
     } catch (err: any) {
-      setErrorMessage(
-        err.message ||
-          err.response?.data?.error ||
-          'Failed to create task dependency. Please check for circular relationships.'
-      );
+      const msg = err?.message || 'Failed to create task dependency';
+      setErrorMessage(msg);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4 font-sans">
-      <div className="bg-white border border-slate-200 rounded-3xl p-6 sm:p-7 max-w-lg w-full shadow-2xl space-y-5 animate-in fade-in zoom-in-95 duration-150">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs font-sans">
+      <div className="w-full max-w-lg bg-white rounded-3xl p-6 shadow-2xl border border-slate-200 space-y-4">
         {/* Header */}
         <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-          <div className="flex items-center gap-2.5">
-            <div className="h-9 w-9 rounded-xl bg-sky-50 text-sky-600 border border-sky-200 flex items-center justify-center">
+          <div className="flex items-center gap-3">
+            <div className="p-2 rounded-xl bg-sky-50 text-sky-700 border border-sky-200">
               <GitFork className="h-5 w-5" />
             </div>
             <div>
-              <h3 className="text-sm font-black text-slate-900">Add Task Dependency</h3>
+              <h3 className="text-base font-black text-slate-900">Add Task Dependency</h3>
               <p className="text-[11px] text-slate-500 font-medium">
-                Define execution sequence between deliverables
+                Define execution sequence across phases or deliverables
               </p>
             </div>
           </div>
@@ -154,7 +159,6 @@ export function AddDependencyDialog({
           <div className="space-y-1.5">
             <label className="font-bold text-slate-700 flex items-center justify-between">
               <span>1. Predecessor Task (Must Happen First)</span>
-              <span className="text-[10px] text-slate-400 font-normal">Source</span>
             </label>
             <select
               value={predecessorId}
@@ -166,11 +170,14 @@ export function AddDependencyDialog({
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:outline-none focus:border-sky-500 focus:bg-white cursor-pointer"
             >
               <option value="">Select predecessor task...</option>
-              {tasks.map((t) => (
-                <option key={t.name} value={t.name} disabled={t.name === successorId}>
-                  {t.name} — {t.subject} ({t.status})
-                </option>
-              ))}
+              {tasks.map((t) => {
+                const p = formatPhaseName(t.phase);
+                return (
+                  <option key={t.name} value={t.name} disabled={t.name === successorId}>
+                    [{p.split(':')[0]}] {t.name} — {t.subject} ({t.status})
+                  </option>
+                );
+              })}
             </select>
           </div>
 
@@ -178,7 +185,6 @@ export function AddDependencyDialog({
           <div className="space-y-1.5">
             <label className="font-bold text-slate-700 flex items-center justify-between">
               <span>2. Successor Task (Depends on Predecessor)</span>
-              <span className="text-[10px] text-slate-400 font-normal">Target</span>
             </label>
             <select
               value={successorId}
@@ -190,11 +196,14 @@ export function AddDependencyDialog({
               className="w-full p-2.5 bg-slate-50 border border-slate-200 rounded-xl text-slate-900 font-semibold focus:outline-none focus:border-sky-500 focus:bg-white cursor-pointer"
             >
               <option value="">Select successor task...</option>
-              {tasks.map((t) => (
-                <option key={t.name} value={t.name} disabled={t.name === predecessorId}>
-                  {t.name} — {t.subject} ({t.status})
-                </option>
-              ))}
+              {tasks.map((t) => {
+                const p = formatPhaseName(t.phase);
+                return (
+                  <option key={t.name} value={t.name} disabled={t.name === predecessorId}>
+                    [{p.split(':')[0]}] {t.name} — {t.subject} ({t.status})
+                  </option>
+                );
+              })}
             </select>
           </div>
 

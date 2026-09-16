@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useAuth } from '@/providers/auth-context';
 import { useTasks, useUpdateTask, useCreateTask, useDeleteTask } from '@/hooks/use-tasks';
 import { useGates } from '@/hooks/use-gates';
 import {
@@ -32,6 +33,8 @@ interface ProjectPlanningTabProps {
 
 export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTabProps) {
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const canManagePlanning = user?.role === 'admin' || user?.role === 'projectmanager';
 
   // Fetch project-isolated tasks
   const {
@@ -213,6 +216,87 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
     }
   };
 
+  const handleCreateCustomTask = async (taskData: Partial<Task>) => {
+    try {
+      await createTaskMutation.mutateAsync({
+        ...taskData,
+        project: projectId,
+      });
+      showToast(`Custom task created successfully for ${projectId}!`, 'success');
+      refetchTasks();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create custom task', 'error');
+    }
+  };
+
+  const handleCreateCustomMilestone = async (milestoneData: Partial<Task>) => {
+    try {
+      await createTaskMutation.mutateAsync({
+        ...milestoneData,
+        project: projectId,
+      });
+      showToast(`Custom milestone created successfully for ${projectId}!`, 'success');
+      refetchTasks();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to create custom milestone', 'error');
+    }
+  };
+
+  const handleDeleteTask = async (task: Task) => {
+    if (task.is_mandatory_pdp) {
+      showToast('Mandatory PDP tasks are protected by system governance and cannot be deleted.', 'error');
+      return;
+    }
+    try {
+      await deleteTaskMutation.mutateAsync(task.name);
+      showToast(`Custom task "${task.subject}" deleted successfully!`, 'success');
+      refetchTasks();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete task', 'error');
+    }
+  };
+
+  const handleRetimeTask = async (
+    task: Task,
+    retimedToGate: string,
+    newStart: string,
+    newEnd: string,
+    reason: string
+  ) => {
+    try {
+      await updateTaskMutation.mutateAsync({
+        name: task.name,
+        data: {
+          exp_start_date: newStart,
+          exp_end_date: newEnd,
+          custom_retimed_to: retimedToGate,
+          custom_skip_reason: reason,
+        },
+      });
+      showToast(`Task "${task.subject}" retimed to ${retimedToGate}!`, 'success');
+      refetchTasks();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to retime task', 'error');
+    }
+  };
+
+  const handleImportTasks = async (importedTasks: any[]) => {
+    let successCount = 0;
+    for (const it of importedTasks) {
+      try {
+        await createTaskMutation.mutateAsync({
+          ...it,
+          project: projectId,
+        });
+        successCount++;
+      } catch (err) {
+        console.warn('Failed to import task:', it.subject, err);
+      }
+    }
+    showToast(`Successfully imported ${successCount} tasks for ${projectId}!`, 'success');
+    refetchTasks();
+  };
+
   return (
     <div className="space-y-6 font-sans">
       {/* Header Controls Bar */}
@@ -228,25 +312,29 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          <button
-            onClick={() => setIsCreateBaselineOpen(true)}
-            className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-xs transition shadow-xs cursor-pointer"
-          >
-            <BookmarkPlus className="h-4 w-4" />
-            <span>Create Baseline</span>
-          </button>
+          {canManagePlanning && (
+            <>
+              <button
+                onClick={() => setIsCreateBaselineOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-xs transition shadow-xs cursor-pointer"
+              >
+                <BookmarkPlus className="h-4 w-4" />
+                <span>Create Baseline</span>
+              </button>
 
-          <button
-            onClick={() => setIsCreateDialogOpen(true)}
-            className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition shadow-xs cursor-pointer"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Add Gantt Task</span>
-          </button>
+              <button
+                onClick={() => setIsCreateDialogOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs transition shadow-xs cursor-pointer"
+              >
+                <Plus className="h-4 w-4" />
+                <span>Add Gantt Task</span>
+              </button>
+            </>
+          )}
 
           <button
             onClick={() => refetchTasks()}
-            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition"
+            className="p-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-600 transition cursor-pointer"
             title="Refresh Schedule"
           >
             <RefreshCw className={`h-4 w-4 ${isLoadingTasks ? 'animate-spin' : ''}`} />
@@ -275,9 +363,17 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
           <GanttChartView
             tasks={tasks}
             teamMembers={teamMembers}
+            gates={gates}
+            projectId={projectId}
+            projectName={projectName}
             onEditTask={(t) => setEditingTask(t)}
             onViewTask={(t) => setViewingTask(t)}
             onDateChange={handleDateChange}
+            onCreateCustomTask={handleCreateCustomTask}
+            onCreateCustomMilestone={handleCreateCustomMilestone}
+            onDeleteTask={handleDeleteTask}
+            onRetimeTask={handleRetimeTask}
+            onImportTasks={handleImportTasks}
             viewMode={viewMode}
             setViewMode={setViewMode}
             showCriticalPathOnly={showCriticalPathOnly}

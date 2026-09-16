@@ -130,7 +130,7 @@ export function useAddGateReview() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: ({ gateName, review }: { gateName: string; review: { reviewer: string; decision: 'Approved' | 'Approved with Conditions' | 'Rejected'; comments?: string } }) =>
+    mutationFn: ({ gateName, review }: { gateName: string; review: { reviewer: string; decision: 'Approved' | 'Approved with Conditions' | 'Rejected' | 'Pass' | 'Pass with Follow up' | 'Escalate'; comments?: string } }) =>
       gateService.addGateReview(gateName, review),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['gates'] });

@@ -16,6 +16,12 @@
     --success: #10B981;
     --warning: #F59E0B;
     --danger: #EF4444;
+    --popover: #FFFFFF;
+    --popover-foreground: #172033;
+    --muted: #F1F5F9;
+    --muted-foreground: #7A8797;
+    --card: #FFFFFF;
+    --card-foreground: #172033;
   }
 
   html,

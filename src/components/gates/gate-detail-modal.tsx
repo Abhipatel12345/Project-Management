@@ -66,7 +66,7 @@ interface GateDetailModalProps {
   onDeleteDeliverable: (deliverableId: string) => Promise<void>;
   onAddGateReview: (review: {
     reviewer: string;
-    decision: 'Approved' | 'Approved with Conditions' | 'Rejected';
+    decision: 'Approved' | 'Approved with Conditions' | 'Rejected' | 'Pass' | 'Pass with Follow up' | 'Escalate';
     comments?: string;
   }) => Promise<void>;
 }

@@ -1,4 +1,10 @@
 export type GateType =
+  | '1. PL'
+  | '2. VC'
+  | '3. TKO'
+  | '4. VL'
+  | '5. CPA'
+  | '6. CT'
   | 'Concept & Charter'
   | 'APQP Stage-Gate'
   | 'Design Freeze'
@@ -21,7 +27,10 @@ export type GateApprovalStatus =
   | 'Pending'
   | 'Approved'
   | 'Approved with Conditions'
-  | 'Rejected';
+  | 'Rejected'
+  | 'Pass'
+  | 'Pass with Follow up'
+  | 'Escalate';
 
 export type CriterionStatus =
   | 'Pending'
@@ -88,8 +97,32 @@ export interface GateReviewRecord {
   id: string;
   reviewer: string;
   review_date: string;
-  decision: 'Approved' | 'Approved with Conditions' | 'Rejected';
+  decision: 'Approved' | 'Approved with Conditions' | 'Rejected' | 'Pass' | 'Pass with Follow up' | 'Escalate';
   comments?: string;
+}
+
+export interface GateBoardReviewDecision {
+  board_title: string;
+  function: string;
+  name: string;
+  delegation: 'Applicable' | 'Not Applicable' | string;
+  gate_decision: 'Pass' | 'Pass with Follow up' | 'Escalate' | 'Pending' | string;
+  remarks?: string;
+  decision_date?: string;
+}
+
+export interface GateReviewSummaryItem {
+  gate_name: string; // e.g. '1. PL', '2. VC', etc.
+  function?: string;
+  chairman: string;
+  pdt_recommendation: 'Pass' | 'Pass with Follow up' | 'Escalate' | string;
+  board_recommendation: 'Pass' | 'Pass with Follow up' | 'Escalate' | string;
+  design_review_date?: string;
+  second_review_date?: string;
+  second_review_notes?: string;
+  third_review_date?: string;
+  third_review_notes?: string;
+  dr_pass_date?: string;
 }
 
 export interface GateActivityLog {
@@ -106,6 +139,7 @@ export interface Gate {
   project?: string;
   gate_type: GateType | string;
   planned_date?: string;
+  target_date?: string;
   actual_date?: string;
   status: GateStatus;
   gate_owner: string;
@@ -117,9 +151,16 @@ export interface Gate {
   approval_status: GateApprovalStatus;
   completion_percentage: number;
   readiness_percentage: number;
+  completed_criteria_count?: number;
+  total_criteria_count?: number;
+  completed_deliverables_count?: number;
+  total_deliverables_count?: number;
+  blocking_items_count?: number;
   criteria: GateCriterion[];
   deliverables: GateDeliverable[];
   reviews: GateReviewRecord[];
+  board_reviews?: GateBoardReviewDecision[];
+  review_summaries?: GateReviewSummaryItem[];
   activity_log: GateActivityLog[];
   description?: string;
   creation?: string;
@@ -157,3 +198,4 @@ export interface GateListResponse {
   pageSize: number;
   summary: GateSummary;
 }
+

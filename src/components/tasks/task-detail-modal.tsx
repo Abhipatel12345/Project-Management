@@ -12,6 +12,7 @@ import { useIssues, useCreateIssue } from '@/hooks/use-issues';
 import { IssueFormDialog, IssueFormValues } from '@/components/issues/issue-form-dialog';
 import { Issue } from '@/types/issue.types';
 import { useToast } from '@/providers/toast-context';
+import { useAuth } from '@/providers/auth-context';
 import { useSkipRequests, useCreateSkipRequest } from '@/hooks/use-skip-requests';
 import { TaskSkipDialog } from './task-skip-dialog';
 import {
@@ -44,6 +45,8 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
+import { getPhaseBadgeColors, formatPhaseName } from '@/constants/phases';
+
 interface TaskDetailModalProps {
   task: Task | null;
   onClose: () => void;
@@ -54,6 +57,8 @@ interface TaskDetailModalProps {
 
 export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefresh }: TaskDetailModalProps) {
   const { showToast } = useToast();
+  const { user } = useAuth();
+  const canEditTasks = user?.role === 'admin' || user?.role === 'projectmanager';
   const [activeTab, setActiveTab] = useState<
     'overview' | 'submissions' | 'issues' | 'baseline' | 'assignment' | 'rasic' | 'dependencies' | 'comments' | 'attachments'
   >('overview');
@@ -168,6 +173,8 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
   const durVar = curDuration - baseDuration;
 
   const isCompletedOrSkipped = task.status === 'Completed' || task.status === 'Skipped';
+  const phaseName = formatPhaseName(task.phase);
+  const phaseColors = getPhaseBadgeColors(phaseName);
 
   return (
     <AnimatePresence>
@@ -184,6 +191,12 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
               <div className="flex flex-wrap items-center gap-2">
                 <span className="text-[11px] font-mono font-bold text-sky-800 bg-white px-2.5 py-0.5 rounded-full border border-sky-200">
                   {task.name}
+                </span>
+                <span
+                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs ${phaseColors.badge}`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${phaseColors.dot}`} />
+                  <span>{phaseName}</span>
                 </span>
                 <TaskStatusBadge status={task.status} />
                 <TaskPriorityBadge priority={task.priority} />
@@ -228,15 +241,17 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
                 <span>Create Issue</span>
               </button>
 
-              <button
-                onClick={() => {
-                  onClose();
-                  onEdit(task);
-                }}
-                className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
-              >
-                Edit Task
-              </button>
+              {canEditTasks && (
+                <button
+                  onClick={() => {
+                    onClose();
+                    onEdit(task);
+                  }}
+                  className="px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                >
+                  Edit Task
+                </button>
+              )}
               <button
                 onClick={onClose}
                 className="p-1.5 rounded-lg text-slate-400 hover:text-slate-700 hover:bg-white/60 transition cursor-pointer"

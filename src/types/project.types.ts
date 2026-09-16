@@ -40,6 +40,9 @@ export const PRODUCT_GROUPS = [
   'Other',
 ] as const;
 
+export const PDP_CATEGORIES = ['A', 'D'] as const;
+export type PDPCategory = (typeof PDP_CATEGORIES)[number];
+
 export interface Project {
   name: string;
   project_name: string;
@@ -47,6 +50,7 @@ export interface Project {
   priority?: ProjectPriority | string;
   project_type?: string;
   custom_project_category?: string;
+  custom_pdp_category?: PDPCategory | string;
   custom_product_group?: string;
   custom_product_line?: string;
   percent_complete?: number;
@@ -65,6 +69,26 @@ export interface Project {
   modified?: string;
   owner?: string;
   modified_by?: string;
+
+  // 20 Project Charter Fields (Manager Requirement Compliance)
+  custom_project_manager?: string;
+  custom_project_sponsor?: string;
+  custom_product_image?: string;
+  custom_ar_no?: string;
+  custom_region?: string;
+  custom_country?: string;
+  custom_manufacturing_plant?: string;
+  custom_direct_customer?: string;
+  custom_final_oem?: string;
+  custom_model_year?: number | string;
+  custom_project_assumptions?: string;
+  custom_sop_date?: string;
+  custom_vehicle?: string;
+  custom_segment?: string;
+  custom_life?: string;
+  custom_customer_volume_annually?: number | string;
+  custom_ihs_volume_annually?: number | string;
+  custom_customer_assembly?: string;
 }
 
 export interface ProjectListQueryParams {

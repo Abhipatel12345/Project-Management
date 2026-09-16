@@ -13,6 +13,8 @@ export const ROLE_PAGE_PERMISSIONS: Record<PDMRole, string[]> = {
     '/projects/[id]',
     '/projects/detail',
     '/projects/charter',
+    '/projects/timing-status',
+    '/projects/gantt',
     '/projects/team',
     '/tasks',
     '/warehouse',
@@ -44,6 +46,8 @@ export const ROLE_PAGE_PERMISSIONS: Record<PDMRole, string[]> = {
     '/projects/[id]',
     '/projects/detail',
     '/projects/charter',
+    '/projects/timing-status',
+    '/projects/gantt',
     '/projects/team',
     '/tasks',
     '/warehouse',
@@ -83,6 +87,7 @@ export const ROLE_PAGE_PERMISSIONS: Record<PDMRole, string[]> = {
     '/documents',
     '/projects',
     '/projects/[id]',
+    '/projects/timing-status',
     '/notifications',
     '/connection-test',
     '/settings',
@@ -125,7 +130,14 @@ export const accessControlService = {
 
     // Normalize path (e.g. /projects/PROJ-0001 -> /projects/[id])
     let normalizedPath = pathname;
-    if (pathname.startsWith('/projects/') && pathname !== '/projects' && pathname !== '/projects/charter' && pathname !== '/projects/team' && pathname !== '/projects/detail') {
+    if (
+      pathname.startsWith('/projects/') &&
+      pathname !== '/projects' &&
+      pathname !== '/projects/charter' &&
+      pathname !== '/projects/timing-status' &&
+      pathname !== '/projects/team' &&
+      pathname !== '/projects/detail'
+    ) {
       normalizedPath = '/projects/[id]';
     }
 
@@ -198,4 +210,23 @@ export const accessControlService = {
       reason: 'Access Denied: Warehouse stock reservation & issuance is restricted to Warehouse Users.',
     };
   },
+
+  /**
+   * Level 2: Check Project Creation Authority
+   * Strictly restricted to PMO (admin or users with manageProjects permission).
+   * Project Managers, Team Members, and other operational roles CANNOT create projects.
+   */
+  canCreateProject(user: PDMUserSession | null | undefined): AccessCheckResult {
+    if (!user) return { allowed: false, reason: 'Authentication required. Please sign in.' };
+
+    if (user.role === 'admin' || !!user.permissions?.manageProjects) {
+      return { allowed: true };
+    }
+
+    return {
+      allowed: false,
+      reason: 'Access Denied: Project creation is strictly restricted to PMO personnel.',
+    };
+  },
 };
+

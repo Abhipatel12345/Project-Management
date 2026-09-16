@@ -3,6 +3,7 @@ import { Task, TaskStatus } from '@/types/task.types';
 import { TaskPriorityBadge } from './task-priority-badge';
 import { User, Calendar, AlertTriangle, Eye, Edit2 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/providers/auth-context';
 
 interface TaskKanbanProps {
   tasks: Task[];
@@ -24,6 +25,9 @@ export function TaskKanban({
   onEditTask,
   onStatusChange,
 }: TaskKanbanProps) {
+  const { user } = useAuth();
+  const isTeamMember = user?.role === 'teammember';
+  const canEditTasks = user?.role === 'admin' || user?.role === 'projectmanager';
   const getTasksForStatus = (status: TaskStatus) => {
     return tasks.filter((t) => {
       if (status === 'Working') {
@@ -126,26 +130,28 @@ export function TaskKanban({
                       >
                         <option value="Open">Move: Open</option>
                         <option value="Working">Move: Working</option>
-                        <option value="Pending Review">Move: Pending Review</option>
-                        <option value="Completed">Move: Completed</option>
-                        <option value="Cancelled">Move: Cancelled</option>
+                        {!isTeamMember && <option value="Pending Review">Move: Pending Review</option>}
+                        {!isTeamMember && <option value="Completed">Move: Completed</option>}
+                        {!isTeamMember && <option value="Cancelled">Move: Cancelled</option>}
                       </select>
 
                       <div className="flex items-center gap-1">
                         <button
                           onClick={() => onViewTask(task)}
-                          className="p-1 rounded text-slate-400 hover:text-sky-600 transition"
+                          className="p-1 rounded text-slate-400 hover:text-sky-600 transition cursor-pointer"
                           title="View Details"
                         >
                           <Eye className="h-3.5 w-3.5" />
                         </button>
-                        <button
-                          onClick={() => onEditTask(task)}
-                          className="p-1 rounded text-slate-400 hover:text-blue-600 transition"
-                          title="Edit Task"
-                        >
-                          <Edit2 className="h-3.5 w-3.5" />
-                        </button>
+                        {canEditTasks && (
+                          <button
+                            onClick={() => onEditTask(task)}
+                            className="p-1 rounded text-slate-400 hover:text-blue-600 transition cursor-pointer"
+                            title="Edit Task"
+                          >
+                            <Edit2 className="h-3.5 w-3.5" />
+                          </button>
+                        )}
                       </div>
                     </div>
                   </motion.div>

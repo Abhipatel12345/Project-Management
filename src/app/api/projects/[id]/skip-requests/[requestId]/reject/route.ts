@@ -2,17 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { PDMUserSession } from '@/types/auth.types';
 import { accessControlService } from '@/services/access-control.service';
 import { rejectSkipRequest, getSkipRequestById } from '@/lib/server/skip-request-store';
-
-function getSessionFromRequest(req: NextRequest): PDMUserSession | null {
-  try {
-    const cookie = req.cookies.get('pdm_session')?.value;
-    if (!cookie) return null;
-    const jsonStr = Buffer.from(cookie, 'base64').toString('utf-8');
-    return JSON.parse(jsonStr);
-  } catch {
-    return null;
-  }
-}
+import { getSessionFromRequest } from '@/lib/server/session';
 
 export async function POST(
   req: NextRequest,

@@ -9,6 +9,11 @@ import {
   TaskSubmission,
   TaskSubmissionAttachment,
 } from '@/types/task.types';
+import {
+  formatPhaseName,
+  inferTaskPhase,
+  getPhaseNumber,
+} from '@/constants/phases';
 
 const TASK_FIELDS = [
   'name',
@@ -32,6 +37,23 @@ const TASK_FIELDS = [
   'modified_by',
   'owner',
   '_assign',
+  'duration',
+  'is_milestone',
+  'custom_wbs',
+  'custom_phase',
+  'custom_gate',
+  'custom_function',
+  'custom_role',
+  'custom_rasic',
+  'custom_is_mandatory_pdp',
+  'custom_is_custom',
+  'custom_is_milestone',
+  'custom_is_skipped',
+  'custom_skip_reason',
+  'custom_retimed_to',
+  'custom_target_start_date',
+  'custom_target_finish_date',
+  'custom_predecessors',
 ];
 
 const todayStr = new Date().toISOString().split('T')[0];
@@ -96,6 +118,23 @@ const ERPNEXT_ALLOWED_TASK_FIELDS = [
   'expected_time',
   'progress',
   'description',
+  'duration',
+  'is_milestone',
+  'custom_wbs',
+  'custom_phase',
+  'custom_gate',
+  'custom_function',
+  'custom_role',
+  'custom_rasic',
+  'custom_is_mandatory_pdp',
+  'custom_is_custom',
+  'custom_is_milestone',
+  'custom_is_skipped',
+  'custom_skip_reason',
+  'custom_retimed_to',
+  'custom_target_start_date',
+  'custom_target_finish_date',
+  'custom_predecessors',
 ];
 
 const formatDateForERPNext = (val: any): string | undefined => {
@@ -137,12 +176,31 @@ const normalizeTask = (t: any): Task => {
     assignedName = resolveUserDisplayName(t.assigned_to);
   }
 
-  // Parse RASIC and Skip Reason from description metadata block if present
+  // Parse Phase, RASIC, and Skip Reason from description metadata block if present
   let rasic = t.rasic;
-  let skipReason = t.skip_reason;
+  let skipReason = t.skip_reason || t.custom_skip_reason;
+  let phase = t.custom_phase || t.phase;
   let cleanDescription = t.description || '';
 
-  if (t.description && t.description.includes('<!-- RASIC:')) {
+  if (t.custom_rasic) {
+    try {
+      rasic = JSON.parse(t.custom_rasic);
+    } catch {}
+  }
+
+  if (t.description && t.description.includes('<!-- PHASE:')) {
+    try {
+      const match = t.description.match(/<!-- PHASE: (.*?) -->/);
+      if (match && match[1]) {
+        phase = match[1].trim();
+        cleanDescription = cleanDescription.replace(/<!-- PHASE: .*? -->/, '').trim();
+      }
+    } catch {
+      // fallback
+    }
+  }
+
+  if (!rasic && t.description && t.description.includes('<!-- RASIC:')) {
     try {
       const match = t.description.match(/<!-- RASIC: (.*?) -->/);
       if (match && match[1]) {
@@ -154,7 +212,7 @@ const normalizeTask = (t: any): Task => {
     }
   }
 
-  if (t.description && t.description.includes('<!-- SKIP_REASON:')) {
+  if (!skipReason && t.description && t.description.includes('<!-- SKIP_REASON:')) {
     try {
       const match = t.description.match(/<!-- SKIP_REASON: (.*?) -->/);
       if (match && match[1]) {
@@ -166,17 +224,49 @@ const normalizeTask = (t: any): Task => {
     }
   }
 
+  const finalPhase = phase ? formatPhaseName(phase) : inferTaskPhase({ ...t, description: cleanDescription });
+  const finalPhaseId = `phase-${getPhaseNumber(finalPhase)}`;
   const finalAssignedTo = assignedEmail || 'Unassigned';
   const finalAssignedName = assignedName || (assignedEmail ? resolveUserDisplayName(assignedEmail) : 'Unassigned');
 
+  // Compute Duration
+  let duration = typeof t.duration === 'number' && !isNaN(t.duration) ? t.duration : 1;
+  if (cleanExpStart && cleanExpEnd) {
+    const s = new Date(cleanExpStart).getTime();
+    const e = new Date(cleanExpEnd).getTime();
+    if (!isNaN(s) && !isNaN(e)) {
+      duration = Math.max(0, Math.round((e - s) / 86400000) + 1);
+    }
+  }
+
+  const is_milestone = t.custom_is_milestone === 1 || t.is_milestone === 1 || t.is_milestone === true || duration === 0;
+  const is_mandatory_pdp = t.custom_is_mandatory_pdp === 1 || t.is_template === 1 || (t.custom_is_custom !== 1 && !t.subject?.toLowerCase().includes('[custom]'));
+  const is_custom = t.custom_is_custom === 1 || t.is_custom === true;
+  const is_skipped = t.custom_is_skipped === 1 || t.status === 'Skipped';
+
   return {
     ...t,
+    wbs: t.custom_wbs || t.wbs,
+    phase: finalPhase,
+    phase_id: finalPhaseId,
+    gate: t.custom_gate || t.gate,
+    function_name: t.custom_function || t.function_name,
+    role: t.custom_role || t.role,
+    duration,
+    is_mandatory_pdp,
+    is_custom,
+    is_milestone,
+    is_skipped,
+    retimed_to: t.custom_retimed_to || t.retimed_to,
+    target_start_date: formatDateForERPNext(t.custom_target_start_date) || t.target_start_date,
+    target_finish_date: formatDateForERPNext(t.custom_target_finish_date) || t.target_finish_date,
+    predecessors: t.custom_predecessors || t.predecessors,
     exp_start_date: cleanExpStart,
     exp_end_date: cleanExpEnd,
     description: cleanDescription,
     actual_start_date: t.act_start_date || cleanExpStart,
     actual_end_date: t.act_end_date || cleanExpEnd,
-    status: t.status || 'Open',
+    status: is_skipped ? 'Skipped' : t.status || 'Open',
     priority: t.priority || 'Medium',
     progress: typeof t.progress === 'number' ? t.progress : t.status === 'Completed' ? 100 : 0,
     assigned_to: finalAssignedTo,
@@ -212,8 +302,18 @@ const mapPriorityToERPNext = (priority?: string): string => {
 const cleanPayload = (data: Partial<Task>): Record<string, any> => {
   const payload: Record<string, any> = {};
 
-  // Build description with embedded RASIC and SKIP_REASON blocks if provided
+  // Build description with embedded PHASE, RASIC, and SKIP_REASON blocks if provided
   let description = data.description || '';
+
+  let targetPhase = data.phase || data.custom_phase;
+  if (!targetPhase && description.includes('<!-- PHASE:')) {
+    try {
+      const match = description.match(/<!-- PHASE: (.*?) -->/);
+      if (match && match[1]) {
+        targetPhase = match[1].trim();
+      }
+    } catch {}
+  }
 
   let targetRasic = data.rasic;
   if (!targetRasic && description.includes('<!-- RASIC:')) {
@@ -227,16 +327,48 @@ const cleanPayload = (data: Partial<Task>): Record<string, any> => {
     }
   }
 
-  description = description.replace(/<!-- RASIC: .*? -->/, '').replace(/<!-- SKIP_REASON: .*? -->/, '').trim();
+  description = description
+    .replace(/<!-- PHASE: .*? -->/, '')
+    .replace(/<!-- RASIC: .*? -->/, '')
+    .replace(/<!-- SKIP_REASON: .*? -->/, '')
+    .trim();
+
+  if (targetPhase) {
+    const formattedPhase = formatPhaseName(targetPhase);
+    description = `${description}\n\n<!-- PHASE: ${formattedPhase} -->`.trim();
+    payload.phase = formattedPhase;
+    payload.phase_id = `phase-${getPhaseNumber(formattedPhase)}`;
+    payload.custom_phase = formattedPhase;
+  }
 
   if (targetRasic && Object.values(targetRasic).some(Boolean)) {
     description = `${description}\n\n<!-- RASIC: ${JSON.stringify(targetRasic)} -->`.trim();
     payload.rasic = targetRasic;
+    payload.custom_rasic = JSON.stringify(targetRasic);
   }
 
   if (data.skip_reason) {
     description = `${description}\n\n<!-- SKIP_REASON: ${data.skip_reason} -->`.trim();
+    payload.custom_skip_reason = data.skip_reason;
   }
+
+  // Gantt Custom Fields Mapping
+  if (data.wbs !== undefined) payload.custom_wbs = data.wbs;
+  if (data.gate !== undefined) payload.custom_gate = data.gate;
+  if (data.function_name !== undefined) payload.custom_function = data.function_name;
+  if (data.role !== undefined) payload.custom_role = data.role;
+  if (data.is_mandatory_pdp !== undefined) payload.custom_is_mandatory_pdp = data.is_mandatory_pdp ? 1 : 0;
+  if (data.is_custom !== undefined) payload.custom_is_custom = data.is_custom ? 1 : 0;
+  if (data.is_milestone !== undefined) {
+    payload.custom_is_milestone = data.is_milestone ? 1 : 0;
+    payload.is_milestone = data.is_milestone ? 1 : 0;
+  }
+  if (data.is_skipped !== undefined) payload.custom_is_skipped = data.is_skipped ? 1 : 0;
+  if (data.retimed_to !== undefined) payload.custom_retimed_to = data.retimed_to;
+  if (data.target_start_date !== undefined) payload.custom_target_start_date = formatDateForERPNext(data.target_start_date);
+  if (data.target_finish_date !== undefined) payload.custom_target_finish_date = formatDateForERPNext(data.target_finish_date);
+  if (data.predecessors !== undefined) payload.custom_predecessors = data.predecessors;
+  if (data.duration !== undefined) payload.duration = Math.max(0, Math.round(Number(data.duration)));
 
   for (const [key, value] of Object.entries(data)) {
     if (ERPNEXT_ALLOWED_TASK_FIELDS.includes(key)) {
@@ -295,8 +427,8 @@ export const taskService = {
 
     const queryParts: string[] = [
       `fields=${encodeURIComponent(JSON.stringify(TASK_FIELDS))}`,
-      `limit_start=${limitStart}`,
-      `limit_page_length=${pageSize}`,
+      `limit_start=0`,
+      `limit_page_length=1000`,
       `order_by=${encodeURIComponent(`${sortBy} ${sortOrder}`)}`,
     ];
 
@@ -310,6 +442,12 @@ export const taskService = {
       const response = await api.get<{ data: any[] }>(url);
       const rawTasks = response.data || [];
       let tasks = rawTasks.map(normalizeTask);
+
+      // Strict Project Isolation: ensure only tasks matching the selected project are retained
+      if (params.project && params.project !== 'ALL') {
+        const targetProj = params.project.trim();
+        tasks = tasks.filter((t) => (t.project || '').trim() === targetProj);
+      }
 
       // Client-side additional filters if assigned_to or is_overdue specified
       if (params.assigned_to && params.assigned_to !== 'ALL') {
@@ -330,11 +468,28 @@ export const taskService = {
         tasks = tasks.filter((t) => t.is_overdue);
       }
 
-      // Calculate summary statistics dynamically
+      if (params.phase && params.phase !== 'ALL') {
+        const phaseFilter = params.phase.toLowerCase();
+        const targetPhase = formatPhaseName(params.phase);
+        tasks = tasks.filter(
+          (t) =>
+            t.phase === targetPhase ||
+            t.phase_id === params.phase ||
+            (t.phase && t.phase.toLowerCase().includes(phaseFilter))
+        );
+      }
+
+      // Calculate summary statistics dynamically across the ENTIRE filtered task scope
       const summary: TaskSummary = {
         totalTasks: tasks.length,
         openTasks: tasks.filter((t) => t.status === 'Open').length,
-        inProgressTasks: tasks.filter((t) => t.status === 'Working' || t.status === 'In Progress').length,
+        inProgressTasks: tasks.filter(
+          (t) =>
+            t.status === 'Working' ||
+            t.status === 'In Progress' ||
+            t.status === 'Submitted' ||
+            t.status === 'Pending Review'
+        ).length,
         completedTasks: tasks.filter((t) => t.status === 'Completed').length,
         overdueTasks: tasks.filter((t) => t.is_overdue).length,
         unassignedTasks: tasks.filter((t) => !t.assigned_to || t.assigned_to === 'Unassigned').length,
@@ -344,13 +499,15 @@ export const taskService = {
             : 0,
       };
 
-      let totalCount = tasks.length;
-      if (tasks.length === pageSize || page > 1) {
-        totalCount = Math.max(page * pageSize, tasks.length + limitStart);
-      }
+      const totalCount = tasks.length;
+      const paginatedTasks =
+        params.pageSize && params.pageSize < tasks.length
+          ? tasks.slice(limitStart, limitStart + pageSize)
+          : tasks;
 
       return {
-        tasks,
+        tasks: paginatedTasks,
+        allTasks: tasks,
         totalCount,
         page,
         pageSize,
@@ -360,6 +517,7 @@ export const taskService = {
       console.warn('[ERPNext Task Service Warning] Fallback for task list:', error);
       return {
         tasks: [],
+        allTasks: [],
         totalCount: 0,
         page,
         pageSize,

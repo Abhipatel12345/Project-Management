@@ -8,13 +8,26 @@ import { saveAuditRecord } from './audit-store';
 const DATA_DIR = path.join(process.cwd(), '.data');
 const GATES_FILE = path.join(DATA_DIR, 'gates.json');
 
+import { GATE_BOARD_TITLES, DEFAULT_BOARD_FUNCTION_MAPPING } from '@/config/gate-choices.config';
+
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
   }
 }
 
-function calculateGateReadiness(gate: Gate) {
+export function getDefaultBoardReviews() {
+  return GATE_BOARD_TITLES.map((title) => ({
+    board_title: title,
+    function: DEFAULT_BOARD_FUNCTION_MAPPING[title] || 'QA',
+    name: 'Unassigned',
+    delegation: 'Not Applicable',
+    gate_decision: 'Pending',
+    remarks: '',
+  }));
+}
+
+export function calculateGateReadiness(gate: Gate) {
   const criteria = gate.criteria || [];
   const deliverables = gate.deliverables || [];
 
@@ -30,7 +43,7 @@ function calculateGateReadiness(gate: Gate) {
   const completedItems = completedCriteria + completedDeliverables;
   const completion = totalItems > 0 ? Math.round((completedItems / totalItems) * 100) : 0;
 
-  const requiredCriteria = criteria.filter((c) => c.is_required);
+  const requiredCriteria = criteria.filter((c) => c.is_required && c.status !== 'Not Applicable');
   const completedRequiredCriteria = requiredCriteria.filter((c) => c.status === 'Completed').length;
 
   const requiredDeliverables = deliverables.filter((d) => d.is_required);
@@ -43,17 +56,25 @@ function calculateGateReadiness(gate: Gate) {
   const readiness = totalRequired > 0 ? Math.round((completedRequired / totalRequired) * 100) : 100;
   const openRequired = totalRequired - completedRequired;
 
-  return { completion, readiness, openRequired };
+  return {
+    completion,
+    readiness,
+    openRequired,
+    completedCriteria,
+    totalCriteria,
+    completedDeliverables,
+    totalDeliverables,
+  };
 }
 
 function getInitialGates(): Gate[] {
   const gateTypes: Gate['gate_type'][] = [
-    'Concept & Charter',
-    'APQP Stage-Gate',
-    'Design Freeze',
-    'FMEA & Risk Validation',
-    'Validation',
-    'Production Readiness',
+    '1. PL',
+    '2. VC',
+    '3. TKO',
+    '4. VL',
+    '5. CPA',
+    '6. CT',
   ];
 
   const projects = [
@@ -114,6 +135,11 @@ function getInitialGates(): Gate[] {
       approval_status: approvalStatus,
       completion_percentage: comp,
       readiness_percentage: read,
+      completed_criteria_count: isApproved ? 2 : 0,
+      total_criteria_count: 2,
+      completed_deliverables_count: isApproved ? 1 : 0,
+      total_deliverables_count: 1,
+      blocking_items_count: isApproved ? 0 : 3,
       description: `Formal APQP Gate Milestone audit and quality gate sign-off for ${proj}.`,
       criteria: [
         {
@@ -165,6 +191,7 @@ function getInitialGates(): Gate[] {
             },
           ]
         : [],
+      board_reviews: getDefaultBoardReviews(),
       activity_log: [
         {
           id: `ACT-${num}01`,
@@ -206,6 +233,30 @@ export function getGateByName(name: string): Gate | null {
   return gates.find((g) => g.name === name) || null;
 }
 
+export function deleteGateFromStore(name: string, session?: PDMUserSession): boolean {
+  const gates = loadAllGates();
+  const index = gates.findIndex((g) => g.name === name);
+  if (index === -1) return false;
+
+  const deleted = gates.splice(index, 1)[0];
+  saveAllGates(gates);
+
+  if (session) {
+    saveAuditRecord({
+      project_id: deleted.project || 'GLOBAL',
+      user_id: session.email || session.username,
+      user_name: session.fullName || session.username,
+      role: session.role,
+      action: 'Stage-Gate Deleted',
+      entity_type: 'Gate',
+      entity_id: deleted.name,
+      description: `Deleted stage-gate "${deleted.gate_name}" (${deleted.name}) for project ${deleted.project}.`,
+      old_value: deleted.gate_name,
+    });
+  }
+  return true;
+}
+
 export function saveOrUpdateGate(gateData: Partial<Gate>): Gate {
   const gates = loadAllGates();
   const existingIndex = gates.findIndex((g) => g.name === gateData.name);
@@ -216,18 +267,51 @@ export function saveOrUpdateGate(gateData: Partial<Gate>): Gate {
       ...existing,
       ...gateData,
     };
-    const { completion, readiness } = calculateGateReadiness(updated);
+    const {
+      completion,
+      readiness,
+      openRequired,
+      completedCriteria,
+      totalCriteria,
+      completedDeliverables,
+      totalDeliverables,
+    } = calculateGateReadiness(updated);
     updated.completion_percentage = completion;
     updated.readiness_percentage = readiness;
+    updated.completed_criteria_count = completedCriteria;
+    updated.total_criteria_count = totalCriteria;
+    updated.completed_deliverables_count = completedDeliverables;
+    updated.total_deliverables_count = totalDeliverables;
+    updated.blocking_items_count = openRequired;
+
+    if (!updated.board_reviews || updated.board_reviews.length === 0) {
+      updated.board_reviews = getDefaultBoardReviews();
+    }
+
     gates[existingIndex] = updated;
     saveAllGates(gates);
     return updated;
   } else {
+    // Check duplicate gate within the same project
+    const targetProject = gateData.project || 'PROJ-0001';
+    const duplicate = gates.find(
+      (g) =>
+        g.project === targetProject &&
+        g.gate_name.toLowerCase().trim() === (gateData.gate_name || '').toLowerCase().trim()
+    );
+    if (duplicate) {
+      const err: any = new Error(
+        `Duplicate Gate: A stage-gate named "${gateData.gate_name}" already exists for project ${targetProject}.`
+      );
+      err.statusCode = 400;
+      throw err;
+    }
+
     const newGate: Gate = {
       name: gateData.name || `GATE-2026-${String(gates.length + 1).padStart(5, '0')}`,
       gate_name: gateData.gate_name || 'Untitled APQP Gate Review',
-      project: gateData.project || 'PROJ-0001',
-      gate_type: gateData.gate_type || 'Concept & Charter',
+      project: targetProject,
+      gate_type: gateData.gate_type || '1. PL',
       planned_date: gateData.planned_date || new Date().toISOString().split('T')[0],
       actual_date: gateData.actual_date,
       status: gateData.status || 'In Progress',
@@ -242,6 +326,7 @@ export function saveOrUpdateGate(gateData: Partial<Gate>): Gate {
       criteria: gateData.criteria || [],
       deliverables: gateData.deliverables || [],
       reviews: gateData.reviews || [],
+      board_reviews: gateData.board_reviews || getDefaultBoardReviews(),
       activity_log: [
         {
           id: `ACT-${Date.now()}`,
@@ -251,9 +336,23 @@ export function saveOrUpdateGate(gateData: Partial<Gate>): Gate {
         },
       ],
     };
-    const { completion, readiness } = calculateGateReadiness(newGate);
+    const {
+      completion,
+      readiness,
+      openRequired,
+      completedCriteria,
+      totalCriteria,
+      completedDeliverables,
+      totalDeliverables,
+    } = calculateGateReadiness(newGate);
     newGate.completion_percentage = completion;
     newGate.readiness_percentage = readiness;
+    newGate.completed_criteria_count = completedCriteria;
+    newGate.total_criteria_count = totalCriteria;
+    newGate.completed_deliverables_count = completedDeliverables;
+    newGate.total_deliverables_count = totalDeliverables;
+    newGate.blocking_items_count = openRequired;
+
     gates.unshift(newGate);
     saveAllGates(gates);
     return newGate;

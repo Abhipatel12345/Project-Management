@@ -54,6 +54,8 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
           { title: 'All Projects', href: '/projects' },
           { title: 'Project Details', href: '/projects/detail' },
           { title: 'Project Charter', href: '/projects/charter' },
+          { title: 'Timing Status', href: '/projects/timing-status' },
+          { title: 'Gantt Tab', href: '/projects/gantt' },
           { title: 'Team Allocation', href: '/projects/team' },
         ],
       },

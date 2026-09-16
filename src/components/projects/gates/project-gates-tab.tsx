@@ -192,7 +192,11 @@ export function ProjectGatesTab({ projectId, projectName }: ProjectGatesTabProps
     }
   };
 
-  const handleAddGateReview = async (review: { reviewer: string; decision: 'Approved' | 'Approved with Conditions' | 'Rejected'; comments?: string }) => {
+  const handleAddGateReview = async (review: {
+    reviewer: string;
+    decision: 'Approved' | 'Approved with Conditions' | 'Rejected' | 'Pass' | 'Pass with Follow up' | 'Escalate';
+    comments?: string;
+  }) => {
     if (!viewingGate) return;
     try {
       const updated = await addGateReviewMutation.mutateAsync({

@@ -19,6 +19,8 @@ import { ProjectGatesTab } from '@/components/projects/gates/project-gates-tab';
 import { ProjectPlanningTab } from '@/components/projects/planning/project-planning-tab';
 import { ProjectConnectionsTab } from '@/components/projects/connections/project-connections-tab';
 import { ProjectActivityTab } from '@/components/projects/activity/project-activity-tab';
+import { ProjectCharterView } from '@/components/projects/charter/project-charter-view';
+import { ProjectTimingStatusView } from '@/components/projects/timing/project-timing-status-view';
 import { AccessDenied } from '@/components/shared/access-denied';
 import { useAuth } from '@/providers/auth-context';
 import {
@@ -26,6 +28,7 @@ import {
   Calendar,
   DollarSign,
   Edit2,
+  FileCheck,
   FolderKanban,
   Trash2,
   User,
@@ -64,7 +67,7 @@ export default function ProjectDetailPage() {
 
   // Workspace Tabs
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'team' | 'tasks' | 'planning' | 'documents' | 'reviews' | 'gates' | 'issues' | 'activity' | 'connections'
+    'overview' | 'charter' | 'timing' | 'team' | 'tasks' | 'planning' | 'documents' | 'reviews' | 'gates' | 'issues' | 'activity' | 'connections'
   >('overview');
 
   // Horizontal Tab Scroll & Overflow Management
@@ -279,15 +282,13 @@ export default function ProjectDetailPage() {
             </button>
           )}
 
-          {canManageProjectSettings && (
-            <button
-              onClick={() => setIsEditOpen(true)}
-              className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-2xs cursor-pointer"
-            >
-              <Edit2 className="h-3.5 w-3.5 text-sky-600" />
-              <span>Edit Charter</span>
-            </button>
-          )}
+          <button
+            onClick={() => setActiveTab('charter')}
+            className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-slate-50 text-slate-700 text-xs font-bold transition shadow-2xs cursor-pointer"
+          >
+            <FileCheck className="h-3.5 w-3.5 text-sky-600" />
+            <span>Charter</span>
+          </button>
 
           {canManageProjectSettings && (
             <button
@@ -410,6 +411,38 @@ export default function ProjectDetailPage() {
             <span>Overview</span>
           </button>
 
+          {/* Tab: Charter */}
+          <button
+            ref={(el) => {
+              tabRefs.current['charter'] = el;
+            }}
+            onClick={() => setActiveTab('charter')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 cursor-pointer ${
+              activeTab === 'charter'
+                ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <FileCheck className="h-4 w-4" />
+            <span>Charter</span>
+          </button>
+
+          {/* Tab: Timing Status */}
+          <button
+            ref={(el) => {
+              tabRefs.current['timing'] = el;
+            }}
+            onClick={() => setActiveTab('timing')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 cursor-pointer ${
+              activeTab === 'timing'
+                ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Clock className="h-4 w-4" />
+            <span>Timing Status</span>
+          </button>
+
           {/* Tab 2: Team */}
           <button
             ref={(el) => {
@@ -442,7 +475,7 @@ export default function ProjectDetailPage() {
             <span>Tasks</span>
           </button>
 
-          {/* Tab 4: Planning */}
+          {/* Tab 4: Gantt */}
           <button
             ref={(el) => {
               tabRefs.current['planning'] = el;
@@ -455,7 +488,7 @@ export default function ProjectDetailPage() {
             }`}
           >
             <CalendarDays className="h-4 w-4" />
-            <span>Planning</span>
+            <span>Gantt</span>
           </button>
 
           {/* Tab 5: Documents */}
@@ -568,6 +601,16 @@ export default function ProjectDetailPage() {
           </button>
         )}
       </div>
+
+      {/* Tab: CHARTER */}
+      {activeTab === 'charter' && (
+        <ProjectCharterView project={project} onRefresh={refetch} />
+      )}
+
+      {/* Tab: TIMING STATUS */}
+      {activeTab === 'timing' && (
+        <ProjectTimingStatusView project={project} onRefreshProject={refetch} />
+      )}
 
       {/* Tab 1: OVERVIEW */}
       {activeTab === 'overview' && (

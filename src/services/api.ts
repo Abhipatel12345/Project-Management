@@ -45,14 +45,27 @@ axiosClient.interceptors.request.use(
       config.baseURL = url;
     }
 
+    const isLocalApi =
+      config.url?.startsWith('/api/') ||
+      (!config.url?.startsWith('http://') && !config.url?.startsWith('https://'));
+
     if (apiKey && apiSecret) {
       config.headers.Authorization = `token ${apiKey}:${apiSecret}`;
-      // Disable withCredentials for API token authentication so browser session cookies
-      // (like sid or csrf_token from ERPNext desk) do not trigger Frappe CSRFTokenError.
-      config.withCredentials = false;
+      // Disable withCredentials for direct ERPNext API calls so browser session cookies
+      // do not trigger Frappe CSRFTokenError. Keep true for local Next.js /api endpoints.
+      config.withCredentials = isLocalApi;
     }
 
     if (typeof window !== 'undefined') {
+      try {
+        const storedUser = localStorage.getItem('pdm_user_session');
+        if (storedUser) {
+          config.headers['x-pdm-user'] = encodeURIComponent(storedUser);
+        }
+      } catch {
+        // ignore
+      }
+
       const csrfToken =
         getCookie('csrf_token') ||
         (window as any).csrf_token ||
@@ -192,9 +205,15 @@ axiosClient.interceptors.response.use(
       errorMessage = error.message || errorMessage;
     }
 
-    // Auto-redirect on 401 if in browser environment and not on /login
+    // Auto-redirect on 401 if in browser environment and on dedicated auth validation endpoints
     if (status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
-      window.location.href = '/login?session_expired=true';
+      const requestUrl = error.config?.url || '';
+      const isAuthCheck =
+        requestUrl.includes('/api/auth/pdm-session') ||
+        requestUrl.includes('frappe.auth.get_logged_user');
+      if (isAuthCheck) {
+        window.location.href = '/login?session_expired=true';
+      }
     }
 
     return Promise.reject(new Error(errorMessage));

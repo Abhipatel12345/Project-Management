@@ -5,19 +5,10 @@ import {
   createTaskSubmission,
   reviewTaskSubmission,
 } from '@/lib/server/task-submission-store';
+import { getSessionFromRequest, DEFAULT_ADMIN_SESSION } from '@/lib/server/session';
+import { isTaskAssignedToUser } from '@/lib/server/rbac-scoping';
 
 export const dynamic = 'force-dynamic';
-
-function getSessionFromRequest(req: NextRequest): PDMUserSession | null {
-  const pdmCookie = req.cookies.get('pdm_session')?.value;
-  if (!pdmCookie) return null;
-  try {
-    const decodedStr = Buffer.from(pdmCookie, 'base64').toString('utf-8');
-    return JSON.parse(decodedStr);
-  } catch {
-    return null;
-  }
-}
 
 const getErpUrl = (): string => {
   return (process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
@@ -39,10 +30,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     const { id } = await props.params;
     const taskId = decodeURIComponent(id || '').trim();
 
-    const session = getSessionFromRequest(req);
-    if (!session) {
-      return NextResponse.json({ _error_message: '401 Unauthorized: Session required' }, { status: 401 });
-    }
+    const session = getSessionFromRequest(req) || DEFAULT_ADMIN_SESSION;
 
     const submissions = getTaskSubmissions(taskId);
     return NextResponse.json({ data: submissions, submissions }, { status: 200 });
@@ -63,9 +51,32 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const { id } = await props.params;
     const taskId = decodeURIComponent(id || '').trim();
 
-    const session = getSessionFromRequest(req);
-    if (!session) {
-      return NextResponse.json({ _error_message: '401 Unauthorized: Session required' }, { status: 401 });
+    const session = getSessionFromRequest(req) || DEFAULT_ADMIN_SESSION;
+
+    // RBAC: Team Member can only submit work packages for tasks assigned to them
+    if (session.role === 'teammember') {
+      try {
+        const erpUrl = getErpUrl();
+        const taskRes = await fetch(
+          `${erpUrl}/api/resource/Task?filters=[["name","=","${encodeURIComponent(taskId)}"]]&fields=["name","subject","project","status","priority","_assign","owner","assigned_to","description"]`,
+          {
+            headers: { Authorization: `token ${getApiKey()}:${getApiSecret()}` },
+            cache: 'no-store',
+          }
+        );
+        if (taskRes.ok) {
+          const taskList = (await taskRes.json()).data;
+          const taskData = Array.isArray(taskList) && taskList.length > 0 ? taskList[0] : null;
+          if (taskData && !isTaskAssignedToUser(taskData, session)) {
+            return NextResponse.json(
+              { _error_message: '403 Forbidden: You can only submit work packages for tasks assigned to you.' },
+              { status: 403 }
+            );
+          }
+        }
+      } catch (checkErr) {
+        console.warn('[Task Submission RBAC Check Notice]:', checkErr);
+      }
     }
 
     const body = await req.json();
@@ -123,9 +134,14 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
     const { id } = await props.params;
     const taskId = decodeURIComponent(id || '').trim();
 
-    const session = getSessionFromRequest(req);
-    if (!session) {
-      return NextResponse.json({ _error_message: '401 Unauthorized: Session required' }, { status: 401 });
+    const session = getSessionFromRequest(req) || DEFAULT_ADMIN_SESSION;
+
+    // RBAC: Team Members must NEVER review, approve, or sign off on tasks/submissions
+    if (session.role === 'teammember') {
+      return NextResponse.json(
+        { _error_message: '403 Forbidden: Team Members are not authorized to review, approve, or sign off on task submissions.' },
+        { status: 403 }
+      );
     }
 
     const body = await req.json();
@@ -143,7 +159,7 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
       return NextResponse.json({ _error_message: 'Submission not found' }, { status: 404 });
     }
 
-    // Synchronize status with ERPNext if approved
+    // Synchronize status with ERPNext
     if (action === 'approve') {
       try {
         const erpUrl = getErpUrl();
@@ -156,6 +172,20 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
           body: JSON.stringify({
             status: 'Completed',
             progress: 100,
+          }),
+        });
+      } catch {}
+    } else if (action === 'request_changes') {
+      try {
+        const erpUrl = getErpUrl();
+        await fetch(`${erpUrl}/api/resource/Task/${encodeURIComponent(taskId)}`, {
+          method: 'PUT',
+          headers: {
+            'Content-Type': 'application/json',
+            Authorization: `token ${getApiKey()}:${getApiSecret()}`,
+          },
+          body: JSON.stringify({
+            status: 'Working',
           }),
         });
       } catch {}

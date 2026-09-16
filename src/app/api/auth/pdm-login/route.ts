@@ -87,7 +87,7 @@ function derivePersonaFromERPNextRoles(
       permissions: {
         manageUsers: false,
         manageProjects: false,
-        manageTasks: true,
+        manageTasks: false,
         manageDeliverables: true,
         manageTeamMembers: false,
         manageBoardMembers: false,
@@ -312,7 +312,7 @@ function derivePersonaFromERPNextRoles(
     permissions: {
       manageUsers: false,
       manageProjects: false,
-      manageTasks: true,
+      manageTasks: false,
       manageDeliverables: true,
       manageTeamMembers: false,
       manageBoardMembers: false,
@@ -330,7 +330,8 @@ function derivePersonaFromERPNextRoles(
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { usr, pwd } = body || {};
+    const usr = body?.usr || body?.username;
+    const pwd = body?.pwd || body?.password;
 
     if (!usr) {
       return NextResponse.json(

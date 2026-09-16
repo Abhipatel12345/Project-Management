@@ -1,11 +1,54 @@
+import fs from 'fs';
+import path from 'path';
 import { TaskRelationship, CreateDependencyPayload, TaskDependencyInfo, DependencyType } from '@/types/task-dependency.types';
 import { Task } from '@/types/task.types';
+
+const DATA_DIR = path.join(process.cwd(), '.data');
+const FILE_PATH = path.join(DATA_DIR, 'task_dependencies.json');
+
+const ensureDirectoryExists = () => {
+  if (!fs.existsSync(DATA_DIR)) {
+    fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+};
 
 class TaskDependencyStore {
   private dependencies: Map<string, TaskRelationship[]> = new Map();
 
   constructor() {
-    // Initialize in-memory store with persistence across calls
+    this.loadFromDisk();
+  }
+
+  private loadFromDisk() {
+    try {
+      ensureDirectoryExists();
+      if (fs.existsSync(FILE_PATH)) {
+        const raw = fs.readFileSync(FILE_PATH, 'utf-8');
+        const parsed = JSON.parse(raw);
+        if (typeof parsed === 'object' && parsed !== null) {
+          for (const [proj, deps] of Object.entries(parsed)) {
+            if (Array.isArray(deps)) {
+              this.dependencies.set(proj, deps);
+            }
+          }
+        }
+      }
+    } catch (err) {
+      console.error('Error reading task_dependencies.json:', err);
+    }
+  }
+
+  private saveToDisk() {
+    try {
+      ensureDirectoryExists();
+      const obj: Record<string, TaskRelationship[]> = {};
+      for (const [proj, deps] of this.dependencies.entries()) {
+        obj[proj] = deps;
+      }
+      fs.writeFileSync(FILE_PATH, JSON.stringify(obj, null, 2), 'utf-8');
+    } catch (err) {
+      console.error('Error writing task_dependencies.json:', err);
+    }
   }
 
   /**
@@ -81,6 +124,7 @@ class TaskDependencyStore {
 
     projectDeps.push(newDep);
     this.dependencies.set(project, projectDeps);
+    this.saveToDisk();
 
     return newDep;
   }
@@ -93,6 +137,7 @@ class TaskDependencyStore {
     const initialLen = projectDeps.length;
     const filtered = projectDeps.filter((d) => d.id !== dependencyId);
     this.dependencies.set(projectId, filtered);
+    this.saveToDisk();
     return filtered.length < initialLen;
   }
 
@@ -105,6 +150,7 @@ class TaskDependencyStore {
       (d) => d.predecessor_id !== taskId && d.successor_id !== taskId
     );
     this.dependencies.set(projectId, filtered);
+    this.saveToDisk();
   }
 
   /**

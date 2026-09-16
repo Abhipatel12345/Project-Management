@@ -164,6 +164,12 @@ export function GateTableView({
           className="px-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none cursor-pointer"
         >
           <option value="ALL">All Gate Types</option>
+          <option value="1. PL">1. PL</option>
+          <option value="2. VC">2. VC</option>
+          <option value="3. TKO">3. TKO</option>
+          <option value="4. VL">4. VL</option>
+          <option value="5. CPA">5. CPA</option>
+          <option value="6. CT">6. CT</option>
           <option value="Concept & Charter">Concept & Charter</option>
           <option value="APQP Stage-Gate">APQP Stage-Gate</option>
           <option value="Design Freeze">Design Freeze</option>
@@ -219,7 +225,7 @@ export function GateTableView({
                 <th className="py-3.5 px-4">Planned Date</th>
                 <th className="py-3.5 px-4">Actual Date</th>
                 <th className="py-3.5 px-4 text-center">Status</th>
-                <th className="py-3.5 px-4 text-center">Readiness %</th>
+                <th className="py-3.5 px-4 text-center">Readiness & Items</th>
                 <th className="py-3.5 px-4 text-center">Approval</th>
                 <th className="py-3.5 px-4 text-right">Actions</th>
               </tr>
@@ -233,7 +239,22 @@ export function GateTableView({
                   </td>
                 </tr>
               ) : (
-                filteredGates.map((gate) => (
+                filteredGates.map((gate) => {
+                  const crt = gate.criteria || [];
+                  const del = gate.deliverables || [];
+                  const cDone = crt.filter((c) => c.status === 'Completed').length;
+                  const dDone = del.filter(
+                    (d) => d.status === 'Approved' || d.status === 'Completed' || (d.completion_percentage || 0) >= 100
+                  ).length;
+                  const reqCrt = crt.filter((c) => c.is_required && c.status !== 'Not Applicable');
+                  const reqDel = del.filter((d) => d.is_required);
+                  const reqCDone = reqCrt.filter((c) => c.status === 'Completed').length;
+                  const reqDDone = reqDel.filter(
+                    (d) => d.status === 'Approved' || d.status === 'Completed' || (d.completion_percentage || 0) >= 100
+                  ).length;
+                  const blockingCount = (reqCrt.length + reqDel.length) - (reqCDone + reqDDone);
+
+                  return (
                   <tr key={gate.name} className="hover:bg-slate-50/80 transition">
                     {/* Gate ID */}
                     <td className="py-3 px-4 font-mono font-bold text-emerald-700 text-[11px]">
@@ -288,19 +309,29 @@ export function GateTableView({
                     {/* Status */}
                     <td className="py-3 px-4 text-center">{getStatusBadge(gate.status)}</td>
 
-                    {/* Readiness % */}
+                    {/* Readiness % & Item Counts */}
                     <td className="py-3 px-4 text-center">
-                      <span
-                        className={`inline-flex items-center px-2.5 py-0.5 rounded text-[11px] font-black font-mono ${
-                          (gate.readiness_percentage || 0) >= 100
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : (gate.readiness_percentage || 0) >= 60
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-rose-100 text-rose-800'
-                        }`}
-                      >
-                        {gate.readiness_percentage || 0}%
-                      </span>
+                      <div className="flex flex-col items-center gap-0.5">
+                        <span
+                          className={`inline-flex items-center px-2 py-0.5 rounded text-[11px] font-black font-mono ${
+                            (gate.readiness_percentage || 0) >= 100
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : (gate.readiness_percentage || 0) >= 60
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-rose-100 text-rose-800'
+                          }`}
+                        >
+                          {gate.readiness_percentage || 0}%
+                        </span>
+                        <span className="text-[10px] text-slate-500 font-mono">
+                          Crit: {cDone}/{crt.length} • Del: {dDone}/{del.length}
+                        </span>
+                        {blockingCount > 0 && (
+                          <span className="px-1.5 py-0.2 rounded text-[9px] font-bold bg-rose-50 text-rose-700 border border-rose-200">
+                            {blockingCount} blocking
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* Approval */}
@@ -333,9 +364,10 @@ export function GateTableView({
                       </div>
                     </td>
                   </tr>
-                ))
-              )}
-            </tbody>
+                );
+              })
+            )}
+          </tbody>
           </table>
         </div>
       </div>

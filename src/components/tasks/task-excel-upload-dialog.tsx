@@ -22,9 +22,12 @@ import {
 } from 'lucide-react';
 import { cn } from '@/utils/cn';
 
+import { formatPhaseName, inferTaskPhase } from '@/constants/phases';
+
 interface ParsedTaskRow {
   rowIndex: number;
   subject: string;
+  phase?: string;
   description?: string;
   assigned_to?: string;
   exp_start_date?: string;
@@ -161,43 +164,30 @@ export function TaskExcelUploadDialog({
   const handleDownloadTemplate = () => {
     const templateData = [
       {
-        'Task Title': 'Window Regulator Motor Geometry Optimization',
-        'Description': 'Perform CAD parameterization and stress simulation under 1500N load',
-        'Assigned To': 'teammember@netlink.com',
-        'Start Date': '2026-09-01',
-        'Due Date': '2026-09-15',
-        'Priority': 'High',
-        'Status': 'Open',
+        'Task Title': 'Finalize High-Voltage Battery Thermal Simulation',
+        'Phase': 'Phase 2: Product Design & Development',
+        'Description': 'Perform ANSYS Fluent CFD thermal run under peak 3C rapid charging profile.',
+        'Assigned To (Email or Name)': 'Yash',
+        'Start Date (YYYY-MM-DD)': '2026-08-01',
+        'Due Date (YYYY-MM-DD)': '2026-08-15',
+        'Priority (Low/Medium/High/Urgent)': 'High',
+        'Status (Open/Working/Pending Review/Completed)': 'Open',
         'Expected Hours': 40,
         'Responsible (R)': 'Yash',
         'Accountable (A)': 'Sarah Jenkins',
         'Support (S)': 'Quality Lead',
-        'Consulted (C)': 'Lead Engineer',
-        'Informed (I)': 'PMO Administrator',
-      },
-      {
-        'Task Title': 'Gearbox Tolerance & Backlash Analysis',
-        'Description': 'Verify backlash clearances and physical tolerances on 3D printed prototype',
-        'Assigned To': 'teammember@netlink.com',
-        'Start Date': '2026-09-16',
-        'Due Date': '2026-09-25',
-        'Priority': 'Medium',
-        'Status': 'Open',
-        'Expected Hours': 24,
-        'Responsible (R)': 'Yash',
-        'Accountable (A)': 'Sarah Jenkins',
-        'Support (S)': '',
         'Consulted (C)': '',
-        'Informed (I)': '',
+        'Informed (I)': 'Aditya',
       },
       {
         'Task Title': 'Thermal Dissipation & Life Cycle Bench Test',
+        'Phase': 'Phase 4: Product & Process Validation',
         'Description': 'Execute 10,000 cycle endurance test at 65°C ambient temperature',
-        'Assigned To': 'sarahjenkins@gmail.com',
-        'Start Date': '2026-09-26',
-        'Due Date': '2026-10-10',
-        'Priority': 'Urgent',
-        'Status': 'Open',
+        'Assigned To (Email or Name)': 'sarahjenkins@gmail.com',
+        'Start Date (YYYY-MM-DD)': '2026-09-26',
+        'Due Date (YYYY-MM-DD)': '2026-10-10',
+        'Priority (Low/Medium/High/Urgent)': 'Urgent',
+        'Status (Open/Working/Pending Review/Completed)': 'Open',
         'Expected Hours': 60,
         'Responsible (R)': 'Sarah Jenkins',
         'Accountable (A)': 'Quality Lead',
@@ -280,6 +270,7 @@ export function TaskExcelUploadDialog({
         };
 
         const rawSubject = getField(['tasktitle', 'subject', 'taskname', 'title', 'task', 'name']);
+        const rawPhase = getField(['phase', 'projectphase', 'gatetype', 'stage', 'apqpphase']);
         const rawDesc = getField(['description', 'desc', 'details', 'summary', 'scope']);
         const rawAssigned = getField(['assignedto', 'assigned', 'assignee', 'owner', 'assigneduser']);
         const rawStart = getField(['startdate', 'expstartdate', 'start', 'expectedstartdate', 'plannedstart']);
@@ -348,9 +339,14 @@ export function TaskExcelUploadDialog({
           informed: rawI ? String(rawI).trim() : undefined,
         };
 
+        const phase = rawPhase
+          ? formatPhaseName(String(rawPhase))
+          : inferTaskPhase({ subject: subjectStr, description: rawDesc ? String(rawDesc) : '' });
+
         parsedList.push({
           rowIndex,
           subject: subjectStr,
+          phase,
           description: rawDesc ? String(rawDesc).trim() : undefined,
           assigned_to: rawAssigned ? String(rawAssigned).trim() : undefined,
           exp_start_date,
@@ -420,6 +416,7 @@ export function TaskExcelUploadDialog({
       try {
         await createTaskMutation.mutateAsync({
           subject: row.subject,
+          phase: row.phase || 'Phase 1: Concept & Planning',
           description: row.description,
           project: projectId,
           status: row.status,

@@ -79,6 +79,8 @@ export const gateService = {
       if (params.gate_type && params.gate_type !== 'ALL') queryParams.set('gate_type', params.gate_type);
       if (params.approval_status && params.approval_status !== 'ALL')
         queryParams.set('approval_status', params.approval_status);
+      if (params.gate_owner && params.gate_owner !== 'ALL')
+        queryParams.set('gate_owner', params.gate_owner);
       if (params.search) queryParams.set('search', params.search);
       if (params.page) queryParams.set('page', String(params.page));
       if (params.pageSize) queryParams.set('pageSize', String(params.pageSize));
@@ -106,12 +108,17 @@ export const gateService = {
     if (params.approval_status && params.approval_status !== 'ALL') {
       gates = gates.filter((g) => g.approval_status === params.approval_status);
     }
+    if (params.gate_owner && params.gate_owner !== 'ALL') {
+      gates = gates.filter((g) => g.gate_owner === params.gate_owner || g.gate_owner_id === params.gate_owner);
+    }
     if (params.search && params.search.trim() !== '') {
       const q = params.search.toLowerCase().trim();
       gates = gates.filter(
         (g) =>
           g.gate_name.toLowerCase().includes(q) ||
           g.name.toLowerCase().includes(q) ||
+          (g.project && g.project.toLowerCase().includes(q)) ||
+          (g.gate_owner && g.gate_owner.toLowerCase().includes(q)) ||
           (g.description && g.description.toLowerCase().includes(q))
       );
     }
@@ -373,12 +380,19 @@ export const gateService = {
 
   async addGateReview(
     gateName: string,
-    review: { reviewer: string; decision: 'Approved' | 'Approved with Conditions' | 'Rejected'; comments?: string }
+    review: { reviewer: string; decision: 'Approved' | 'Approved with Conditions' | 'Rejected' | 'Pass' | 'Pass with Follow up' | 'Escalate'; comments?: string }
   ): Promise<Gate> {
     const gate = await this.getGateByName(gateName);
     const { readiness, openRequired } = calculateGateReadiness(gate);
 
-    if (review.decision === 'Approved' && readiness < 100) {
+    const isApprovedDecision =
+      review.decision === 'Approved' ||
+      review.decision === 'Pass' ||
+      review.decision === 'Approved with Conditions' ||
+      review.decision === 'Pass with Follow up';
+    const isNegativeDecision = review.decision === 'Rejected' || review.decision === 'Escalate';
+
+    if ((review.decision === 'Approved' || review.decision === 'Pass') && readiness < 100) {
       throw new Error(`Cannot approve gate: ${openRequired} required item(s) incomplete.`);
     }
 
@@ -394,10 +408,10 @@ export const gateService = {
     gate.reviews.unshift(reviewRecord);
 
     gate.approval_status = review.decision;
-    if (review.decision === 'Approved' || review.decision === 'Approved with Conditions') {
+    if (isApprovedDecision) {
       gate.status = 'Approved';
       gate.actual_date = new Date().toISOString().split('T')[0];
-    } else {
+    } else if (isNegativeDecision) {
       gate.status = 'Rejected';
     }
 
@@ -410,6 +424,11 @@ export const gateService = {
   },
 
   async deleteGate(name: string): Promise<void> {
+    try {
+      await api.delete(`/api/gates/${encodeURIComponent(name)}`);
+    } catch (err) {
+      console.warn('Backend deleteGate fallback:', err);
+    }
     const gates = getStoredGates().filter((g) => g.name !== name);
     saveStoredGates(gates);
   },

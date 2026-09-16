@@ -5,17 +5,7 @@ import {
   getSkipRequestsByProject,
   createSkipRequest,
 } from '@/lib/server/skip-request-store';
-
-function getSessionFromRequest(req: NextRequest): PDMUserSession | null {
-  try {
-    const cookie = req.cookies.get('pdm_session')?.value;
-    if (!cookie) return null;
-    const jsonStr = Buffer.from(cookie, 'base64').toString('utf-8');
-    return JSON.parse(jsonStr);
-  } catch {
-    return null;
-  }
-}
+import { getSessionFromRequest } from '@/lib/server/session';
 
 /**
  * GET /api/projects/:id/skip-requests

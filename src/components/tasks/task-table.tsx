@@ -4,10 +4,11 @@ import { Task } from '@/types/task.types';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskPriorityBadge } from './task-priority-badge';
 import { useSkipRequests } from '@/hooks/use-skip-requests';
-import { Eye, Edit2, Trash2, Calendar, User, AlertTriangle, Clock, Send } from 'lucide-react';
+import { Eye, Edit2, Trash2, Calendar, User, AlertTriangle, Clock, Send, Layers } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/providers/auth-context';
 import { getUserRasicRole } from '@/utils/user-matcher';
+import { getPhaseBadgeColors, formatPhaseName } from '@/constants/phases';
 
 interface TaskTableProps {
   tasks: Task[];
@@ -15,6 +16,7 @@ interface TaskTableProps {
   onEditTask: (task: Task) => void;
   onDeleteTask: (task: Task) => void;
   onSubmitTask?: (task: Task) => void;
+  hideProjectColumn?: boolean;
 }
 
 export function TaskTable({
@@ -23,6 +25,7 @@ export function TaskTable({
   onEditTask,
   onDeleteTask,
   onSubmitTask,
+  hideProjectColumn = false,
 }: TaskTableProps) {
   const { user } = useAuth();
   const { data: skipRequests = [] } = useSkipRequests();
@@ -31,6 +34,7 @@ export function TaskTable({
   );
 
   const canDeleteTasks = user?.role === 'admin' || user?.role === 'projectmanager';
+  const canEditTasks = user?.role === 'admin' || user?.role === 'projectmanager';
   if (tasks.length === 0) {
     return (
       <div className="p-12 rounded-2xl bg-white border border-slate-200 text-center space-y-3 shadow-xs font-sans">
@@ -52,7 +56,8 @@ export function TaskTable({
           <thead>
             <tr className="border-b border-slate-200 bg-slate-50/75 text-[10px] uppercase font-bold text-slate-500 tracking-wider">
               <th className="py-3 px-4 font-bold">Task Name & ID</th>
-              <th className="py-3 px-4 font-bold">Project</th>
+              {!hideProjectColumn && <th className="py-3 px-4 font-bold">Project</th>}
+              <th className="py-3 px-4 font-bold">Phase</th>
               <th className="py-3 px-4 font-bold">Status</th>
               <th className="py-3 px-4 font-bold">Priority</th>
               <th className="py-3 px-4 font-bold">Assignee</th>
@@ -64,6 +69,8 @@ export function TaskTable({
             {tasks.map((task, index) => {
               const isPendingSkip = pendingSkipTaskIds.has(task.name);
               const rasicRole = getUserRasicRole(task, user);
+              const phaseName = formatPhaseName(task.phase);
+              const phaseColors = getPhaseBadgeColors(phaseName);
 
               return (
                 <motion.tr
@@ -112,17 +119,30 @@ export function TaskTable({
                   </td>
 
                   {/* Project */}
+                  {!hideProjectColumn && (
+                    <td className="py-3.5 px-4">
+                      {task.project ? (
+                        <Link
+                          href={`/projects/${task.project}`}
+                          className="font-bold text-sky-700 hover:underline hover:text-sky-800"
+                        >
+                          {task.project}
+                        </Link>
+                      ) : (
+                        <span className="text-slate-400">Global</span>
+                      )}
+                    </td>
+                  )}
+
+                  {/* Phase */}
                   <td className="py-3.5 px-4">
-                    {task.project ? (
-                      <Link
-                        href={`/projects/${task.project}`}
-                        className="font-bold text-sky-700 hover:underline hover:text-sky-800"
-                      >
-                        {task.project}
-                      </Link>
-                    ) : (
-                      <span className="text-slate-400">Global</span>
-                    )}
+                    <span
+                      className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[10px] font-bold border shadow-2xs ${phaseColors.badge}`}
+                      title={phaseName}
+                    >
+                      <span className={`h-1.5 w-1.5 rounded-full ${phaseColors.dot}`} />
+                      <span className="truncate max-w-[140px]">{phaseName}</span>
+                    </span>
                   </td>
 
                   {/* Status */}
@@ -182,13 +202,15 @@ export function TaskTable({
                       >
                         <Eye className="h-4 w-4" />
                       </button>
-                      <button
-                        onClick={() => onEditTask(task)}
-                        className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer"
-                        title="Edit Task"
-                      >
-                        <Edit2 className="h-4 w-4" />
-                      </button>
+                      {canEditTasks && (
+                        <button
+                          onClick={() => onEditTask(task)}
+                          className="p-1.5 rounded-lg text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer"
+                          title="Edit Task"
+                        >
+                          <Edit2 className="h-4 w-4" />
+                        </button>
+                      )}
                       {canDeleteTasks && (
                         <button
                           onClick={() => onDeleteTask(task)}

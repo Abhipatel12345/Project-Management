@@ -20,6 +20,8 @@ export interface Task {
   subject: string;
   project?: string; // Project ID (e.g. PROJ-001)
   project_name?: string;
+  phase?: string; // e.g. "Phase 1: Concept & Planning"
+  phase_id?: string; // e.g. "phase-1"
   status: TaskStatus | string;
   priority: TaskPriority | string;
   exp_start_date?: string;
@@ -48,6 +50,36 @@ export interface Task {
   skipped_by?: string;
   skipped_on?: string;
   submissions?: TaskSubmission[];
+  // Gantt Tab Specific Fields
+  wbs?: string;
+  function_name?: string;
+  role?: string;
+  gate?: string;
+  duration?: number;
+  is_mandatory_pdp?: boolean;
+  is_custom?: boolean;
+  is_milestone?: boolean;
+  is_skipped?: boolean;
+  retimed_to?: string;
+  target_start_date?: string;
+  target_finish_date?: string;
+  predecessors?: string;
+  // Raw Custom Field Mappings
+  custom_wbs?: string;
+  custom_phase?: string;
+  custom_gate?: string;
+  custom_function?: string;
+  custom_role?: string;
+  custom_rasic?: string;
+  custom_is_mandatory_pdp?: number;
+  custom_is_custom?: number;
+  custom_is_milestone?: number;
+  custom_is_skipped?: number;
+  custom_skip_reason?: string;
+  custom_retimed_to?: string;
+  custom_target_start_date?: string;
+  custom_target_finish_date?: string;
+  custom_predecessors?: string;
 }
 
 export interface TaskSummary {
@@ -77,6 +109,7 @@ export interface MemberWorkload {
 
 export interface TaskListQueryParams {
   project?: string;
+  phase?: string;
   search?: string;
   status?: string;
   priority?: string;
@@ -92,6 +125,7 @@ export interface TaskListQueryParams {
 
 export interface TaskListResponse {
   tasks: Task[];
+  allTasks?: Task[];
   totalCount: number;
   page: number;
   pageSize: number;

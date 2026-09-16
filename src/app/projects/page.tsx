@@ -15,6 +15,8 @@ import { ProjectPriorityBadge } from '@/components/projects/project-priority-bad
 import { ProjectTableSkeleton } from '@/components/projects/project-table-skeleton';
 import { ProjectFormDialog } from '@/components/projects/project-form-dialog';
 import { ProjectDeleteDialog } from '@/components/projects/project-delete-dialog';
+import { ProjectCreationChoiceDialog } from '@/components/projects/project-creation-choice-dialog';
+import { ProjectImportWizardDialog } from '@/components/projects/import/project-import-wizard-dialog';
 import { BackButton } from '@/components/shared/back-button';
 import { Pagination } from '@/components/shared/pagination';
 import { ImportExportControls } from '@/components/shared/import-export-controls';
@@ -34,11 +36,16 @@ import {
   TrendingUp,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
+import { useAuth } from '@/providers/auth-context';
+import { accessControlService } from '@/services/access-control.service';
 
 export default function ProjectsPage() {
   const router = useRouter();
+  const { user } = useAuth();
+  const canCreate = accessControlService.canCreateProject(user).allowed;
 
   // Search & Filter State
+
   const [search, setSearch] = useState('');
   const [status, setStatus] = useState<string>('ALL');
   const [priority, setPriority] = useState<string>('ALL');
@@ -46,7 +53,9 @@ export default function ProjectsPage() {
   const pageSize = 10;
 
   // Dialog States
+  const [isChoiceOpen, setIsChoiceOpen] = useState(false);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
@@ -192,18 +201,21 @@ export default function ProjectsPage() {
             <RefreshCw className={`h-4 w-4 ${isFetching ? 'animate-spin' : ''}`} />
           </button>
 
-          <button
-            onClick={() => {
-              setActionError(null);
-              setIsCreateOpen(true);
-            }}
-            className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition"
-          >
-            <Plus className="h-4 w-4" />
-            <span>Create Project</span>
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => {
+                setActionError(null);
+                setIsChoiceOpen(true);
+              }}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Project</span>
+            </button>
+          )}
         </div>
       </div>
+
 
       {/* Filters & Search Toolbar */}
       <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs flex flex-col md:flex-row gap-3 items-stretch md:items-center justify-between">
@@ -301,13 +313,15 @@ export default function ProjectsPage() {
               No project records match your current filter criteria or exist in ERPNext.
             </p>
           </div>
-          <button
-            onClick={() => setIsCreateOpen(true)}
-            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs"
-          >
-            <Plus className="h-4 w-4" />
-            Create First Project
-          </button>
+          {canCreate && (
+            <button
+              onClick={() => setIsCreateOpen(true)}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold transition shadow-xs cursor-pointer"
+            >
+              <Plus className="h-4 w-4" />
+              Create First Project
+            </button>
+          )}
         </div>
       ) : (
         <div className="space-y-4">
@@ -345,6 +359,11 @@ export default function ProjectsPage() {
                             <span className="text-[11px] text-slate-400 font-mono">
                               {project.name}
                             </span>
+                            {project.custom_pdp_category && (
+                              <span className="px-1.5 py-0.2 text-[9px] font-extrabold rounded bg-amber-50 text-amber-800 border border-amber-300">
+                                PDP {project.custom_pdp_category}
+                              </span>
+                            )}
                             {project.custom_project_category && (
                               <span className="px-1.5 py-0.2 text-[9px] font-bold rounded bg-sky-50 text-sky-700 border border-sky-200">
                                 {project.custom_project_category}
@@ -358,6 +377,7 @@ export default function ProjectsPage() {
                           </div>
                         </Link>
                       </td>
+
 
                       <td className="py-3.5 px-4 text-slate-600 font-medium">
                         {project.project_type || 'Internal'}
@@ -443,6 +463,29 @@ export default function ProjectsPage() {
       )}
 
       {/* Dialog Modals */}
+      <ProjectCreationChoiceDialog
+        isOpen={isChoiceOpen}
+        onClose={() => setIsChoiceOpen(false)}
+        onSelectManual={() => {
+          setIsChoiceOpen(false);
+          setIsCreateOpen(true);
+        }}
+        onSelectImport={() => {
+          setIsChoiceOpen(false);
+          setIsImportWizardOpen(true);
+        }}
+      />
+
+      <ProjectImportWizardDialog
+        isOpen={isImportWizardOpen}
+        onClose={() => setIsImportWizardOpen(false)}
+        onSuccess={() => {
+          refetch();
+          setActionSuccess('Bulk project import completed successfully!');
+          setTimeout(() => setActionSuccess(null), 5000);
+        }}
+      />
+
       <ProjectFormDialog
         isOpen={isCreateOpen}
         onClose={() => setIsCreateOpen(false)}

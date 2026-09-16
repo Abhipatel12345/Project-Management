@@ -1,10 +1,12 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
-import { useForm } from 'react-hook-form';
+import React, { useEffect, useState, useRef } from 'react';
+import { useForm, Controller } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { projectFormSchema, ProjectFormValues } from '@/lib/validations/project.schema';
-import { Project, PROJECT_CATEGORIES, PRODUCT_GROUPS, PROJECT_TYPES } from '@/types/project.types';
+import { Project, PROJECT_CATEGORIES, PRODUCT_GROUPS, PROJECT_TYPES, PDP_CATEGORIES, PDPCategory } from '@/types/project.types';
+import { ProductGroupSearchSelect } from './product-group-search-select';
+import { SearchableSelect } from '@/components/shared/searchable-select';
 import {
   X,
   Loader2,
@@ -21,12 +23,15 @@ import {
   Trash2,
   UserCheck,
   Paperclip,
+  CheckCircle2,
+  ShieldCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import documentService from '@/services/document.service';
 import projectService from '@/services/project.service';
 import { auditService } from '@/services/audit.service';
 import { useAuth } from '@/providers/auth-context';
+
 
 function cn(...classes: (string | boolean | undefined | null)[]) {
   return classes.filter(Boolean).join(' ');
@@ -66,11 +71,16 @@ export function ProjectFormDialog({
 }: ProjectFormDialogProps) {
   const { user } = useAuth();
   const isEditing = !!initialData;
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const isSubmittingRef = useRef(false);
 
   const {
     register,
     handleSubmit,
     reset,
+    control,
+    watch,
+    setValue,
     setError,
     clearErrors,
     formState: { errors },
@@ -83,6 +93,7 @@ export function ProjectFormDialog({
       project_type: 'Internal',
       custom_project_category: '',
       custom_product_group: '',
+      custom_pdp_category: 'A',
       expected_start_date: '',
       expected_end_date: '',
       estimated_cost: 0,
@@ -90,6 +101,8 @@ export function ProjectFormDialog({
       owner: 'Sarah Jenkins (sarah.jenkins@inteva.com)',
     },
   });
+
+  const selectedPdpCategory = watch('custom_pdp_category');
 
   const [formError, setFormError] = useState<string | null>(null);
   const [attachedFiles, setAttachedFiles] = useState<AttachedFileItem[]>([]);
@@ -108,6 +121,7 @@ export function ProjectFormDialog({
         project_type: initialData.project_type || 'Internal',
         custom_project_category: initialData.custom_project_category || '',
         custom_product_group: initialData.custom_product_group || '',
+        custom_pdp_category: (initialData.custom_pdp_category as any) || 'A',
         expected_start_date: initialData.expected_start_date || '',
         expected_end_date: initialData.expected_end_date || '',
         estimated_cost: initialData.estimated_cost || 0,
@@ -124,6 +138,7 @@ export function ProjectFormDialog({
         project_type: 'Internal',
         custom_project_category: '',
         custom_product_group: '',
+        custom_pdp_category: 'A',
         expected_start_date: '',
         expected_end_date: '',
         estimated_cost: 0,
@@ -167,6 +182,10 @@ export function ProjectFormDialog({
   };
 
   const onFormSubmit = async (data: ProjectFormValues) => {
+    if (isSubmittingRef.current || isLoading) return;
+    isSubmittingRef.current = true;
+    setIsSubmitting(true);
+
     try {
       setFormError(null);
       clearErrors();
@@ -232,7 +251,6 @@ export function ProjectFormDialog({
           type: 'manual',
           message: 'Project Name must be unique',
         });
-        // Keep modal open, keep all form values intact, clear generic top banner
         setFormError(null);
         return;
       }
@@ -251,10 +269,34 @@ export function ProjectFormDialog({
         return;
       }
 
+      // 3. Product Group Validation Error Mapping
+      if (errField === 'custom_product_group' || /product\s*group/i.test(errMsg)) {
+        setError('custom_product_group', {
+          type: 'manual',
+          message: errMsg,
+        });
+        setFormError(null);
+        return;
+      }
+
+      // 4. PDP Category Validation Error Mapping
+      if (errField === 'custom_pdp_category' || /pdp\s*category/i.test(errMsg)) {
+        setError('custom_pdp_category', {
+          type: 'manual',
+          message: errMsg,
+        });
+        setFormError(null);
+        return;
+      }
+
       // Genuine system/server errors (500, network, etc.)
       setFormError(errMsg);
+    } finally {
+      isSubmittingRef.current = false;
+      setIsSubmitting(false);
     }
   };
+
 
   const formatSize = (bytes: number) => {
     if (bytes >= 1048576) return `${(bytes / 1048576).toFixed(1)} MB`;
@@ -347,8 +389,9 @@ export function ProjectFormDialog({
                 <UserCheck className="h-3.5 w-3.5 text-sky-600" />
                 Assigned Project Manager <span className="text-rose-500">*</span>
               </label>
-              <select
+              <SearchableSelect
                 {...register('owner')}
+                searchPlaceholder="Search project manager..."
                 className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
               >
                 {AVAILABLE_PROJECT_MANAGERS.map((pm) => (
@@ -356,21 +399,146 @@ export function ProjectFormDialog({
                     {pm.name} — {pm.title} ({pm.email})
                   </option>
                 ))}
-              </select>
+              </SearchableSelect>
               <p className="text-[10px] text-slate-400">
                 The assigned Project Manager automatically receives full access to view, open, and download project documents.
               </p>
             </div>
 
-            {/* Project Category & Product Group Row */}
+            {/* PDP Category Selection (Category A vs Category D) */}
+            <div className="space-y-2">
+              <div className="flex items-center justify-between">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <ShieldCheck className="h-4 w-4 text-sky-600" />
+                  PDP Category <span className="text-rose-500">*</span>
+                </label>
+                <span className="text-[11px] text-slate-400 font-medium">Select Product Development Process Category</span>
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Category A Card */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setValue('custom_pdp_category', 'A', { shouldValidate: true });
+                    if (errors.custom_pdp_category) clearErrors('custom_pdp_category');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      setValue('custom_pdp_category', 'A', { shouldValidate: true });
+                    }
+                  }}
+                  className={cn(
+                    'relative p-3.5 rounded-2xl border-2 transition-all cursor-pointer text-left',
+                    selectedPdpCategory === 'A'
+                      ? 'bg-sky-50/70 border-sky-600 ring-2 ring-sky-500/20 shadow-xs'
+                      : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                  )}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'px-2 py-0.5 rounded-lg text-xs font-black',
+                          selectedPdpCategory === 'A' ? 'bg-sky-600 text-white' : 'bg-slate-100 text-slate-700'
+                        )}
+                      >
+                        Category A
+                      </span>
+                      <span className="text-xs font-bold text-slate-800">Standard APQP</span>
+                    </div>
+                    {selectedPdpCategory === 'A' && <CheckCircle2 className="h-4 w-4 text-sky-600 shrink-0" />}
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Full development program with complete gate milestones and standard verification.
+                  </p>
+                </div>
+
+                {/* Category D Card */}
+                <div
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => {
+                    setValue('custom_pdp_category', 'D', { shouldValidate: true });
+                    if (errors.custom_pdp_category) clearErrors('custom_pdp_category');
+                  }}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      setValue('custom_pdp_category', 'D', { shouldValidate: true });
+                    }
+                  }}
+                  className={cn(
+                    'relative p-3.5 rounded-2xl border-2 transition-all cursor-pointer text-left',
+                    selectedPdpCategory === 'D'
+                      ? 'bg-indigo-50/70 border-indigo-600 ring-2 ring-indigo-500/20 shadow-xs'
+                      : 'bg-white border-slate-200 hover:border-slate-300 hover:bg-slate-50/50'
+                  )}
+                >
+                  <div className="flex items-center justify-between mb-1.5">
+                    <div className="flex items-center gap-2">
+                      <span
+                        className={cn(
+                          'px-2 py-0.5 rounded-lg text-xs font-black',
+                          selectedPdpCategory === 'D' ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-700'
+                        )}
+                      >
+                        Category D
+                      </span>
+                      <span className="text-xs font-bold text-slate-800">Derivative</span>
+                    </div>
+                    {selectedPdpCategory === 'D' && <CheckCircle2 className="h-4 w-4 text-indigo-600 shrink-0" />}
+                  </div>
+                  <p className="text-[11px] text-slate-500 leading-relaxed">
+                    Derivative / modification program with streamlined gate checkpoints.
+                  </p>
+                </div>
+              </div>
+
+              {errors.custom_pdp_category && (
+                <p className="text-[11px] text-rose-600 font-bold flex items-center gap-1.5 mt-1">
+                  <AlertCircle className="h-3.5 w-3.5 shrink-0 text-rose-500" />
+                  <span>{errors.custom_pdp_category.message}</span>
+                </p>
+              )}
+            </div>
+
+            {/* Product Group & Project Category Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-1.5 relative z-30">
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Layers className="h-3.5 w-3.5 text-sky-600" />
+                  Product Group <span className="text-rose-500">*</span>
+                </label>
+                <Controller
+                  name="custom_product_group"
+                  control={control}
+                  render={({ field }) => (
+                    <ProductGroupSearchSelect
+                      value={field.value || ''}
+                      onChange={(val) => {
+                        field.onChange(val);
+                        if (errors.custom_product_group) clearErrors('custom_product_group');
+                        if (formError) setFormError(null);
+                      }}
+                      error={errors.custom_product_group?.message}
+                      disabled={isSubmitting || isLoading}
+                    />
+                  )}
+                />
+              </div>
+
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Project Category</label>
+                <label className="block text-xs font-bold text-slate-700 flex items-center gap-1.5">
+                  <Sliders className="h-3.5 w-3.5 text-slate-500" />
+                  Project Category <span className="text-slate-400 font-normal">(Classification)</span>
+                </label>
                 <div className="relative">
-                  <Sliders className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
-                  <select
+                  <SearchableSelect
                     {...register('custom_project_category')}
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
+                    disabled={isSubmitting || isLoading}
+                    searchPlaceholder="Search category..."
+                    className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer disabled:opacity-50"
                   >
                     <option value="">Select Category...</option>
                     {PROJECT_CATEGORIES.map((cat) => (
@@ -378,28 +546,11 @@ export function ProjectFormDialog({
                         {cat}
                       </option>
                     ))}
-                  </select>
-                </div>
-              </div>
-
-              <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Product Group</label>
-                <div className="relative">
-                  <Layers className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
-                  <select
-                    {...register('custom_product_group')}
-                    className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
-                  >
-                    <option value="">Select Product Group...</option>
-                    {PRODUCT_GROUPS.map((grp) => (
-                      <option key={grp} value={grp}>
-                        {grp}
-                      </option>
-                    ))}
-                  </select>
+                  </SearchableSelect>
                 </div>
               </div>
             </div>
+
 
             {/* Status & Priority Row */}
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -407,8 +558,9 @@ export function ProjectFormDialog({
                 <label className="block text-xs font-bold text-slate-700">
                   Status <span className="text-rose-500">*</span>
                 </label>
-                <select
+                <SearchableSelect
                   {...register('status')}
+                  searchPlaceholder="Search status..."
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
                 >
                   <option value="Open">Open</option>
@@ -416,21 +568,22 @@ export function ProjectFormDialog({
                   <option value="Completed">Completed</option>
                   <option value="On Hold">On Hold</option>
                   <option value="Cancelled">Cancelled</option>
-                </select>
+                </SearchableSelect>
               </div>
 
               <div className="space-y-1.5">
                 <label className="block text-xs font-bold text-slate-700">
                   Priority <span className="text-rose-500">*</span>
                 </label>
-                <select
+                <SearchableSelect
                   {...register('priority')}
+                  searchPlaceholder="Search priority..."
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
                 >
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
                   <option value="High">High</option>
-                </select>
+                </SearchableSelect>
               </div>
             </div>
 
@@ -438,10 +591,10 @@ export function ProjectFormDialog({
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700">Project Type</label>
               <div className="relative">
-                <Tag className="absolute left-3.5 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
-                <select
+                <SearchableSelect
                   {...register('project_type')}
-                  className="w-full pl-10 pr-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
+                  searchPlaceholder="Search project type..."
+                  className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-1 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer"
                 >
                   <option value="">Select Project Type...</option>
                   {PROJECT_TYPES.map((pt) => (
@@ -449,7 +602,7 @@ export function ProjectFormDialog({
                       {pt}
                     </option>
                   ))}
-                </select>
+                </SearchableSelect>
               </div>
             </div>
 
@@ -597,20 +750,25 @@ export function ProjectFormDialog({
               <button
                 type="button"
                 onClick={onClose}
-                disabled={isLoading}
+                disabled={isLoading || isSubmitting}
                 className="px-4 py-2.5 rounded-xl text-xs font-bold text-slate-600 hover:bg-slate-100 transition disabled:opacity-50 cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 type="submit"
-                disabled={isLoading}
+                disabled={isLoading || isSubmitting}
                 className="flex items-center gap-2 px-5 py-2.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition disabled:opacity-50 cursor-pointer"
               >
-                {isLoading && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
-                {isEditing ? 'Save Changes' : 'Create Project & Attach Documents'}
+                {(isLoading || isSubmitting) && <Loader2 className="h-3.5 w-3.5 animate-spin" />}
+                {isSubmitting
+                  ? 'Creating Project...'
+                  : isEditing
+                  ? 'Save Changes'
+                  : 'Create Project & Attach Documents'}
               </button>
             </div>
+
           </form>
         </motion.div>
       </div>

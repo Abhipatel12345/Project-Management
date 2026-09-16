@@ -1,6 +1,7 @@
 import React from 'react';
 import { Project } from '@/types/project.types';
 import { ProjectStatusBadge } from '@/components/projects/project-status-badge';
+import { ProjectSearchSelector } from '@/components/projects/project-search-selector';
 import {
   FolderKanban,
   Calendar,
@@ -67,23 +68,13 @@ export function GanttHeaderSummary({
 
         {/* Action Controls: Project Selector Dropdown & Manage Baselines */}
         <div className="flex flex-wrap items-center gap-3 self-start lg:self-auto min-w-[280px]">
-          <div className="relative flex-1 min-w-[220px]">
-            <div className="absolute left-3.5 top-3 text-sky-600">
-              <FolderKanban className="h-4 w-4" />
-            </div>
-            <select
-              value={selectedProjectId}
-              onChange={(e) => onSelectProject(e.target.value)}
-              className="w-full pl-10 pr-9 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-900 text-xs font-black focus:outline-none focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition cursor-pointer appearance-none shadow-2xs"
-            >
-              {projects.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.project_name || p.name} ({p.name})
-                </option>
-              ))}
-            </select>
-            <ChevronDown className="absolute right-3 top-3 h-4 w-4 text-slate-400 pointer-events-none" />
-          </div>
+          <ProjectSearchSelector
+            projects={projects}
+            selectedProjectId={selectedProjectId}
+            onSelectProject={onSelectProject}
+            includeAllOption={false}
+            className="flex-1 min-w-[240px]"
+          />
 
           {onOpenManageBaselines && (
             <button
