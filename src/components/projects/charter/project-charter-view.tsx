@@ -560,10 +560,10 @@ export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewPro
               </div>
             )}
 
-            {/* Field 20: Customer Assembly (Text field) */}
+            {/* Field 10: Customer Assembly (Text field) */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700">
-                20. Customer Assembly <span className="text-slate-400 font-normal">(Assembly Location)</span>
+                10. Customer Assembly <span className="text-slate-400 font-normal">(Assembly Location)</span>
               </label>
               {isEditing ? (
                 <input
@@ -582,7 +582,7 @@ export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewPro
           </div>
         </div>
 
-        {/* Section 3: Customer & Program Lifecycle (Fields 10-12, 14-17) */}
+        {/* Section 3: Customer & Program Lifecycle (Fields 11-17) */}
         <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-5">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-100 text-slate-900 font-bold text-sm">
             <Car className="h-4 w-4 text-indigo-600" />
@@ -590,9 +590,9 @@ export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewPro
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            {/* Field 10: Direct Customer (Text field) */}
+            {/* Field 11: Direct Customer (Text field) */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">10. Direct Customer</label>
+              <label className="block text-xs font-bold text-slate-700">11. Direct Customer</label>
               {isEditing ? (
                 <input
                   type="text"
@@ -608,9 +608,9 @@ export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewPro
               )}
             </div>
 
-            {/* Field 11: Final OEM (Text field) */}
+            {/* Field 12: Final OEM (Text field) */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">11. Final OEM</label>
+              <label className="block text-xs font-bold text-slate-700">12. Final OEM</label>
               {isEditing ? (
                 <input
                   type="text"
@@ -626,9 +626,9 @@ export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewPro
               )}
             </div>
 
-            {/* Field 12: Model Year (Numeric field) */}
+            {/* Field 13: Model Year (Numeric field) */}
             <div className="space-y-1.5">
-              <label className="block text-xs font-bold text-slate-700">12. Model Year (Numeric)</label>
+              <label className="block text-xs font-bold text-slate-700">13. Model Year (Numeric)</label>
               {isEditing ? (
                 <div>
                   <input
@@ -727,7 +727,7 @@ export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewPro
           </div>
         </div>
 
-        {/* Section 4: Volumes & Strategic Assumptions (Fields 13, 18, 19) */}
+        {/* Section 4: Volumes & Strategic Assumptions (Fields 18-20) */}
         <div className="p-6 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-5">
           <div className="flex items-center gap-2 pb-3 border-b border-slate-100 text-slate-900 font-bold text-sm">
             <TrendingUp className="h-4 w-4 text-purple-600" />
@@ -775,10 +775,10 @@ export function ProjectCharterView({ project, onRefresh }: ProjectCharterViewPro
               )}
             </div>
 
-            {/* Field 13: Project Assumptions (Text field) */}
+            {/* Field 20: Project Assumptions (Text field) */}
             <div className="space-y-1.5">
               <label className="block text-xs font-bold text-slate-700">
-                13. Project Assumptions <span className="text-slate-400 font-normal">(Key Assumptions)</span>
+                20. Project Assumptions <span className="text-slate-400 font-normal">(Key Assumptions)</span>
               </label>
               {isEditing ? (
                 <textarea
