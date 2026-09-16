@@ -64,7 +64,7 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
 
     // 1B. Project Status Timing Chart Write Protection
     if ((docType === 'Project Status Timing Chart' || docType === 'Project Status Timing Line Item') && req.method !== 'GET') {
-      if (userRole === 'teammember' || userRole === 'guest') {
+      if (userRole === 'teammember' || (userRole as string) === 'guest') {
         return NextResponse.json(
           { _error_message: '403 Forbidden: Team members have view-only access to the Project Status Timing Chart.' },
           { status: 403 }
@@ -637,7 +637,7 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
                 gate_type: gate.gate_type,
                 project: createdProjectId,
                 project_name: projectName,
-                status: 'Pending',
+                status: 'Not Started',
                 criteria: (gate.criteria || []).map((c) => ({
                   id: c.id,
                   name: c.name,
@@ -648,7 +648,8 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
                 deliverables: (gate.deliverables || []).map((d) => ({
                   id: d.id,
                   name: d.name,
-                  status: 'Pending',
+                  status: 'Not Started',
+                  completion_percentage: 0,
                   is_required: d.is_required,
                   description: d.description,
                 })),

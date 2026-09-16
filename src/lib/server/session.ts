@@ -118,5 +118,6 @@ function normalizeSession(data: any): PDMUserSession {
       manageTasks: data.role === 'teammember' ? false : (data.permissions?.manageTasks ?? true),
     },
     userImage: data.userImage || data.user_image,
+    roles: Array.isArray(data.roles) ? data.roles : [data.role || 'teammember'],
   };
 }

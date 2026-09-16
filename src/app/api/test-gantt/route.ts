@@ -202,7 +202,7 @@ export async function GET(req: NextRequest) {
       { name: 'T2', subject: 'Task B', exp_start_date: '2026-01-01', exp_end_date: '2026-01-04', progress: 0, status: 'Open' } as any,
     ];
     const fsDeps: TaskRelationship[] = [
-      { predecessor_id: 'T1', successor_id: 'T2', dependency_type: 'FS', lag_days: 2 },
+      { id: 'dep-1', project: 'PROJ-TEST', predecessor_id: 'T1', successor_id: 'T2', dependency_type: 'FS', lag_days: 2 },
     ];
     const schedFS = recalculateSchedule(baseTasks, fsDeps);
     const bFS = schedFS.updatedTasks.get('T2');
@@ -214,7 +214,7 @@ export async function GET(req: NextRequest) {
     );
 
     const ssDeps: TaskRelationship[] = [
-      { predecessor_id: 'T1', successor_id: 'T2', dependency_type: 'SS', lag_days: 1 },
+      { id: 'dep-2', project: 'PROJ-TEST', predecessor_id: 'T1', successor_id: 'T2', dependency_type: 'SS', lag_days: 1 },
     ];
     const schedSS = recalculateSchedule(baseTasks, ssDeps);
     const bSS = schedSS.updatedTasks.get('T2');
@@ -230,7 +230,7 @@ export async function GET(req: NextRequest) {
       { name: 'T2', subject: 'Task B', exp_start_date: '2026-01-01', exp_end_date: '2026-01-05', progress: 0, status: 'Open' } as any,
     ];
     const ffDeps: TaskRelationship[] = [
-      { predecessor_id: 'T1', successor_id: 'T2', dependency_type: 'FF', lag_days: 0 },
+      { id: 'dep-3', project: 'PROJ-TEST', predecessor_id: 'T1', successor_id: 'T2', dependency_type: 'FF', lag_days: 0 },
     ];
     const schedFF = recalculateSchedule(ffBaseTasks, ffDeps);
     const bFF = schedFF.updatedTasks.get('T2');
@@ -246,7 +246,7 @@ export async function GET(req: NextRequest) {
       { name: 'T2', subject: 'Task B', exp_start_date: '2026-01-01', exp_end_date: '2026-01-05', progress: 0, status: 'Open' } as any,
     ];
     const sfDeps: TaskRelationship[] = [
-      { predecessor_id: 'T1', successor_id: 'T2', dependency_type: 'SF', lag_days: 0 },
+      { id: 'dep-4', project: 'PROJ-TEST', predecessor_id: 'T1', successor_id: 'T2', dependency_type: 'SF', lag_days: 0 },
     ];
     const schedSF = recalculateSchedule(sfBaseTasks, sfDeps);
     const bSF = schedSF.updatedTasks.get('T2');
@@ -296,10 +296,10 @@ export async function GET(req: NextRequest) {
       { name: 'D', subject: 'Activity D', exp_start_date: '2026-01-16', exp_end_date: '2026-01-20', progress: 0, status: 'Open' } as any,
     ];
     const projectDeps: TaskRelationship[] = [
-      { predecessor_id: 'A', successor_id: 'B', dependency_type: 'FS', lag_days: 0 },
-      { predecessor_id: 'A', successor_id: 'C', dependency_type: 'FS', lag_days: 0 },
-      { predecessor_id: 'B', successor_id: 'D', dependency_type: 'FS', lag_days: 0 },
-      { predecessor_id: 'C', successor_id: 'D', dependency_type: 'FS', lag_days: 0 },
+      { id: 'dep-5', project: 'PROJ-TEST', predecessor_id: 'A', successor_id: 'B', dependency_type: 'FS', lag_days: 0 },
+      { id: 'dep-6', project: 'PROJ-TEST', predecessor_id: 'A', successor_id: 'C', dependency_type: 'FS', lag_days: 0 },
+      { id: 'dep-7', project: 'PROJ-TEST', predecessor_id: 'B', successor_id: 'D', dependency_type: 'FS', lag_days: 0 },
+      { id: 'dep-8', project: 'PROJ-TEST', predecessor_id: 'C', successor_id: 'D', dependency_type: 'FS', lag_days: 0 },
     ];
 
     const schedProj = recalculateSchedule(projectTasks, projectDeps);

@@ -1092,7 +1092,7 @@ export default function GlobalTaskManagementPage() {
                         const phaseColors = getPhaseBadgeColors(phaseName);
                         const latestSub = t.submissions && t.submissions.length > 0 ? t.submissions[0] : null;
                         const subDocsCount = latestSub?.attachments?.length || 0;
-                        const pmFeedback = latestSub?.review_comments || 'Awaiting PM review';
+                        const pmFeedback = latestSub?.review_comment || 'Awaiting PM review';
 
                         return (
                           <tr key={t.name} className="hover:bg-slate-50/70">

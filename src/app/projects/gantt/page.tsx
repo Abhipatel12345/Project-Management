@@ -75,7 +75,7 @@ export default function ProjectGanttPage() {
               searchPlaceholder="Search project..."
               className="w-full pl-3 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 transition cursor-pointer shadow-2xs"
             >
-              {projects.map((p) => (
+              {projects.map((p: Project) => (
                 <option key={p.name} value={p.name}>
                   {p.name} - {p.project_name || 'Unnamed Project'}
                 </option>

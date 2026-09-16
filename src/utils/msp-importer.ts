@@ -160,6 +160,8 @@ export function parseMspXml(xmlString: string): MspImportValidationResult {
   };
 }
 
+export const parseMSPXml = parseMspXml;
+
 /**
  * Parse structured Excel (.xlsx) file
  */

@@ -137,6 +137,7 @@ export interface Gate {
   name: string; // Gate ID e.g. GATE-2026-00001
   gate_name: string;
   project?: string;
+  project_name?: string;
   gate_type: GateType | string;
   planned_date?: string;
   target_date?: string;
