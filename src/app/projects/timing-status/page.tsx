@@ -28,7 +28,7 @@ export default function ProjectTimingStatusPage() {
   const router = useRouter();
   const projectParam = searchParams.get('project');
 
-  const { data, isLoading } = useProjects({ page: 1, pageSize: 50 });
+  const { data, isLoading } = useProjects({ page: 1, pageSize: 200 });
   const projects = data?.projects || [];
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projectParam);
@@ -83,6 +83,7 @@ export default function ProjectTimingStatusPage() {
               id="timing-project-selector"
               aria-label="Select Active Program"
               value={selectedProjectId || ''}
+              displayValue={selectedProject?.project_name}
               onChange={(e) => {
                 if (e.target.value) {
                   handleSelectProject(e.target.value);
@@ -94,11 +95,19 @@ export default function ProjectTimingStatusPage() {
               className="w-full pl-3.5 pr-3 py-2 text-xs font-bold text-slate-800 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200 focus:outline-none focus:border-sky-500 transition cursor-pointer"
             >
               <option value="">-- Select Active Program --</option>
-              {projects.map((p: Project) => (
-                <option key={p.name} value={p.name}>
-                  {p.name} • {p.project_name || p.name} ({p.custom_product_group || 'Unassigned'})
-                </option>
-              ))}
+              {projects.map((p: Project) => {
+                const displayName = p.project_name?.trim() || p.name;
+                const subLabel = [p.name, p.custom_product_group].filter(Boolean).join(' • ');
+                return (
+                  <option
+                    key={p.name}
+                    value={p.name}
+                    data-sublabel={subLabel}
+                  >
+                    {displayName}
+                  </option>
+                );
+              })}
             </SearchableSelect>
           </div>
         </div>

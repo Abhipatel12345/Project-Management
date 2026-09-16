@@ -39,7 +39,7 @@ export function GateFormDialog({
   defaultProjectId,
 }: GateFormDialogProps) {
   const isEditing = !!initialData;
-  const { data: projectsData } = useProjects({ page: 1, pageSize: 50 });
+  const { data: projectsData } = useProjects({ page: 1, pageSize: 200 });
   const { data: employees = [] } = useAvailableEmployees('');
   const projects: Project[] = projectsData?.projects || [];
 
@@ -178,11 +178,18 @@ export function GateFormDialog({
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-emerald-500 cursor-pointer"
                 >
                   <option value="">No Specific Project</option>
-                  {projects.map((p) => (
-                    <option key={p.name} value={p.name}>
-                      {p.project_name || p.name} ({p.name})
-                    </option>
-                  ))}
+                  {projects.map((p) => {
+                    const displayName = p.project_name?.trim() || p.name;
+                    return (
+                      <option
+                        key={p.name}
+                        value={p.name}
+                        data-sublabel={displayName !== p.name ? p.name : undefined}
+                      >
+                        {displayName}
+                      </option>
+                    );
+                  })}
                 </SearchableSelect>
               </div>
 

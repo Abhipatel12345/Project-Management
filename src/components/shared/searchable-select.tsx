@@ -29,6 +29,7 @@ export interface SearchableSelectProps {
   children?: React.ReactNode;
   placeholder?: string;
   searchPlaceholder?: string;
+  displayValue?: string;
   disabled?: boolean;
   required?: boolean;
   className?: string;
@@ -59,6 +60,7 @@ export const SearchableSelect = forwardRef<HTMLSelectElement, SearchableSelectPr
       children,
       placeholder = 'Select an option...',
       searchPlaceholder = 'Search...',
+      displayValue,
       disabled = false,
       required = false,
       className = '',
@@ -96,12 +98,44 @@ export const SearchableSelect = forwardRef<HTMLSelectElement, SearchableSelectPr
 
     // Parse options from either `options` prop or `children`
     const parsedOptions = useMemo<SearchableOption[]>(() => {
+      // Helper function to split / normalize project names and IDs
+      const normalizeOption = (
+        val: string,
+        rawLabel: string,
+        customSubLabel?: string,
+        disabled?: boolean
+      ): SearchableOption => {
+        let label = rawLabel.trim();
+        let subLabel = (customSubLabel || '').trim();
+
+        // 1. If label starts with PROJ-XXXX, e.g. "PROJ-0124 • Apex Door..." or "PROJ-0124 - Apex..."
+        const prefixMatch = label.match(/^(PROJ-\d+)\s*(?:[•\-–—:|]|\s-\s)\s*(.+)$/i);
+        if (prefixMatch) {
+          subLabel = subLabel || prefixMatch[1].trim();
+          label = prefixMatch[2].trim();
+        } else {
+          // 2. If label ends with parenthesized ID, e.g. "Apex Door... (PROJ-0124)"
+          const parenMatch = label.match(/^(.+?)\s*\((PROJ-\d+)\)$/i);
+          if (parenMatch) {
+            subLabel = subLabel || parenMatch[2].trim();
+            label = parenMatch[1].trim();
+          }
+        }
+
+        return {
+          value: val,
+          label: label || val,
+          subLabel: subLabel && subLabel !== label ? subLabel : undefined,
+          disabled: !!disabled,
+        };
+      };
+
       if (propOptions && propOptions.length > 0) {
         return propOptions.map((opt) => {
           if (typeof opt === 'string') {
-            return { value: opt, label: opt };
+            return normalizeOption(opt, opt);
           }
-          return opt;
+          return normalizeOption(opt.value, opt.label, opt.subLabel, opt.disabled);
         });
       }
 
@@ -129,11 +163,11 @@ export const SearchableSelect = forwardRef<HTMLSelectElement, SearchableSelectPr
                   typeof optProps.children === 'string'
                     ? optProps.children
                     : optVal;
-                result.push({
-                  value: optVal,
-                  label: optLabel,
-                  disabled: !!optProps.disabled,
-                });
+                const optSubLabel =
+                  optProps['data-sublabel'] || optProps.subLabel || undefined;
+                result.push(
+                  normalizeOption(optVal, optLabel, optSubLabel, optProps.disabled)
+                );
               });
             }
             return;
@@ -146,12 +180,12 @@ export const SearchableSelect = forwardRef<HTMLSelectElement, SearchableSelectPr
             typeof optProps.children === 'string'
               ? optProps.children
               : optVal || (optProps.children ? String(optProps.children) : '');
+          const optSubLabel =
+            optProps['data-sublabel'] || optProps.subLabel || undefined;
 
-          result.push({
-            value: optVal,
-            label: optLabel,
-            disabled: !!optProps.disabled,
-          });
+          result.push(
+            normalizeOption(optVal, optLabel, optSubLabel, optProps.disabled)
+          );
         });
         return result;
       }
@@ -292,11 +326,14 @@ export const SearchableSelect = forwardRef<HTMLSelectElement, SearchableSelectPr
       if (selectedOption) {
         return selectedOption.label || selectedOption.value;
       }
+      if (displayValue) {
+        return displayValue;
+      }
       if (activeValue) {
         return activeValue;
       }
       return placeholder;
-    }, [selectedOption, activeValue, placeholder]);
+    }, [selectedOption, displayValue, activeValue, placeholder]);
 
     const isPlaceholder = !selectedOption?.value && !activeValue;
 
@@ -442,9 +479,9 @@ export const SearchableSelect = forwardRef<HTMLSelectElement, SearchableSelectPr
                       }`}
                     >
                       <div className="min-w-0 flex-1 truncate mr-2">
-                        <div className="truncate">{option.label}</div>
-                        {option.subLabel && (
-                          <div className="text-[10px] text-slate-400 truncate mt-0.5">
+                        <div className="truncate font-medium text-slate-900">{option.label}</div>
+                        {option.subLabel && option.subLabel !== option.label && (
+                          <div className="text-[10px] text-slate-400 font-mono truncate mt-0.5 font-normal">
                             {option.subLabel}
                           </div>
                         )}

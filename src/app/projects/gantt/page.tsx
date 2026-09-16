@@ -20,7 +20,7 @@ export default function ProjectGanttPage() {
   const router = useRouter();
   const projectParam = searchParams.get('project');
 
-  const { data, isLoading } = useProjects({ page: 1, pageSize: 50 });
+  const { data, isLoading } = useProjects({ page: 1, pageSize: 200 });
   const projects = data?.projects || [];
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projectParam);
@@ -71,15 +71,23 @@ export default function ProjectGanttPage() {
           <div className="relative min-w-[240px]">
             <SearchableSelect
               value={selectedProjectId || ''}
+              displayValue={selectedProject?.project_name}
               onChange={(e) => handleSelectProject(e.target.value)}
               searchPlaceholder="Search project..."
               className="w-full pl-3 pr-3 py-2 rounded-xl bg-slate-50 border border-slate-200 text-xs font-black text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 transition cursor-pointer shadow-2xs"
             >
-              {projects.map((p: Project) => (
-                <option key={p.name} value={p.name}>
-                  {p.name} - {p.project_name || 'Unnamed Project'}
-                </option>
-              ))}
+              {projects.map((p: Project) => {
+                const displayName = p.project_name?.trim() || p.name;
+                return (
+                  <option
+                    key={p.name}
+                    value={p.name}
+                    data-sublabel={displayName !== p.name ? p.name : undefined}
+                  >
+                    {displayName}
+                  </option>
+                );
+              })}
             </SearchableSelect>
           </div>
         </div>

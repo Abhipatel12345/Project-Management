@@ -54,7 +54,7 @@ function GateReviewContent() {
   const searchParams = useSearchParams();
   const projectParam = searchParams.get('project') || 'ALL';
 
-  const { data: projectsData, isLoading: isLoadingProjects } = useProjects({ page: 1, pageSize: 50 });
+  const { data: projectsData, isLoading: isLoadingProjects } = useProjects({ page: 1, pageSize: 200 });
   const projects: Project[] = projectsData?.projects || [];
 
   const [selectedProjectId, setSelectedProjectId] = useState<string>(projectParam);
@@ -289,11 +289,18 @@ function GateReviewContent() {
               className="w-full pl-3.5 pr-3 py-2 text-xs font-bold text-slate-900 bg-slate-50 hover:bg-slate-100/80 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-emerald-500 transition cursor-pointer shadow-2xs"
             >
               <option value="ALL">All Automotive Projects</option>
-              {projects.map((p) => (
-                <option key={p.name} value={p.name}>
-                  {p.project_name || p.name} ({p.name})
-                </option>
-              ))}
+              {projects.map((p) => {
+                const displayName = p.project_name?.trim() || p.name;
+                return (
+                  <option
+                    key={p.name}
+                    value={p.name}
+                    data-sublabel={displayName !== p.name ? p.name : undefined}
+                  >
+                    {displayName}
+                  </option>
+                );
+              })}
             </SearchableSelect>
           </div>
 

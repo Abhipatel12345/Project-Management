@@ -92,7 +92,7 @@ export function ProjectSearchSelector({
       return allOptionLabel;
     }
     if (selectedProject) {
-      return `${selectedProject.project_name || selectedProject.name} (${selectedProject.name})`;
+      return selectedProject.project_name?.trim() || selectedProject.name;
     }
     return selectedProjectId;
   }, [selectedProjectId, selectedProject, allOptionLabel]);
