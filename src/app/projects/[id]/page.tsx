@@ -866,13 +866,13 @@ export default function ProjectDetailPage() {
                   <div>
                     <span className="text-slate-500 font-medium">Actual Start Date:</span>
                     <div className="font-bold text-slate-900 mt-1 font-mono">
-                      {project.actual_start_date || 'Pending commencement'}
+                      {project.actual_start_date || project.expected_start_date || 'Pending commencement'}
                     </div>
                   </div>
                   <div>
                     <span className="text-slate-500 font-medium">Actual End Date:</span>
                     <div className="font-bold text-slate-900 mt-1 font-mono">
-                      {project.actual_end_date || 'In Progress'}
+                      {project.actual_end_date || project.expected_end_date || 'In Progress'}
                     </div>
                   </div>
                   <div>
