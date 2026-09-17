@@ -22,6 +22,7 @@ import { Gate } from '@/types/gate.types';
 import { TaskStatusBadge } from '@/components/tasks/task-status-badge';
 import { TaskPriorityBadge } from '@/components/tasks/task-priority-badge';
 import { TaskFormDialog } from '@/components/tasks/task-form-dialog';
+import { taskService } from '@/services/task.service';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
 import { TaskDeleteDialog } from '@/components/tasks/task-delete-dialog';
 import { TaskFormValues } from '@/lib/validations/task.schema';
@@ -1176,11 +1177,13 @@ function TeamMemberDashboard() {
   };
 
   // Handlers for Task Creation & Edit
-  const handleCreateSubmit = async (values: TaskFormValues) => {
+  const handleCreateSubmit = async (values: TaskFormValues, attachments?: File[]) => {
     try {
-      await createTaskMutation.mutateAsync({
+      const createdTask: any = await createTaskMutation.mutateAsync({
         subject: values.subject,
         project: values.project,
+        phase: values.phase,
+        custom_phase: values.phase,
         status: values.status,
         priority: values.priority,
         exp_start_date: values.exp_start_date,
@@ -1198,8 +1201,20 @@ function TeamMemberDashboard() {
           consulted: values.rasic_consulted,
           informed: values.rasic_informed,
         },
+        attachments,
       });
-      showToast('Task created successfully in ERPNext!', 'success');
+
+      if (createdTask?.failedUploads && createdTask.failedUploads.length > 0) {
+        showToast(
+          `Task created, but failed to attach: ${createdTask.failedUploads.join(', ')}`,
+          'warning'
+        );
+      } else if (attachments && attachments.length > 0) {
+        showToast(`Task created with ${attachments.length} document(s) attached!`, 'success');
+      } else {
+        showToast('Task created successfully in ERPNext!', 'success');
+      }
+
       setIsCreateOpen(false);
       refetchTasks();
     } catch (err: any) {
@@ -1207,7 +1222,11 @@ function TeamMemberDashboard() {
     }
   };
 
-  const handleEditSubmit = async (values: TaskFormValues) => {
+  const handleEditSubmit = async (
+    values: TaskFormValues,
+    attachments?: File[],
+    removedAttachmentIds?: string[]
+  ) => {
     if (!editingTask) return;
     try {
       await updateTaskMutation.mutateAsync({
@@ -1215,6 +1234,8 @@ function TeamMemberDashboard() {
         data: {
           subject: values.subject,
           project: values.project,
+          phase: values.phase,
+          custom_phase: values.phase,
           status: values.status,
           priority: values.priority,
           exp_start_date: values.exp_start_date,
@@ -1234,7 +1255,20 @@ function TeamMemberDashboard() {
           },
         },
       });
-      showToast(`Task ${editingTask.name} updated in ERPNext!`, 'success');
+
+      // Handle newly attached documents
+      if (attachments && attachments.length > 0) {
+        await taskService.uploadTaskAttachments(editingTask.name, attachments, values.project);
+      }
+
+      // Handle removed documents
+      if (removedAttachmentIds && removedAttachmentIds.length > 0) {
+        for (const remId of removedAttachmentIds) {
+          await taskService.deleteTaskAttachment(editingTask.name, remId);
+        }
+      }
+
+      showToast(`Task ${editingTask.name} updated successfully!`, 'success');
       setEditingTask(null);
       refetchTasks();
     } catch (err: any) {

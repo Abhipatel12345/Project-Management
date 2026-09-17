@@ -550,9 +550,9 @@ export const taskService = {
   },
 
   /**
-   * Create task in ERPNext
+   * Create task in ERPNext with optional document attachments
    */
-  async createTask(data: Partial<Task>): Promise<Task> {
+  async createTask(data: Partial<Task>, files?: File[]): Promise<Task & { failedUploads?: string[] }> {
     if (data.exp_start_date && data.exp_end_date) {
       const cleanStart = formatDateForERPNext(data.exp_start_date);
       const cleanEnd = formatDateForERPNext(data.exp_end_date);
@@ -564,7 +564,7 @@ export const taskService = {
     try {
       const payload = cleanPayload(data);
       const response = await api.post<{ data: any }>('/api/resource/Task', payload);
-      const task = normalizeTask(response.data);
+      const task = normalizeTask(response.data) as Task & { failedUploads?: string[] };
 
       const targetEmail = resolveUserEmail(data.assigned_to);
       if (targetEmail) {
@@ -578,6 +578,19 @@ export const taskService = {
           task.assigned_employee_name = resolveUserDisplayName(targetEmail);
         } catch (err) {
           console.warn('[Task Assignment Warning]', err);
+        }
+      }
+
+      // If document attachments were provided during Task Creation, upload and link them immediately
+      if (files && files.length > 0 && task.name) {
+        try {
+          const uploadRes = await this.uploadTaskAttachments(task.name, files, data.project);
+          if (uploadRes.failed && uploadRes.failed.length > 0) {
+            task.failedUploads = uploadRes.failed.map((f) => f.fileName);
+          }
+        } catch (attErr: any) {
+          console.warn('[Task Creation Attachments Warning]', attErr);
+          task.failedUploads = files.map((f) => f.name);
         }
       }
 
@@ -749,12 +762,68 @@ export const taskService = {
   },
 
   /**
-   * Fetch file attachments for task (combining ERPNext files, PDM Document Vault, and Task Submissions)
+   * Upload document attachments and link them to a Task
+   */
+  async uploadTaskAttachments(
+    taskId: string,
+    files: File[],
+    projectId?: string
+  ): Promise<{ uploaded: TaskAttachment[]; failed: { fileName: string; reason: string }[] }> {
+    if (!files || files.length === 0) {
+      return { uploaded: [], failed: [] };
+    }
+
+    const formData = new FormData();
+    if (projectId) {
+      formData.append('projectId', projectId);
+    }
+    files.forEach((f) => {
+      formData.append('files', f);
+    });
+
+    try {
+      const response = await api.post<{
+        uploaded: TaskAttachment[];
+        failed: { fileName: string; reason: string }[];
+      }>(`/api/tasks/${encodeURIComponent(taskId)}/attachments`, formData);
+      return response || { uploaded: [], failed: [] };
+    } catch (err: any) {
+      console.error(`[Task Service Error] Failed to upload attachments for ${taskId}:`, err);
+      return {
+        uploaded: [],
+        failed: files.map((f) => ({ fileName: f.name, reason: err.message || 'Upload failed' })),
+      };
+    }
+  },
+
+  /**
+   * Delete an attached document from a task
+   */
+  async deleteTaskAttachment(taskId: string, attachmentIdOrName: string): Promise<void> {
+    await api.delete(
+      `/api/tasks/${encodeURIComponent(taskId)}/attachments?attachmentId=${encodeURIComponent(attachmentIdOrName)}`
+    );
+  },
+
+  /**
+   * Fetch file attachments for task (combining Task Attachment Store, ERPNext files, PDM Document Vault, and Task Submissions)
    */
   async getTaskAttachments(taskName: string): Promise<TaskAttachment[]> {
     const list: TaskAttachment[] = [];
 
-    // 1. Fetch from Task Submissions Store
+    // 1. Fetch from Task Attachments API Endpoint
+    try {
+      const res = await api.get<{ attachments: TaskAttachment[] }>(
+        `/api/tasks/${encodeURIComponent(taskName)}/attachments`
+      );
+      (res.attachments || []).forEach((att) => {
+        if (!list.some((existing) => existing.file_name === att.file_name || existing.name === att.name)) {
+          list.push(att);
+        }
+      });
+    } catch {}
+
+    // 2. Fetch from Task Submissions Store
     try {
       const subs = await this.getTaskSubmissions(taskName);
       subs.forEach((sub) => {
@@ -774,7 +843,7 @@ export const taskService = {
       });
     } catch {}
 
-    // 2. Fetch from PDM DocumentStore
+    // 3. Fetch from PDM DocumentStore
     try {
       const docRes = await api.get<{ documents: any[] }>(`/api/documents?task=${encodeURIComponent(taskName)}`);
       (docRes.documents || []).forEach((d) => {
@@ -791,7 +860,7 @@ export const taskService = {
       });
     } catch {}
 
-    // 3. Fetch from Frappe File DocType
+    // 4. Fetch from Frappe File DocType
     try {
       const filters = JSON.stringify([
         ['attached_to_doctype', '=', 'Task'],

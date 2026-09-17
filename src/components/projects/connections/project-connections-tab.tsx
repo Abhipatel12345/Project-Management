@@ -43,13 +43,20 @@ export function ProjectConnectionsTab({ projectId, projectName }: ProjectConnect
 
   const createTaskMutation = useCreateTask();
 
-  const handleTaskSubmit = async (values: any) => {
+  const handleTaskSubmit = async (values: any, attachments?: File[]) => {
     try {
-      await createTaskMutation.mutateAsync({
+      const created: any = await createTaskMutation.mutateAsync({
         ...values,
         project: projectId,
+        attachments,
       });
-      showToast('Task created successfully in ERPNext!', 'success');
+      if (created?.failedUploads && created.failedUploads.length > 0) {
+        showToast(`Task created, but failed to attach: ${created.failedUploads.join(', ')}`, 'warning');
+      } else if (attachments && attachments.length > 0) {
+        showToast(`Task created with ${attachments.length} document(s) attached!`, 'success');
+      } else {
+        showToast('Task created successfully in ERPNext!', 'success');
+      }
       refetch();
     } catch (err: any) {
       showToast(err.message || 'Failed to create task', 'error');

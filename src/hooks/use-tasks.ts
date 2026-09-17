@@ -32,9 +32,52 @@ export function useCreateTask() {
   const queryClient = useQueryClient();
 
   return useMutation({
-    mutationFn: (data: Partial<Task>) => taskService.createTask(data),
-    onSuccess: () => {
+    mutationFn: (data: Partial<Task> & { attachments?: File[] }) =>
+      taskService.createTask(data, data.attachments),
+    onSuccess: (createdTask: Task) => {
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.all });
+      if (createdTask?.name) {
+        queryClient.invalidateQueries({ queryKey: TASK_KEYS.attachments(createdTask.name) });
+        queryClient.invalidateQueries({ queryKey: TASK_KEYS.detail(createdTask.name) });
+      }
+    },
+  });
+}
+
+export function useUploadTaskAttachments() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      files,
+      projectId,
+    }: {
+      taskId: string;
+      files: File[];
+      projectId?: string;
+    }) => taskService.uploadTaskAttachments(taskId, files, projectId),
+    onSuccess: (_data: any, variables: { taskId: string; files: File[]; projectId?: string }) => {
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.attachments(variables.taskId) });
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.detail(variables.taskId) });
+    },
+  });
+}
+
+export function useDeleteTaskAttachment() {
+  const queryClient = useQueryClient();
+
+  return useMutation({
+    mutationFn: ({
+      taskId,
+      attachmentId,
+    }: {
+      taskId: string;
+      attachmentId: string;
+    }) => taskService.deleteTaskAttachment(taskId, attachmentId),
+    onSuccess: (_data: any, variables: { taskId: string; attachmentId: string }) => {
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.attachments(variables.taskId) });
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.detail(variables.taskId) });
     },
   });
 }

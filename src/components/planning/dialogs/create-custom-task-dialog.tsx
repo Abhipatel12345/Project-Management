@@ -1,10 +1,10 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { ProjectTeamMember } from '@/types/team.types';
 import { Task, TaskPriority } from '@/types/task.types';
 import { BOARD_FUNCTIONS, PDT_ROLES } from '@/config/charter-choices.config';
-import { X, Plus, Calendar, User, Layers, Lock } from 'lucide-react';
+import { X, Plus, Calendar, User, Layers, Lock, Paperclip, Upload, FileText, Trash2, AlertCircle } from 'lucide-react';
 import { formatDate } from '@/utils/gantt-scheduling-engine';
 
 interface CreateCustomTaskDialogProps {
@@ -12,7 +12,7 @@ interface CreateCustomTaskDialogProps {
   onClose: () => void;
   projectId: string;
   teamMembers: ProjectTeamMember[];
-  onSubmit: (taskData: Partial<Task>) => Promise<void>;
+  onSubmit: (taskData: Partial<Task>, files?: File[]) => Promise<void>;
 }
 
 export function CreateCustomTaskDialog({
@@ -33,10 +33,44 @@ export function CreateCustomTaskDialog({
   const [assignedTo, setAssignedTo] = useState('');
   const [priority, setPriority] = useState<TaskPriority>('Medium');
   const [description, setDescription] = useState('');
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [fileError, setFileError] = useState<string | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   if (!isOpen) return null;
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const newFiles = Array.from(e.target.files);
+    setFileError(null);
+
+    const allowed = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png'];
+    const validFiles: File[] = [];
+
+    for (const f of newFiles) {
+      const ext = f.name.split('.').pop()?.toLowerCase() || '';
+      if (!allowed.includes(ext)) {
+        setFileError(`File "${f.name}" has unsupported format. Allowed: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, JPG, JPEG, PNG.`);
+        continue;
+      }
+      if (f.size > 25 * 1024 * 1024) {
+        setFileError(`File "${f.name}" exceeds maximum allowed size of 25MB.`);
+        continue;
+      }
+      if (!selectedFiles.some((existing) => existing.name === f.name)) {
+        validFiles.push(f);
+      }
+    }
+
+    setSelectedFiles((prev) => [...prev, ...validFiles]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeSelectedFile = (idx: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -81,7 +115,7 @@ export function CreateCustomTaskDialog({
         custom_is_mandatory_pdp: 0,
         is_milestone: false,
         custom_is_milestone: 0,
-      });
+      }, selectedFiles);
       onClose();
     } catch (err: any) {
       setError(err.message || 'Failed to create custom task');
@@ -254,6 +288,70 @@ export function CreateCustomTaskDialog({
               placeholder="Task details and deliverables notes..."
               className="w-full px-3 py-2 rounded-xl border border-slate-200 focus:outline-none focus:ring-2 focus:ring-sky-500"
             />
+          </div>
+
+          {/* Attachments / Reference Documents */}
+          <div className="p-3.5 rounded-2xl bg-slate-50/90 border border-slate-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-1.5 text-slate-800 font-black text-xs uppercase tracking-wider">
+                <Paperclip className="h-3.5 w-3.5 text-sky-600" />
+                <span>Reference Documents ({selectedFiles.length})</span>
+              </div>
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                className="flex items-center gap-1 px-2.5 py-1 rounded-xl bg-white text-sky-700 hover:bg-sky-50 border border-sky-200 text-xs font-bold transition cursor-pointer shadow-2xs"
+              >
+                <Upload className="h-3 w-3" />
+                <span>Upload Documents</span>
+              </button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png"
+                onChange={handleFileChange}
+                className="hidden"
+              />
+            </div>
+
+            <p className="text-[10px] text-slate-500 leading-normal">
+              Attach engineering drawings, specs, or reports (PDF, DOCX, XLSX, PPTX, JPG, PNG up to 25MB each).
+            </p>
+
+            {fileError && (
+              <div className="p-2 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-[11px] font-semibold flex items-center gap-1.5">
+                <AlertCircle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+                <span>{fileError}</span>
+              </div>
+            )}
+
+            {selectedFiles.length > 0 && (
+              <div className="space-y-1.5 max-h-36 overflow-y-auto">
+                {selectedFiles.map((file, idx) => (
+                  <div
+                    key={`${file.name}-${idx}`}
+                    className="flex items-center justify-between p-2 rounded-xl bg-white border border-sky-200 text-xs shadow-2xs"
+                  >
+                    <div className="flex items-center gap-2 truncate">
+                      <FileText className="h-3.5 w-3.5 text-sky-600 shrink-0" />
+                      <span className="font-bold text-slate-800 truncate text-[11px]">{file.name}</span>
+                      <span className="text-[10px] text-slate-400 font-mono">
+                        ({(file.size / 1024).toFixed(0)} KB)
+                      </span>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => removeSelectedFile(idx)}
+                      className="p-1 rounded-lg text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                      title="Remove file"
+                    >
+                      <Trash2 className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex items-center justify-end gap-3 pt-3 border-t border-slate-100">

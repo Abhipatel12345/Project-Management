@@ -215,11 +215,13 @@ export default function PlanningPage() {
     }
   };
 
-  const handleCreateSubmit = async (values: TaskFormValues) => {
+  const handleCreateSubmit = async (values: TaskFormValues, attachments?: File[]) => {
     try {
-      const newTask = await createTaskMutation.mutateAsync({
+      const newTask: any = await createTaskMutation.mutateAsync({
         subject: values.subject,
         project: values.project || selectedProjectId,
+        phase: values.phase,
+        custom_phase: values.phase,
         status: values.status,
         priority: values.priority,
         exp_start_date: values.exp_start_date,
@@ -237,8 +239,20 @@ export default function PlanningPage() {
           consulted: values.rasic_consulted,
           informed: values.rasic_informed,
         },
+        attachments,
       });
-      showToast(`Task ${newTask.name} created successfully in ERPNext!`, 'success');
+
+      if (newTask?.failedUploads && newTask.failedUploads.length > 0) {
+        showToast(
+          `Task ${newTask.name} created, but failed to attach: ${newTask.failedUploads.join(', ')}`,
+          'warning'
+        );
+      } else if (attachments && attachments.length > 0) {
+        showToast(`Task ${newTask.name} created with ${attachments.length} document(s) attached!`, 'success');
+      } else {
+        showToast(`Task ${newTask.name} created successfully in ERPNext!`, 'success');
+      }
+
       setIsCreateDialogOpen(false);
       refetch();
     } catch (err: any) {
@@ -279,13 +293,25 @@ export default function PlanningPage() {
     }
   };
 
-  const handleCreateCustomTask = async (taskData: Partial<Task>) => {
+  const handleCreateCustomTask = async (taskData: Partial<Task>, files?: File[]) => {
     try {
-      await createTaskMutation.mutateAsync({
+      const newTask: any = await createTaskMutation.mutateAsync({
         ...taskData,
         project: selectedProjectId,
+        attachments: files,
       });
-      showToast(`Custom task created successfully for ${selectedProjectId}!`, 'success');
+
+      if (newTask?.failedUploads && newTask.failedUploads.length > 0) {
+        showToast(
+          `Custom task created, but failed to attach: ${newTask.failedUploads.join(', ')}`,
+          'warning'
+        );
+      } else if (files && files.length > 0) {
+        showToast(`Custom task created with ${files.length} document(s) attached!`, 'success');
+      } else {
+        showToast(`Custom task created successfully for ${selectedProjectId}!`, 'success');
+      }
+
       refetch();
     } catch (err: any) {
       showToast(err.message || 'Failed to create custom task', 'error');

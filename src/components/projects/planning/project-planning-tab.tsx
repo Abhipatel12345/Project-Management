@@ -20,6 +20,7 @@ import { BaselineManagementModal } from '@/components/planning/baselines/baselin
 import { CreateBaselineDialog } from '@/components/planning/baselines/create-baseline-dialog';
 import { BaselineComparisonTable } from '@/components/planning/baselines/baseline-comparison-table';
 import { TaskFormDialog } from '@/components/tasks/task-form-dialog';
+import { taskService } from '@/services/task.service';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
 import { TaskSkipDialog } from '@/components/tasks/task-skip-dialog';
 import { Task } from '@/types/task.types';
@@ -116,11 +117,13 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
     }
   };
 
-  const handleCreateTaskSubmit = async (values: TaskFormValues) => {
+  const handleCreateTaskSubmit = async (values: TaskFormValues, attachments?: File[]) => {
     try {
-      await createTaskMutation.mutateAsync({
+      const createdTask: any = await createTaskMutation.mutateAsync({
         subject: values.subject,
         project: projectId,
+        phase: values.phase,
+        custom_phase: values.phase,
         status: values.status,
         priority: values.priority,
         exp_start_date: values.exp_start_date,
@@ -138,8 +141,20 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
           consulted: values.rasic_consulted,
           informed: values.rasic_informed,
         },
+        attachments,
       });
-      showToast(`Task created in ERPNext for ${projectId}!`, 'success');
+
+      if (createdTask?.failedUploads && createdTask.failedUploads.length > 0) {
+        showToast(
+          `Task created, but failed to attach: ${createdTask.failedUploads.join(', ')}`,
+          'warning'
+        );
+      } else if (attachments && attachments.length > 0) {
+        showToast(`Task created with ${attachments.length} document(s) attached!`, 'success');
+      } else {
+        showToast(`Task created in ERPNext for ${projectId}!`, 'success');
+      }
+
       setIsCreateDialogOpen(false);
       refetchTasks();
     } catch (err: any) {
@@ -147,7 +162,11 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
     }
   };
 
-  const handleEditTaskSubmit = async (values: TaskFormValues) => {
+  const handleEditTaskSubmit = async (
+    values: TaskFormValues,
+    attachments?: File[],
+    removedAttachmentIds?: string[]
+  ) => {
     if (!editingTask) return;
     try {
       await updateTaskMutation.mutateAsync({
@@ -155,6 +174,8 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
         data: {
           subject: values.subject,
           project: projectId,
+          phase: values.phase,
+          custom_phase: values.phase,
           status: values.status,
           priority: values.priority,
           exp_start_date: values.exp_start_date,
@@ -174,7 +195,20 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
           },
         },
       });
-      showToast(`Task ${editingTask.name} updated in ERPNext!`, 'success');
+
+      // Handle newly attached documents
+      if (attachments && attachments.length > 0) {
+        await taskService.uploadTaskAttachments(editingTask.name, attachments, projectId);
+      }
+
+      // Handle removed documents
+      if (removedAttachmentIds && removedAttachmentIds.length > 0) {
+        for (const remId of removedAttachmentIds) {
+          await taskService.deleteTaskAttachment(editingTask.name, remId);
+        }
+      }
+
+      showToast(`Task ${editingTask.name} updated successfully!`, 'success');
       setEditingTask(null);
       refetchTasks();
     } catch (err: any) {
@@ -216,13 +250,25 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
     }
   };
 
-  const handleCreateCustomTask = async (taskData: Partial<Task>) => {
+  const handleCreateCustomTask = async (taskData: Partial<Task>, files?: File[]) => {
     try {
-      await createTaskMutation.mutateAsync({
+      const createdTask: any = await createTaskMutation.mutateAsync({
         ...taskData,
         project: projectId,
+        attachments: files,
       });
-      showToast(`Custom task created successfully for ${projectId}!`, 'success');
+
+      if (createdTask?.failedUploads && createdTask.failedUploads.length > 0) {
+        showToast(
+          `Custom task created, but failed to attach: ${createdTask.failedUploads.join(', ')}`,
+          'warning'
+        );
+      } else if (files && files.length > 0) {
+        showToast(`Custom task created with ${files.length} document(s) attached!`, 'success');
+      } else {
+        showToast(`Custom task created successfully for ${projectId}!`, 'success');
+      }
+
       refetchTasks();
     } catch (err: any) {
       showToast(err.message || 'Failed to create custom task', 'error');

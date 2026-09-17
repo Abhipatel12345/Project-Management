@@ -11,6 +11,7 @@ import { TaskWorkloadTable } from '@/components/tasks/task-workload-table';
 import { TaskWorkloadChart } from '@/components/tasks/task-workload-chart';
 import { TaskMemberDetailModal } from '@/components/tasks/task-member-detail-modal';
 import { TaskFormDialog } from '@/components/tasks/task-form-dialog';
+import { taskService } from '@/services/task.service';
 import { TaskDeleteDialog } from '@/components/tasks/task-delete-dialog';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
 import { TaskExcelUploadDialog } from '@/components/tasks/task-excel-upload-dialog';
@@ -214,12 +215,13 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
   };
 
   // Handlers
-  const handleCreateSubmit = async (values: TaskFormValues) => {
+  const handleCreateSubmit = async (values: TaskFormValues, attachments?: File[]) => {
     try {
-      await createTaskMutation.mutateAsync({
+      const createdTask: any = await createTaskMutation.mutateAsync({
         subject: values.subject,
         project: projectId, // Strictly auto-associate with current Project ID!
         phase: values.phase || createDefaultPhase || 'Phase 1: Concept & Planning',
+        custom_phase: values.phase || createDefaultPhase || 'Phase 1: Concept & Planning',
         status: values.status,
         priority: values.priority,
         exp_start_date: values.exp_start_date,
@@ -237,8 +239,20 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
           consulted: values.rasic_consulted,
           informed: values.rasic_informed,
         },
+        attachments,
       });
-      showToast('Task created successfully in ERPNext!', 'success');
+
+      if (createdTask?.failedUploads && createdTask.failedUploads.length > 0) {
+        showToast(
+          `Task created, but failed to attach: ${createdTask.failedUploads.join(', ')}`,
+          'warning'
+        );
+      } else if (attachments && attachments.length > 0) {
+        showToast(`Task created with ${attachments.length} document(s) attached!`, 'success');
+      } else {
+        showToast('Task created successfully in ERPNext!', 'success');
+      }
+
       setIsCreateOpen(false);
       setCreateDefaultPhase(undefined);
       refetch();
@@ -247,7 +261,11 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
     }
   };
 
-  const handleEditSubmit = async (values: TaskFormValues) => {
+  const handleEditSubmit = async (
+    values: TaskFormValues,
+    attachments?: File[],
+    removedAttachmentIds?: string[]
+  ) => {
     if (!editingTask) return;
     try {
       await updateTaskMutation.mutateAsync({
@@ -256,6 +274,7 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
           subject: values.subject,
           project: projectId,
           phase: values.phase,
+          custom_phase: values.phase,
           status: values.status,
           priority: values.priority,
           exp_start_date: values.exp_start_date,
@@ -275,6 +294,19 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
           },
         },
       });
+
+      // Handle newly attached documents
+      if (attachments && attachments.length > 0) {
+        await taskService.uploadTaskAttachments(editingTask.name, attachments, projectId);
+      }
+
+      // Handle removed documents
+      if (removedAttachmentIds && removedAttachmentIds.length > 0) {
+        for (const remId of removedAttachmentIds) {
+          await taskService.deleteTaskAttachment(editingTask.name, remId);
+        }
+      }
+
       showToast(`Task ${editingTask.name} updated successfully in ERPNext!`, 'success');
       setEditingTask(null);
       refetch();

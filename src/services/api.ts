@@ -49,6 +49,10 @@ axiosClient.interceptors.request.use(
       config.url?.startsWith('/api/') ||
       (!config.url?.startsWith('http://') && !config.url?.startsWith('https://'));
 
+    if (typeof window !== 'undefined' && config.data instanceof FormData) {
+      delete config.headers['Content-Type'];
+    }
+
     if (apiKey && apiSecret) {
       config.headers.Authorization = `token ${apiKey}:${apiSecret}`;
       // Disable withCredentials for direct ERPNext API calls so browser session cookies

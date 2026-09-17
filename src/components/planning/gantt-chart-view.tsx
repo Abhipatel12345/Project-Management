@@ -66,7 +66,7 @@ interface GanttChartViewProps {
   onEditTask: (task: Task) => void;
   onViewTask: (task: Task) => void;
   onDateChange: (task: Task, newStart: string, newEnd: string) => Promise<void>;
-  onCreateCustomTask?: (taskData: Partial<Task>) => Promise<void>;
+  onCreateCustomTask?: (taskData: Partial<Task>, files?: File[]) => Promise<void>;
   onCreateCustomMilestone?: (milestoneData: Partial<Task>) => Promise<void>;
   onDeleteTask?: (task: Task) => Promise<void>;
   onRetimeTask?: (task: Task, retimedToGate: string, newStart: string, newEnd: string, reason: string) => Promise<void>;

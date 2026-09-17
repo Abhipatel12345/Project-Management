@@ -2,7 +2,7 @@ import React, { useEffect, useMemo } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { taskFormSchema, TaskFormValues } from '@/lib/validations/task.schema';
-import { Task } from '@/types/task.types';
+import { Task, TaskAttachment } from '@/types/task.types';
 import { Project } from '@/types/project.types';
 import { useProjects, useProject } from '@/hooks/use-projects';
 import { useProjectTeam, useAvailableEmployees } from '@/hooks/use-project-team';
@@ -12,13 +12,14 @@ import { validateTaskDatesAgainstProject } from '@/utils/date-utils';
 import { getProjectPhases, formatPhaseName, inferTaskPhase, STANDARD_PROJECT_PHASES, ProjectPhase } from '@/constants/phases';
 import { useProjectPhases } from '@/hooks/use-project-phases';
 import { CreatePhaseDialog } from './create-phase-dialog';
-import { X, Loader2, Calendar, User, ShieldCheck, CheckSquare, Edit3, Layers } from 'lucide-react';
+import { taskService } from '@/services/task.service';
+import { X, Loader2, Calendar, User, ShieldCheck, CheckSquare, Edit3, Layers, Paperclip, Upload, FileText, Trash2, AlertCircle } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
 interface TaskFormDialogProps {
   isOpen: boolean;
   onClose: () => void;
-  onSubmit: (values: TaskFormValues) => Promise<void>;
+  onSubmit: (values: TaskFormValues, attachments?: File[], removedAttachmentIds?: string[]) => Promise<void>;
   initialData?: Task | null;
   defaultProjectId?: string;
   defaultPhase?: string;
@@ -36,6 +37,12 @@ export function TaskFormDialog({
 }: TaskFormDialogProps) {
   const isEditing = !!initialData;
   const [isCreatePhaseOpen, setIsCreatePhaseOpen] = React.useState(false);
+  const [selectedFiles, setSelectedFiles] = React.useState<File[]>([]);
+  const [existingAttachments, setExistingAttachments] = React.useState<TaskAttachment[]>([]);
+  const [removedAttachmentIds, setRemovedAttachmentIds] = React.useState<string[]>([]);
+  const [isLoadingAttachments, setIsLoadingAttachments] = React.useState(false);
+  const [fileError, setFileError] = React.useState<string | null>(null);
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
 
   const { data: projectsData } = useProjects({ page: 1, pageSize: 50 });
   const projects = projectsData?.projects || [];
@@ -221,7 +228,61 @@ export function TaskFormDialog({
         rasic_informed: '',
       });
     }
+
+    // Reset attachments state
+    setSelectedFiles([]);
+    setRemovedAttachmentIds([]);
+    setFileError(null);
+
+    if (initialData?.name) {
+      setIsLoadingAttachments(true);
+      taskService
+        .getTaskAttachments(initialData.name)
+        .then((atts) => setExistingAttachments(atts || []))
+        .catch(() => setExistingAttachments([]))
+        .finally(() => setIsLoadingAttachments(false));
+    } else {
+      setExistingAttachments([]);
+    }
   }, [isOpen, initialTaskIdentifier, defaultProjectId, defaultPhase, firstProjectName, reset, matchOptionValue, initialData]);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files) return;
+    const newFiles = Array.from(e.target.files);
+    setFileError(null);
+
+    const allowed = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png'];
+    const validFiles: File[] = [];
+
+    for (const f of newFiles) {
+      const ext = f.name.split('.').pop()?.toLowerCase() || '';
+      if (!allowed.includes(ext)) {
+        setFileError(`File "${f.name}" has unsupported format. Allowed: PDF, DOC, DOCX, XLS, XLSX, PPT, PPTX, JPG, JPEG, PNG.`);
+        continue;
+      }
+      if (f.size > 25 * 1024 * 1024) {
+        setFileError(`File "${f.name}" exceeds maximum allowed size of 25MB.`);
+        continue;
+      }
+      if (!selectedFiles.some((existing) => existing.name === f.name)) {
+        validFiles.push(f);
+      }
+    }
+
+    setSelectedFiles((prev) => [...prev, ...validFiles]);
+    if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const removeSelectedFile = (idx: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const removeExistingAttachment = (attIdOrName: string) => {
+    setRemovedAttachmentIds((prev) => [...prev, attIdOrName]);
+    setExistingAttachments((prev) =>
+      prev.filter((a) => a.name !== attIdOrName && a.file_name !== attIdOrName)
+    );
+  };
 
   const onFormSubmit = async (values: TaskFormValues) => {
     // Perform date validation against active project bounds before calling ERPNext API
@@ -252,7 +313,7 @@ export function TaskFormDialog({
     }
 
     try {
-      await onSubmit(values);
+      await onSubmit(values, selectedFiles, removedAttachmentIds);
       onClose();
     } catch {
       // Keep modal open if API save fails so user can adjust form values
@@ -602,6 +663,120 @@ export function TaskFormDialog({
                   </select>
                 </div>
               </div>
+            </div>
+
+            {/* Attachments / Reference Documents Section */}
+            <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200 space-y-3">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2 text-slate-800 font-black text-xs uppercase tracking-wider">
+                  <Paperclip className="h-4 w-4 text-sky-600" />
+                  <span>Attachments / Reference Documents</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-sky-700 hover:bg-sky-50 border border-sky-200 text-xs font-bold transition cursor-pointer shadow-2xs"
+                >
+                  <Upload className="h-3.5 w-3.5" />
+                  <span>Upload Documents</span>
+                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png"
+                  onChange={handleFileChange}
+                  className="hidden"
+                />
+              </div>
+
+              <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
+                Attach reference engineering drawings, customer specifications, or validation reports directly to this task. Supported formats: PDF, DOCX, XLSX, PPTX, JPG, PNG (Max 25MB each).
+              </p>
+
+              {fileError && (
+                <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-semibold flex items-center gap-2">
+                  <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                  <span>{fileError}</span>
+                </div>
+              )}
+
+              {/* Existing Attachments (when editing) */}
+              {isEditing && (
+                <div className="space-y-1.5">
+                  <label className="text-[10px] font-extrabold text-slate-600 uppercase">
+                    Existing Task Documents ({existingAttachments.length})
+                  </label>
+                  {isLoadingAttachments ? (
+                    <div className="flex items-center gap-2 text-xs text-slate-400 py-2">
+                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      <span>Loading attachments...</span>
+                    </div>
+                  ) : existingAttachments.length === 0 ? (
+                    <p className="text-[11px] text-slate-400 italic">No previous documents attached.</p>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {existingAttachments.map((att) => (
+                        <div
+                          key={att.name || att.file_name}
+                          className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200 text-xs shadow-2xs"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <FileText className="h-4 w-4 text-sky-600 shrink-0" />
+                            <span className="font-bold text-slate-800 truncate">{att.file_name}</span>
+                            {att.file_size ? (
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                ({(att.file_size / 1024).toFixed(0)} KB)
+                              </span>
+                            ) : null}
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removeExistingAttachment(att.name || att.file_name)}
+                            className="p-1 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                            title="Remove attachment"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* Selected Files (Before submitting) */}
+              {selectedFiles.length > 0 && (
+                <div className="space-y-1.5 pt-1">
+                  <label className="text-[10px] font-extrabold text-sky-700 uppercase">
+                    Selected Files To Upload ({selectedFiles.length}):
+                  </label>
+                  <div className="space-y-1.5">
+                    {selectedFiles.map((file, idx) => (
+                      <div
+                        key={`${file.name}-${idx}`}
+                        className="flex items-center justify-between p-2.5 rounded-xl bg-white border border-sky-200 text-xs shadow-2xs"
+                      >
+                        <div className="flex items-center gap-2 truncate">
+                          <FileText className="h-4 w-4 text-sky-600 shrink-0" />
+                          <span className="font-bold text-slate-900 truncate">{file.name}</span>
+                          <span className="text-[10px] text-slate-400 font-mono">
+                            ({(file.size / 1024).toFixed(0)} KB)
+                          </span>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => removeSelectedFile(idx)}
+                          className="flex items-center gap-1 px-2 py-1 rounded-lg text-rose-600 hover:bg-rose-50 font-bold text-[11px] transition cursor-pointer"
+                        >
+                          <Trash2 className="h-3 w-3" />
+                          <span>Remove</span>
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Submit Triggers */}

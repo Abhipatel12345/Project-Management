@@ -4,7 +4,15 @@ import { ProjectBaseline } from '@/types/baseline.types';
 import { calculateDayDiff, calculateDurationDays } from '@/services/baseline.service';
 import { TaskStatusBadge } from './task-status-badge';
 import { TaskPriorityBadge } from './task-priority-badge';
-import { useTaskComments, useTaskAttachments, useTask, useTaskSubmissions, useTasks } from '@/hooks/use-tasks';
+import {
+  useTaskComments,
+  useTaskAttachments,
+  useTask,
+  useTaskSubmissions,
+  useTasks,
+  useUploadTaskAttachments,
+  useDeleteTaskAttachment,
+} from '@/hooks/use-tasks';
 import { useTaskDependencies, useDeleteDependency } from '@/hooks/use-task-dependencies';
 import { AddDependencyDialog } from './dependencies/add-dependency-dialog';
 import { resolveUserDisplayName } from '@/services/task.service';
@@ -17,6 +25,8 @@ import { useSkipRequests, useCreateSkipRequest } from '@/hooks/use-skip-requests
 import { TaskSkipDialog } from './task-skip-dialog';
 import {
   X,
+  Loader2,
+  Upload,
   Layers,
   FileText,
   UserCheck,
@@ -81,10 +91,57 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
   });
   const projectTasks: Task[] = projectTasksData?.tasks || [];
   const deleteDepMutation = useDeleteDependency();
+  const uploadAttachmentsMutation = useUploadTaskAttachments();
+  const deleteAttachmentMutation = useDeleteTaskAttachment();
+  const detailFileInputRef = React.useRef<HTMLInputElement>(null);
+  const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
 
   const { data: comments = [] } = useTaskComments(taskName);
-  const { data: attachments = [] } = useTaskAttachments(taskName);
+  const { data: attachments = [], refetch: refetchAttachments } = useTaskAttachments(taskName);
   const { data: submissions = [] } = useTaskSubmissions(taskName);
+
+  const handleDetailFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || e.target.files.length === 0) return;
+    const files = Array.from(e.target.files);
+    setIsUploadingAttachment(true);
+    try {
+      const res = await uploadAttachmentsMutation.mutateAsync({
+        taskId: taskName,
+        files,
+        projectId: currentTask?.project,
+      });
+      if (res.failed && res.failed.length > 0) {
+        showToast(
+          `Some files failed to attach: ${res.failed.map((f: { fileName: string }) => f.fileName).join(', ')}`,
+          'warning'
+        );
+      } else {
+        showToast(`${files.length} document(s) attached successfully!`, 'success');
+      }
+      refetchAttachments();
+      onRefresh?.();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to attach documents', 'error');
+    } finally {
+      setIsUploadingAttachment(false);
+      if (detailFileInputRef.current) detailFileInputRef.current.value = '';
+    }
+  };
+
+  const handleDeleteAttachment = async (attIdOrName: string) => {
+    if (!confirm('Are you sure you want to remove this attached document?')) return;
+    try {
+      await deleteAttachmentMutation.mutateAsync({
+        taskId: taskName,
+        attachmentId: attIdOrName,
+      });
+      showToast('Attachment removed successfully', 'info');
+      refetchAttachments();
+      onRefresh?.();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to remove attachment', 'error');
+    }
+  };
 
   // Fetch skip requests for project
   const { data: skipRequests = [], refetch: refetchSkipRequests } = useSkipRequests(currentTask?.project);
@@ -454,6 +511,48 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
                         ))}
                       </div>
                     )}
+                  </div>
+                )}
+
+                {/* Reference Documents & Attachments Card */}
+                {attachments.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-white border border-slate-200 text-xs space-y-3 shadow-2xs">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-slate-800 flex items-center gap-2 text-xs uppercase tracking-wider">
+                        <Paperclip className="h-4 w-4 text-sky-600" />
+                        <span>Attached Reference Documents ({attachments.length})</span>
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => setActiveTab('attachments')}
+                        className="text-[11px] font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
+                      >
+                        <span>View All & Manage</span>
+                        <ArrowRight className="h-3 w-3" />
+                      </button>
+                    </div>
+
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {attachments.slice(0, 4).map((att: TaskAttachment) => (
+                        <div
+                          key={att.name || att.file_name}
+                          className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <FileText className="h-4 w-4 text-sky-600 shrink-0" />
+                            <span className="font-bold text-slate-900 truncate text-[11px]">{att.file_name}</span>
+                          </div>
+                          <a
+                            href={att.file_url}
+                            download={att.file_name}
+                            className="p-1 rounded-lg hover:bg-slate-200 text-slate-600 transition shrink-0"
+                            title="Download"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </a>
+                        </div>
+                      ))}
+                    </div>
                   </div>
                 )}
 
@@ -1173,50 +1272,105 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
 
             {/* TAB: ATTACHMENTS */}
             {activeTab === 'attachments' && (
-              <div className="space-y-3 text-xs">
-                <h4 className="font-bold text-slate-800">Task Deliverables & Files ({attachments.length})</h4>
+              <div className="space-y-4 text-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-sky-50/60 border border-sky-200 shadow-2xs">
+                  <div>
+                    <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
+                      <Paperclip className="h-4 w-4 text-sky-600" />
+                      <span>Task Deliverables & Reference Documents ({attachments.length})</span>
+                    </h4>
+                    <p className="text-[11px] text-slate-500 mt-0.5">
+                      Specifications, CAD drawings, validation reports, and engineering documents linked to this task.
+                    </p>
+                  </div>
+                  <div className="shrink-0">
+                    <input
+                      ref={detailFileInputRef}
+                      type="file"
+                      multiple
+                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png"
+                      onChange={handleDetailFileUpload}
+                      className="hidden"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => detailFileInputRef.current?.click()}
+                      disabled={isUploadingAttachment}
+                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-xs transition disabled:opacity-50 cursor-pointer"
+                    >
+                      {isUploadingAttachment ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <Upload className="h-3.5 w-3.5" />
+                      )}
+                      <span>{isUploadingAttachment ? 'Uploading...' : 'Attach Documents'}</span>
+                    </button>
+                  </div>
+                </div>
+
                 {attachments.length === 0 ? (
-                  <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-1">
-                    <Paperclip className="h-6 w-6 text-slate-300 mx-auto" />
-                    <p className="font-bold text-slate-700">No files attached to this task.</p>
+                  <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-2">
+                    <Paperclip className="h-7 w-7 text-slate-300 mx-auto" />
+                    <p className="font-bold text-slate-700">No reference documents attached to this task.</p>
+                    <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
+                      Click &ldquo;Attach Documents&rdquo; above to upload PDF, Word, Excel, PowerPoint, or image files.
+                    </p>
                   </div>
                 ) : (
                   <div className="space-y-2">
-                    {attachments.map((a: TaskAttachment) => (
-                      <div
-                        key={a.name || a.file_name}
-                        className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs hover:bg-slate-50/60 transition"
-                      >
-                        <div className="flex items-center gap-2.5 truncate">
-                          <FileText className="h-4 w-4 text-sky-600 shrink-0" />
-                          <div className="truncate">
-                            <span className="font-bold text-slate-900 block truncate">{a.file_name}</span>
-                            <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                              {a.uploaded_by && <span>By {a.uploaded_by}</span>}
-                              {a.file_size && <span className="font-mono">({(a.file_size / 1024).toFixed(0)} KB)</span>}
-                              {a.creation && <span>{new Date(a.creation).toLocaleDateString()}</span>}
+                    {attachments.map((a: TaskAttachment) => {
+                      const canDelete =
+                        canEditTasks ||
+                        (user?.email && a.uploaded_by && user.email.toLowerCase() === a.uploaded_by.toLowerCase());
+
+                      return (
+                        <div
+                          key={a.name || a.file_name}
+                          className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs hover:bg-slate-50/70 transition"
+                        >
+                          <div className="flex items-center gap-2.5 truncate">
+                            <FileText className="h-4 w-4 text-sky-600 shrink-0" />
+                            <div className="truncate">
+                              <span className="font-bold text-slate-900 block truncate">{a.file_name}</span>
+                              <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                                {a.uploaded_by && <span>By {a.uploaded_by}</span>}
+                                {a.file_size && (
+                                  <span className="font-mono">({(a.file_size / 1024).toFixed(0)} KB)</span>
+                                )}
+                                {a.creation && <span>{new Date(a.creation).toLocaleDateString()}</span>}
+                              </div>
                             </div>
                           </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <a
+                              href={a.file_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
+                            >
+                              <Eye className="h-3 w-3" /> View
+                            </a>
+                            <a
+                              href={a.file_url}
+                              download={a.file_name}
+                              className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition"
+                            >
+                              <Download className="h-3 w-3" /> Download
+                            </a>
+                            {canDelete && (
+                              <button
+                                type="button"
+                                onClick={() => handleDeleteAttachment(a.name || a.file_name)}
+                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                                title="Remove Document"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            )}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <a
-                            href={a.file_url}
-                            target="_blank"
-                            rel="noreferrer"
-                            className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
-                          >
-                            <Eye className="h-3 w-3" /> View
-                          </a>
-                          <a
-                            href={a.file_url}
-                            download={a.file_name}
-                            className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition"
-                          >
-                            <Download className="h-3 w-3" /> Download
-                          </a>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 )}
               </div>

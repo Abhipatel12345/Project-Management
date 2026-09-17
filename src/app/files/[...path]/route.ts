@@ -34,6 +34,20 @@ export async function GET(
     });
 
     if (!erpRes.ok) {
+      // Fallback: check local task attachments storage
+      const { findLocalTaskAttachment } = await import('@/lib/server/task-attachment-store');
+      const local = findLocalTaskAttachment(subpath);
+      if (local) {
+        const fs = await import('fs');
+        const localBuffer = fs.readFileSync(local.filePath);
+        return new NextResponse(localBuffer, {
+          status: 200,
+          headers: {
+            'Content-Type': local.mimeType,
+            'Cache-Control': 'public, max-age=3600',
+          },
+        });
+      }
       return new NextResponse('File not found', { status: erpRes.status });
     }
 
