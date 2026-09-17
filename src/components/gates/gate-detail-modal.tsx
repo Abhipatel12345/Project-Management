@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Gate,
   GateCriterion,
@@ -21,6 +21,7 @@ import { gateService } from '@/services/gate.service';
 import { documentService } from '@/services/document.service';
 import { isGateReviewer } from '@/utils/user-matcher';
 import { DocumentViewerModal } from '@/components/documents/document-viewer-modal';
+import { GateChecklistUploadDialog } from '@/components/gates/gate-checklist-upload-dialog';
 import {
   X,
   Lock,
@@ -50,6 +51,7 @@ import {
   Eye,
   Download,
   ExternalLink,
+  Upload,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 
@@ -69,10 +71,11 @@ interface GateDetailModalProps {
     decision: 'Approved' | 'Approved with Conditions' | 'Rejected' | 'Pass' | 'Pass with Follow up' | 'Escalate';
     comments?: string;
   }) => Promise<void>;
+  onGateUpdated?: (updatedGate: Gate) => void;
 }
 
 export function GateDetailModal({
-  gate,
+  gate: initialGate,
   onClose,
   onEdit,
   onDelete,
@@ -83,8 +86,16 @@ export function GateDetailModal({
   onUpdateDeliverable,
   onDeleteDeliverable,
   onAddGateReview,
+  onGateUpdated,
 }: GateDetailModalProps) {
   const { user } = useAuth();
+  const [gate, setGate] = useState<Gate>(initialGate);
+
+  useEffect(() => {
+    setGate(initialGate);
+  }, [initialGate]);
+
+  const [isUploadChecklistOpen, setIsUploadChecklistOpen] = useState(false);
   const [activeTab, setActiveTab] = useState<
     'overview' | 'criteria' | 'deliverables' | 'review' | 'workflow' | 'activity'
   >('overview');
@@ -826,16 +837,51 @@ export function GateDetailModal({
           {/* TAB B: EXIT CRITERIA */}
           {activeTab === 'criteria' && (
             <div className="space-y-4 font-sans">
-              <div className="flex items-center justify-between">
-                <h3 className="text-sm font-black text-slate-900">
-                  Mandatory Exit Criteria Checklist ({criteria.length})
-                </h3>
-                <button
-                  onClick={() => setIsAddingCriterion(true)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer shadow-xs transition"
-                >
-                  <Plus className="h-3.5 w-3.5" /> Add Criterion
-                </button>
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                <div className="space-y-0.5">
+                  <h3 className="text-sm font-black text-slate-900">
+                    Mandatory Exit Criteria Checklist ({criteria.length})
+                  </h3>
+                  {gate.checklist_source_file && (
+                    <div className="flex items-center gap-1.5 text-[11px] text-slate-500">
+                      <span className="font-bold text-slate-600">Source:</span>
+                      {gate.checklist_source_file_url ? (
+                        <a
+                          href={gate.checklist_source_file_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center gap-1 font-mono text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded border border-emerald-200 hover:bg-emerald-100 transition"
+                          title="Download source reference document"
+                        >
+                          <FileText className="h-3 w-3" />
+                          <span>{gate.checklist_source_file}</span>
+                          <Download className="h-3 w-3" />
+                        </a>
+                      ) : (
+                        <span className="inline-flex items-center gap-1 font-mono text-slate-700 bg-slate-100 px-2 py-0.5 rounded border border-slate-200">
+                          <FileText className="h-3 w-3" />
+                          <span>{gate.checklist_source_file}</span>
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setIsUploadChecklistOpen(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white hover:bg-slate-50 text-slate-700 border border-slate-300 text-xs font-bold cursor-pointer shadow-xs transition"
+                  >
+                    <Upload className="h-3.5 w-3.5 text-emerald-600" /> Upload Checklist
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setIsAddingCriterion(true)}
+                    className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold cursor-pointer shadow-xs transition"
+                  >
+                    <Plus className="h-3.5 w-3.5" /> Add Criterion
+                  </button>
+                </div>
               </div>
 
               {isAddingCriterion && (
@@ -939,6 +985,14 @@ export function GateDetailModal({
                               {crt.is_required && (
                                 <span className="px-1.5 py-0.5 rounded text-[9px] font-black uppercase bg-rose-50 text-rose-700 border border-rose-200">
                                   Required
+                                </span>
+                              )}
+                              {crt.source_file && (
+                                <span
+                                  className="px-1.5 py-0.5 rounded text-[9px] font-medium bg-slate-100 text-slate-600 border border-slate-200 font-mono"
+                                  title={`Imported from ${crt.source_file}`}
+                                >
+                                  {crt.source_file}
                                 </span>
                               )}
                             </div>
@@ -1793,6 +1847,19 @@ export function GateDetailModal({
               document={viewingDoc}
               isOpen={!!viewingDoc}
               onClose={() => setViewingDoc(null)}
+            />
+          )}
+
+          {/* Checklist Upload & Preview Dialog */}
+          {isUploadChecklistOpen && (
+            <GateChecklistUploadDialog
+              isOpen={isUploadChecklistOpen}
+              onClose={() => setIsUploadChecklistOpen(false)}
+              gate={gate}
+              onSuccess={(updatedGate) => {
+                setGate(updatedGate);
+                onGateUpdated?.(updatedGate);
+              }}
             />
           )}
         </motion.div>

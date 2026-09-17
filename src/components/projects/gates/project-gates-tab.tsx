@@ -16,8 +16,10 @@ import { useToast } from '@/providers/toast-context';
 import { GateTableView } from '@/components/gates/gate-table-view';
 import { GateFormDialog, GateFormValues } from '@/components/gates/gate-form-dialog';
 import { GateDetailModal } from '@/components/gates/gate-detail-modal';
+import { GateManagementView } from '@/components/gates/gate-management-view';
 import { Gate, GateCriterion, GateDeliverable } from '@/types/gate.types';
-import { Plus, Loader2 } from 'lucide-react';
+import { Plus, Loader2, Layers, Table } from 'lucide-react';
+import { cn } from '@/utils/cn';
 
 interface ProjectGatesTabProps {
   projectId: string;
@@ -25,6 +27,7 @@ interface ProjectGatesTabProps {
 }
 
 export function ProjectGatesTab({ projectId, projectName }: ProjectGatesTabProps) {
+  const [viewMode, setViewMode] = useState<'connected' | 'table'>('connected');
   const { showToast } = useToast();
   const {
     data: gateListData,
@@ -226,49 +229,93 @@ export function ProjectGatesTab({ projectId, projectName }: ProjectGatesTabProps
 
   return (
     <div className="space-y-6 font-sans">
-      {/* Header Bar */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
-        <div>
-          <h3 className="text-base font-black text-slate-900">
-            APQP Stage-Gates & Governance ({projectName})
-          </h3>
-          <p className="text-xs text-slate-500 font-medium">
-            Enforce gate entry/exit criteria, deliverable readiness, and sign-offs for {projectId}.
-          </p>
-        </div>
-
-        <button
-          onClick={() => setIsCreateOpen(true)}
-          className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-xs cursor-pointer self-start sm:self-auto"
-        >
-          <Plus className="h-4 w-4" />
-          <span>Create Stage-Gate</span>
-        </button>
-      </div>
-
-      {/* Main Table */}
-      {isLoading ? (
-        <div className="p-12 text-center bg-white rounded-2xl border border-slate-200">
-          <Loader2 className="h-6 w-6 animate-spin text-emerald-600 mx-auto mb-2" />
-          <p className="text-xs font-bold text-slate-600">Loading stage-gates for {projectId}...</p>
-        </div>
-      ) : isError ? (
-        <div className="p-6 rounded-2xl bg-white border border-rose-200 text-center space-y-2">
-          <p className="text-xs font-bold text-rose-600">Failed to load stage-gates.</p>
+      {/* Top View Mode Switcher */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-white border border-slate-200 rounded-3xl p-4 shadow-xs">
+        <div className="flex items-center gap-2">
           <button
-            onClick={() => refetch()}
-            className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold"
+            type="button"
+            onClick={() => setViewMode('connected')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition cursor-pointer',
+              viewMode === 'connected'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            )}
           >
-            Retry
+            <Layers className="h-4 w-4" />
+            <span>Connected Gate Management Flow</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setViewMode('table')}
+            className={cn(
+              'flex items-center gap-2 px-4 py-2 rounded-2xl text-xs font-bold transition cursor-pointer',
+              viewMode === 'table'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'bg-slate-100 text-slate-700 hover:bg-slate-200'
+            )}
+          >
+            <Table className="h-4 w-4" />
+            <span>Gate Milestones Table</span>
           </button>
         </div>
+
+        <div className="text-xs text-slate-500 font-medium">
+          {viewMode === 'connected'
+            ? 'Integrated flow: Gate readniss tab • KGD tab • Gate Review Result summery tab'
+            : 'Raw stage-gate milestone configuration table'}
+        </div>
+      </div>
+
+      {viewMode === 'connected' ? (
+        <GateManagementView initialProjectId={projectId} />
       ) : (
-        <GateTableView
-          gates={gates}
-          onViewGate={(g) => setViewingGate(g)}
-          onEditGate={(g) => setEditingGate(g)}
-          onDeleteGate={handleDeleteGate}
-        />
+        <>
+          {/* Header Bar */}
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 p-5 rounded-2xl bg-white border border-slate-200 shadow-xs">
+            <div>
+              <h3 className="text-base font-black text-slate-900">
+                APQP Stage-Gates & Governance ({projectName})
+              </h3>
+              <p className="text-xs text-slate-500 font-medium">
+                Enforce gate entry/exit criteria, deliverable readiness, and sign-offs for {projectId}.
+              </p>
+            </div>
+
+            <button
+              onClick={() => setIsCreateOpen(true)}
+              className="flex items-center gap-2 px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs transition shadow-xs cursor-pointer self-start sm:self-auto"
+            >
+              <Plus className="h-4 w-4" />
+              <span>Create Stage-Gate</span>
+            </button>
+          </div>
+
+          {/* Main Table */}
+          {isLoading ? (
+            <div className="p-12 text-center bg-white rounded-2xl border border-slate-200">
+              <Loader2 className="h-6 w-6 animate-spin text-emerald-600 mx-auto mb-2" />
+              <p className="text-xs font-bold text-slate-600">Loading stage-gates for {projectId}...</p>
+            </div>
+          ) : isError ? (
+            <div className="p-6 rounded-2xl bg-white border border-rose-200 text-center space-y-2">
+              <p className="text-xs font-bold text-rose-600">Failed to load stage-gates.</p>
+              <button
+                onClick={() => refetch()}
+                className="px-3 py-1.5 rounded-xl bg-emerald-600 text-white text-xs font-bold"
+              >
+                Retry
+              </button>
+            </div>
+          ) : (
+            <GateTableView
+              gates={gates}
+              onViewGate={(g) => setViewingGate(g)}
+              onEditGate={(g) => setEditingGate(g)}
+              onDeleteGate={handleDeleteGate}
+            />
+          )}
+        </>
       )}
 
       {/* Form & Modals */}
@@ -307,6 +354,10 @@ export function ProjectGatesTab({ projectId, projectName }: ProjectGatesTabProps
           onUpdateDeliverable={handleUpdateDeliverable}
           onDeleteDeliverable={handleDeleteDeliverable}
           onAddGateReview={handleAddGateReview}
+          onGateUpdated={(updated) => {
+            setViewingGate(updated);
+            refetch();
+          }}
         />
       )}
     </div>

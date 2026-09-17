@@ -2,15 +2,15 @@ import { PDMUserSession } from '@/types/auth.types';
 import { getTaskRasic } from './rasic-store';
 
 const getErpUrl = (): string => {
-  return (process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
+  return (process.env.ERP_URL || process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
 };
 
 const getApiKey = (): string => {
-  return process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
+  return process.env.ERP_API_KEY || process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
 };
 
 const getApiSecret = (): string => {
-  return process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
+  return process.env.ERP_API_SECRET || process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
 };
 
 /**

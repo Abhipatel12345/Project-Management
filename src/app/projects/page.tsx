@@ -291,13 +291,32 @@ export default function ProjectsPage() {
       ) : isError ? (
         <div className="p-8 rounded-2xl bg-white border border-rose-200 text-center space-y-3 shadow-xs">
           <AlertCircle className="h-10 w-10 text-rose-500 mx-auto" />
-          <h3 className="text-base font-bold text-slate-900">Failed to load Projects</h3>
+          <h3 className="text-base font-bold text-slate-900">Unable to Load Projects</h3>
           <p className="text-xs text-slate-500 max-w-md mx-auto">
-            {error instanceof Error ? error.message : 'An error occurred while communicating with ERPNext.'}
+            {(() => {
+              const msg = (error instanceof Error ? error.message : String(error || '')).trim();
+              const lower = msg.toLowerCase();
+              if (
+                lower.includes('reportview.get') ||
+                lower.includes('not whitelisted') ||
+                lower.includes('login to access') ||
+                lower.includes('method not allowed') ||
+                lower.includes('session expired')
+              ) {
+                return 'Your ERPNext authentication session has expired. Please sign in again.';
+              }
+              if (lower.includes('permission') || lower.includes('not permitted')) {
+                return 'You do not have permission to access this data.';
+              }
+              if (lower.includes('traceback') || lower.includes('server error')) {
+                return 'The ERPNext server is temporarily unavailable. Please try again later.';
+              }
+              return msg || 'An error occurred while communicating with ERPNext.';
+            })()}
           </p>
           <button
             onClick={() => refetch()}
-            className="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold hover:bg-sky-500 transition shadow-xs"
+            className="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-bold hover:bg-sky-500 transition shadow-xs cursor-pointer"
           >
             Retry Connection
           </button>

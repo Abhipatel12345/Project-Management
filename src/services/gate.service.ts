@@ -288,6 +288,40 @@ export const gateService = {
   },
 
   /**
+   * Bulk upload checklist criteria via Excel/CSV file
+   */
+  async uploadChecklist(
+    gateName: string,
+    formData: FormData
+  ): Promise<{
+    success: boolean;
+    message: string;
+    createdCount: number;
+    skippedCount: number;
+    sourceFile: string;
+    sourceFileUrl?: string;
+    gate: Gate;
+  }> {
+    const res = await api.post<{
+      success: boolean;
+      message: string;
+      createdCount: number;
+      skippedCount: number;
+      sourceFile: string;
+      sourceFileUrl?: string;
+      gate: Gate;
+    }>(`/api/gates/${encodeURIComponent(gateName)}/criteria/upload`, formData);
+
+    if (res?.gate) {
+      const gates = getStoredGates().map((g) => (g.name === gateName ? res.gate : g));
+      saveStoredGates(gates);
+      return res;
+    }
+
+    throw new Error('Failed to upload gate checklist');
+  },
+
+  /**
    * Approve a gate exit criterion (Restricted to assigned Gate Reviewer)
    */
   async approveCriterion(

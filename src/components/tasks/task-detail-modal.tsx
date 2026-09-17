@@ -1331,7 +1331,14 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
                           <div className="flex items-center gap-2.5 truncate">
                             <FileText className="h-4 w-4 text-sky-600 shrink-0" />
                             <div className="truncate">
-                              <span className="font-bold text-slate-900 block truncate">{a.file_name}</span>
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <span className="font-bold text-slate-900 block truncate">{a.file_name}</span>
+                                {a.document_type && (
+                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                                    {a.document_type}
+                                  </span>
+                                )}
+                              </div>
                               <div className="flex items-center gap-2 text-[10px] text-slate-400">
                                 {a.uploaded_by && <span>By {a.uploaded_by}</span>}
                                 {a.file_size && (

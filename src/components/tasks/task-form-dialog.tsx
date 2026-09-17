@@ -38,6 +38,8 @@ export function TaskFormDialog({
   const isEditing = !!initialData;
   const [isCreatePhaseOpen, setIsCreatePhaseOpen] = React.useState(false);
   const [selectedFiles, setSelectedFiles] = React.useState<File[]>([]);
+  const [pendingFiles, setPendingFiles] = React.useState<Array<{ file: File; documentType: string }>>([]);
+  const [pendingFileError, setPendingFileError] = React.useState<string | null>(null);
   const [existingAttachments, setExistingAttachments] = React.useState<TaskAttachment[]>([]);
   const [removedAttachmentIds, setRemovedAttachmentIds] = React.useState<string[]>([]);
   const [isLoadingAttachments, setIsLoadingAttachments] = React.useState(false);
@@ -231,6 +233,8 @@ export function TaskFormDialog({
 
     // Reset attachments state
     setSelectedFiles([]);
+    setPendingFiles([]);
+    setPendingFileError(null);
     setRemovedAttachmentIds([]);
     setFileError(null);
 
@@ -250,9 +254,10 @@ export function TaskFormDialog({
     if (!e.target.files) return;
     const newFiles = Array.from(e.target.files);
     setFileError(null);
+    setPendingFileError(null);
 
     const allowed = ['pdf', 'doc', 'docx', 'xls', 'xlsx', 'ppt', 'pptx', 'jpg', 'jpeg', 'png'];
-    const validFiles: File[] = [];
+    const validPending: Array<{ file: File; documentType: string }> = [];
 
     for (const f of newFiles) {
       const ext = f.name.split('.').pop()?.toLowerCase() || '';
@@ -264,13 +269,53 @@ export function TaskFormDialog({
         setFileError(`File "${f.name}" exceeds maximum allowed size of 25MB.`);
         continue;
       }
-      if (!selectedFiles.some((existing) => existing.name === f.name)) {
-        validFiles.push(f);
+      if (
+        !selectedFiles.some((existing) => existing.name === f.name) &&
+        !pendingFiles.some((p) => p.file.name === f.name)
+      ) {
+        validPending.push({ file: f, documentType: '' });
       }
     }
 
-    setSelectedFiles((prev) => [...prev, ...validFiles]);
+    setPendingFiles((prev) => [...prev, ...validPending]);
     if (fileInputRef.current) fileInputRef.current.value = '';
+  };
+
+  const updatePendingFileDocType = (idx: number, docType: string) => {
+    setPendingFiles((prev) =>
+      prev.map((item, i) => (i === idx ? { ...item, documentType: docType } : item))
+    );
+    setPendingFileError(null);
+  };
+
+  const removePendingFile = (idx: number) => {
+    setPendingFiles((prev) => prev.filter((_, i) => i !== idx));
+    if (pendingFiles.length <= 1) {
+      setPendingFileError(null);
+    }
+  };
+
+  const handleConfirmPendingUpload = () => {
+    const missing = pendingFiles.some((p) => !p.documentType || !p.documentType.trim());
+    if (missing) {
+      setPendingFileError('Please select a Document Type before uploading the document.');
+      return;
+    }
+
+    const confirmed = pendingFiles.map((p) => {
+      const f = p.file;
+      Object.defineProperty(f, 'documentType', {
+        value: p.documentType,
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
+      return f;
+    });
+
+    setSelectedFiles((prev) => [...prev, ...confirmed]);
+    setPendingFiles([]);
+    setPendingFileError(null);
   };
 
   const removeSelectedFile = (idx: number) => {
@@ -701,6 +746,95 @@ export function TaskFormDialog({
                 </div>
               )}
 
+              {/* Pending File(s) Document Type Selection (Step 2 of Flow) */}
+              {pendingFiles.length > 0 && (
+                <div className="p-3.5 rounded-2xl bg-sky-50 border border-sky-200 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-sky-900">
+                      Select Document Type ({pendingFiles.length} file{pendingFiles.length > 1 ? 's' : ''})
+                    </span>
+                    <span className="text-[11px] text-sky-700 font-bold">* Mandatory</span>
+                  </div>
+
+                  {pendingFileError && (
+                    <div className="p-2.5 rounded-xl bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold flex items-center gap-2">
+                      <AlertCircle className="h-4 w-4 text-rose-500 shrink-0" />
+                      <span>{pendingFileError}</span>
+                    </div>
+                  )}
+
+                  <div className="space-y-2.5">
+                    {pendingFiles.map((item, idx) => (
+                      <div
+                        key={`${item.file.name}-${idx}`}
+                        className="p-3 rounded-xl bg-white border border-sky-200 space-y-2.5 shadow-2xs"
+                      >
+                        <div className="flex items-center justify-between text-xs">
+                          <div className="flex items-center gap-2 truncate">
+                            <FileText className="h-4 w-4 text-sky-600 shrink-0" />
+                            <span className="font-bold text-slate-800 truncate">
+                              File: {item.file.name}
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">
+                              ({(item.file.size / 1024).toFixed(0)} KB)
+                            </span>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => removePendingFile(idx)}
+                            className="text-slate-400 hover:text-rose-600 text-[11px] font-bold cursor-pointer"
+                          >
+                            Cancel
+                          </button>
+                        </div>
+
+                        <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                          <label className="text-[11px] font-bold text-slate-700 shrink-0">
+                            Document Type: <span className="text-rose-500">*</span>
+                          </label>
+                          <select
+                            value={item.documentType}
+                            onChange={(e) => updatePendingFileDocType(idx, e.target.value)}
+                            className="w-full sm:flex-1 px-3 py-1.5 rounded-lg bg-slate-50 border border-slate-300 text-xs font-bold text-slate-800 focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
+                          >
+                            <option value="">Select Document Type ▼</option>
+                            <option value="Engineering">Engineering</option>
+                            <option value="Design">Design CAD</option>
+                            <option value="Specification">Specification</option>
+                            <option value="Quality">Quality Control</option>
+                            <option value="Testing">Testing & DVP&R</option>
+                            <option value="APQP">APQP Gate File</option>
+                            <option value="Process">Process Instruction</option>
+                            <option value="Customer">Customer Spec</option>
+                            <option value="Other">Other</option>
+                          </select>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+
+                  <div className="flex items-center justify-end gap-2 pt-1">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingFiles([]);
+                        setPendingFileError(null);
+                      }}
+                      className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-600 hover:bg-slate-50 text-xs font-bold transition cursor-pointer"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleConfirmPendingUpload}
+                      className="px-4 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white text-xs font-bold shadow-xs transition cursor-pointer"
+                    >
+                      Upload
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* Existing Attachments (when editing) */}
               {isEditing && (
                 <div className="space-y-1.5">
@@ -724,6 +858,11 @@ export function TaskFormDialog({
                           <div className="flex items-center gap-2 truncate">
                             <FileText className="h-4 w-4 text-sky-600 shrink-0" />
                             <span className="font-bold text-slate-800 truncate">{att.file_name}</span>
+                            {att.document_type && (
+                              <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                                {att.document_type}
+                              </span>
+                            )}
                             {att.file_size ? (
                               <span className="text-[10px] text-slate-400 font-mono">
                                 ({(att.file_size / 1024).toFixed(0)} KB)
@@ -760,6 +899,11 @@ export function TaskFormDialog({
                         <div className="flex items-center gap-2 truncate">
                           <FileText className="h-4 w-4 text-sky-600 shrink-0" />
                           <span className="font-bold text-slate-900 truncate">{file.name}</span>
+                          {(file as any).documentType && (
+                            <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-100 text-sky-800 border border-sky-300">
+                              {(file as any).documentType}
+                            </span>
+                          )}
                           <span className="text-[10px] text-slate-400 font-mono">
                             ({(file.size / 1024).toFixed(0)} KB)
                           </span>

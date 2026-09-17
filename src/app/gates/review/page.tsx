@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useAuth } from '@/providers/auth-context';
 import { useProjects } from '@/hooks/use-projects';
 import { gateService } from '@/services/gate.service';
@@ -311,6 +312,14 @@ function GateReviewContent() {
             <RefreshCw className={cn('h-3.5 w-3.5', isLoading && 'animate-spin')} />
             <span>Refresh</span>
           </button>
+
+          <Link
+            href={selectedProjectId !== 'ALL' ? `/gates?project=${encodeURIComponent(selectedProjectId)}` : '/gates'}
+            className="flex items-center gap-2 px-3.5 py-2 text-xs font-bold rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white transition shadow-xs cursor-pointer"
+          >
+            <Layers className="h-3.5 w-3.5" />
+            <span>Connected Gate Flow</span>
+          </Link>
         </div>
       </div>
 

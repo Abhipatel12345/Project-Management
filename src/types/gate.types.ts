@@ -58,6 +58,7 @@ export interface GateCriterion {
   comments?: string;
   approved_by?: string;
   approved_at?: string;
+  source_file?: string;
 }
 
 export interface GateDeliverable {
@@ -163,6 +164,8 @@ export interface Gate {
   board_reviews?: GateBoardReviewDecision[];
   review_summaries?: GateReviewSummaryItem[];
   activity_log: GateActivityLog[];
+  checklist_source_file?: string;
+  checklist_source_file_url?: string;
   description?: string;
   creation?: string;
   modified?: string;

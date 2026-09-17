@@ -777,9 +777,16 @@ export const taskService = {
     if (projectId) {
       formData.append('projectId', projectId);
     }
-    files.forEach((f) => {
+    const documentTypesMap: Record<string, string> = {};
+    files.forEach((f: any) => {
       formData.append('files', f);
+      if (f.documentType || f.document_type) {
+        documentTypesMap[f.name] = f.documentType || f.document_type;
+      }
     });
+    if (Object.keys(documentTypesMap).length > 0) {
+      formData.append('documentTypes', JSON.stringify(documentTypesMap));
+    }
 
     try {
       const response = await api.post<{

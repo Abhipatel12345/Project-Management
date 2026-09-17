@@ -3,16 +3,51 @@ import { NextRequest, NextResponse } from 'next/server';
 export const dynamic = 'force-dynamic';
 
 const getErpUrl = (): string => {
-  return (process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
+  return (process.env.ERP_URL || process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
 };
 
 const getApiKey = (): string => {
-  return process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
+  return process.env.ERP_API_KEY || process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
 };
 
 const getApiSecret = (): string => {
-  return process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
+  return process.env.ERP_API_SECRET || process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
 };
+
+function sanitizeErpResponse(resJson: any, status: number) {
+  if (status < 400) return resJson;
+  const jsonStr = JSON.stringify(resJson || '').toLowerCase();
+  const isAuthOrWhitelisting =
+    status === 401 ||
+    jsonStr.includes('reportview.get') ||
+    jsonStr.includes('not whitelisted') ||
+    jsonStr.includes('login to access') ||
+    jsonStr.includes('method not allowed') ||
+    jsonStr.includes('csrftokenerror');
+
+  if (isAuthOrWhitelisting) {
+    return {
+      error: 'Your ERPNext authentication session has expired. Please sign in again.',
+      _error_message: 'Your ERPNext authentication session has expired. Please sign in again.',
+    };
+  }
+
+  if (status === 403 || jsonStr.includes('permissionerror')) {
+    return {
+      error: 'You do not have permission to access this resource.',
+      _error_message: 'You do not have permission to access this resource.',
+    };
+  }
+
+  if (status >= 500) {
+    return {
+      error: 'The ERPNext server is temporarily unavailable. Please try again later.',
+      _error_message: 'The ERPNext server is temporarily unavailable. Please try again later.',
+    };
+  }
+
+  return resJson;
+}
 
 async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: string[] }>) {
   try {
@@ -76,7 +111,13 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
     }
 
     if (typeof resJson === 'object' && resJson !== null) {
-      return NextResponse.json(resJson, { status: erpRes.status });
+      const sanitized = !erpRes.ok ? sanitizeErpResponse(resJson, erpRes.status) : resJson;
+      return NextResponse.json(sanitized, { status: erpRes.status });
+    }
+
+    if (!erpRes.ok) {
+      const sanitized = sanitizeErpResponse(resText, erpRes.status);
+      return NextResponse.json(sanitized, { status: erpRes.status });
     }
 
     return new NextResponse(resText, {
@@ -86,7 +127,7 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
   } catch (error: any) {
     console.error('[Next.js ERPNext Method Proxy Error]', error);
     return NextResponse.json(
-      { _error_message: error.message || 'Failed to communicate with ERPNext server' },
+      { _error_message: 'Failed to communicate with ERPNext server' },
       { status: 500 }
     );
   }

@@ -147,6 +147,7 @@ export interface TaskAttachment {
   creation?: string;
   uploaded_by?: string;
   submission_id?: string;
+  document_type?: string;
 }
 
 export interface TaskSubmissionAttachment {

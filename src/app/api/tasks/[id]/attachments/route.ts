@@ -102,6 +102,7 @@ export async function GET(
         file_size: r.fileSize,
         creation: r.createdAt,
         uploaded_by: r.uploadedByName || r.uploadedBy,
+        document_type: r.documentType || 'Engineering',
       });
     });
 
@@ -175,6 +176,14 @@ export async function POST(
 
     const formData = await req.formData();
     const projectId = (formData.get('projectId') as string) || task?.project || '';
+    const documentTypesRaw = formData.get('documentTypes') || formData.get('document_types');
+    let documentTypeMap: Record<string, string> = {};
+    if (documentTypesRaw && typeof documentTypesRaw === 'string') {
+      try {
+        documentTypeMap = JSON.parse(documentTypesRaw);
+      } catch {}
+    }
+    const singleDocType = (formData.get('documentType') || formData.get('document_type')) as string | null;
 
     // Collect all files from 'files' or 'file' form fields
     const files: File[] = [];
@@ -222,6 +231,7 @@ export async function POST(
       try {
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
+        const docType = documentTypeMap[fileName] || singleDocType || 'Engineering';
 
         const record = await saveTaskAttachment({
           taskId,
@@ -231,6 +241,7 @@ export async function POST(
           mimeType: file.type,
           uploadedBy: session?.email || 'user',
           uploadedByName: session?.fullName || 'User',
+          documentType: docType,
           session,
         });
 
@@ -241,6 +252,7 @@ export async function POST(
           file_size: record.fileSize,
           creation: record.createdAt,
           uploaded_by: record.uploadedByName || record.uploadedBy,
+          document_type: record.documentType,
         });
       } catch (uploadErr: any) {
         console.error(`[Task Attachment Upload Error] ${fileName}:`, uploadErr);

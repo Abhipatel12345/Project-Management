@@ -21,6 +21,7 @@ export interface TaskAttachmentRecord {
   uploadedByName?: string;
   createdAt: string;
   erpFileId?: string;
+  documentType?: string;
 }
 
 let inMemoryAttachments: Record<string, TaskAttachmentRecord[]> | null = null;
@@ -79,8 +80,9 @@ export async function saveTaskAttachment(params: {
   mimeType?: string;
   uploadedBy?: string;
   uploadedByName?: string;
+  documentType?: string;
   session?: PDMUserSession | null;
-}): Promise<TaskAttachmentRecord> {
+}) {
   const {
     taskId,
     projectId = '',
@@ -88,6 +90,7 @@ export async function saveTaskAttachment(params: {
     buffer,
     uploadedBy = 'system',
     uploadedByName = 'User',
+    documentType = 'Engineering',
     session,
   } = params;
 
@@ -157,6 +160,7 @@ export async function saveTaskAttachment(params: {
     uploadedByName,
     createdAt: new Date().toISOString(),
     erpFileId,
+    documentType,
   };
 
   const all = loadAllTaskAttachments();

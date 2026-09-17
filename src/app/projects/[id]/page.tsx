@@ -295,8 +295,23 @@ export default function ProjectDetailPage() {
   }
 
   if (isError || !project) {
-    const errMsg = error instanceof Error ? error.message : '';
-    if (errMsg.includes('403') || errMsg.includes('Forbidden') || errMsg.includes('Access Denied')) {
+    let errMsg = error instanceof Error ? error.message : '';
+    const lower = errMsg.toLowerCase();
+    if (
+      lower.includes('reportview.get') ||
+      lower.includes('not whitelisted') ||
+      lower.includes('login to access') ||
+      lower.includes('method not allowed') ||
+      lower.includes('session expired')
+    ) {
+      errMsg = 'Your ERPNext authentication session has expired. Please sign in again.';
+    } else if (lower.includes('permission') || lower.includes('not permitted')) {
+      errMsg = 'You do not have permission to access this project.';
+    } else if (lower.includes('traceback') || lower.includes('server error')) {
+      errMsg = 'The ERPNext server is temporarily unavailable. Please try again later.';
+    }
+
+    if (errMsg.includes('403') || errMsg.includes('Forbidden') || errMsg.includes('Access Denied') || errMsg.includes('permission')) {
       return (
         <AccessDenied
           title="403 Forbidden — Project Access Restricted"
