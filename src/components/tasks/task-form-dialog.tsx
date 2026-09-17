@@ -248,7 +248,8 @@ export function TaskFormDialog({
     } else {
       setExistingAttachments([]);
     }
-  }, [isOpen, initialTaskIdentifier, defaultProjectId, defaultPhase, firstProjectName, reset, matchOptionValue, initialData]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, initialTaskIdentifier]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (!e.target.files) return;
