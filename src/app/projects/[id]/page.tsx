@@ -2,7 +2,7 @@
 
 import React, { useState } from 'react';
 import Link from 'next/link';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { useProject, useUpdateProject, useDeleteProject } from '@/hooks/use-projects';
 import { useTasks } from '@/hooks/use-tasks';
 import { useGates } from '@/hooks/use-gates';
@@ -21,9 +21,15 @@ import { ProjectConnectionsTab } from '@/components/projects/connections/project
 import { ProjectActivityTab } from '@/components/projects/activity/project-activity-tab';
 import { ProjectCharterView } from '@/components/projects/charter/project-charter-view';
 import { ProjectTimingStatusView } from '@/components/projects/timing/project-timing-status-view';
+import { ProjectRiskAssessmentView } from '@/components/projects/risk/project-risk-assessment-view';
+import { ProjectFlawlessLaunchView } from '@/components/projects/flawless-launch/project-flawless-launch-view';
+import { ProjectStageMoverView } from '@/components/projects/stage-mover/project-stage-mover-view';
 import { AccessDenied } from '@/components/shared/access-denied';
 import { useAuth } from '@/providers/auth-context';
 import {
+  Rocket,
+  GitCommit,
+  AlertTriangle,
   ArrowLeft,
   Calendar,
   DollarSign,
@@ -65,10 +71,71 @@ export default function ProjectDetailPage() {
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
   const [isAddTeamModalOpen, setIsAddTeamModalOpen] = useState(false);
 
+  const searchParams = useSearchParams();
+  const tabParam = searchParams.get('tab');
+
   // Workspace Tabs
   const [activeTab, setActiveTab] = useState<
-    'overview' | 'charter' | 'timing' | 'team' | 'tasks' | 'planning' | 'documents' | 'reviews' | 'gates' | 'issues' | 'activity' | 'connections'
-  >('overview');
+    | 'overview'
+    | 'charter'
+    | 'timing'
+    | 'risk'
+    | 'flawless-launch'
+    | 'stage-mover'
+    | 'team'
+    | 'tasks'
+    | 'planning'
+    | 'documents'
+    | 'reviews'
+    | 'gates'
+    | 'issues'
+    | 'activity'
+    | 'connections'
+  >(() => {
+    const validTabs = [
+      'overview',
+      'charter',
+      'timing',
+      'risk',
+      'flawless-launch',
+      'stage-mover',
+      'team',
+      'tasks',
+      'planning',
+      'documents',
+      'reviews',
+      'gates',
+      'issues',
+      'activity',
+      'connections',
+    ];
+    return validTabs.includes(tabParam || '') ? (tabParam as any) : 'overview';
+  });
+
+  React.useEffect(() => {
+    if (tabParam) {
+      const validTabs = [
+        'overview',
+        'charter',
+        'timing',
+        'risk',
+        'flawless-launch',
+        'stage-mover',
+        'team',
+        'tasks',
+        'planning',
+        'documents',
+        'reviews',
+        'gates',
+        'issues',
+        'activity',
+        'connections',
+      ];
+      if (validTabs.includes(tabParam)) {
+        setActiveTab(tabParam as any);
+      }
+    }
+  }, [tabParam]);
 
   // Horizontal Tab Scroll & Overflow Management
   const tabsContainerRef = React.useRef<HTMLDivElement>(null);
@@ -443,6 +510,54 @@ export default function ProjectDetailPage() {
             <span>Timing Status</span>
           </button>
 
+          {/* Tab: Risk Assessment */}
+          <button
+            ref={(el) => {
+              tabRefs.current['risk'] = el;
+            }}
+            onClick={() => setActiveTab('risk')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 cursor-pointer ${
+              activeTab === 'risk'
+                ? 'bg-amber-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <AlertTriangle className="h-4 w-4" />
+            <span>Risk Assessment</span>
+          </button>
+
+          {/* Tab: Flawless Launch */}
+          <button
+            ref={(el) => {
+              tabRefs.current['flawless-launch'] = el;
+            }}
+            onClick={() => setActiveTab('flawless-launch')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 cursor-pointer ${
+              activeTab === 'flawless-launch'
+                ? 'bg-emerald-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Rocket className="h-4 w-4" />
+            <span>Flawless Launch</span>
+          </button>
+
+          {/* Tab: Stage Mover */}
+          <button
+            ref={(el) => {
+              tabRefs.current['stage-mover'] = el;
+            }}
+            onClick={() => setActiveTab('stage-mover')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 cursor-pointer ${
+              activeTab === 'stage-mover'
+                ? 'bg-indigo-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <GitCommit className="h-4 w-4" />
+            <span>Stage Mover</span>
+          </button>
+
           {/* Tab 2: Team */}
           <button
             ref={(el) => {
@@ -610,6 +725,33 @@ export default function ProjectDetailPage() {
       {/* Tab: TIMING STATUS */}
       {activeTab === 'timing' && (
         <ProjectTimingStatusView project={project} onRefreshProject={refetch} />
+      )}
+
+      {/* Tab: RISK ASSESSMENT */}
+      {activeTab === 'risk' && (
+        <ProjectRiskAssessmentView
+          projectId={projectId}
+          projectName={project.project_name || project.name}
+          currentPhase={project.current_phase || 'PL'}
+        />
+      )}
+
+      {/* Tab: FLAWLESS LAUNCH (FLM) */}
+      {activeTab === 'flawless-launch' && (
+        <ProjectFlawlessLaunchView
+          projectId={projectId}
+          projectName={project.project_name || project.name}
+          currentGate={project.current_phase || 'PL'}
+        />
+      )}
+
+      {/* Tab: STAGE MOVER */}
+      {activeTab === 'stage-mover' && (
+        <ProjectStageMoverView
+          projectId={projectId}
+          projectName={project.project_name || project.name}
+          currentPhase={project.current_phase || 'PL'}
+        />
       )}
 
       {/* Tab 1: OVERVIEW */}

@@ -49,6 +49,7 @@ export interface Project {
   status: ProjectStatus | string;
   priority?: ProjectPriority | string;
   project_type?: string;
+  current_phase?: string;
   custom_project_category?: string;
   custom_pdp_category?: PDPCategory | string;
   custom_product_group?: string;

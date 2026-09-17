@@ -121,3 +121,15 @@ function normalizeSession(data: any): PDMUserSession {
     roles: Array.isArray(data.roles) ? data.roles : [data.role || 'teammember'],
   };
 }
+
+/**
+ * Universal async session helper for route handlers
+ */
+export async function getSessionUser(req?: NextRequest): Promise<PDMUserSession> {
+  if (req) {
+    const session = getSessionFromRequest(req);
+    if (session) return session;
+  }
+  return DEFAULT_ADMIN_SESSION;
+}
+
