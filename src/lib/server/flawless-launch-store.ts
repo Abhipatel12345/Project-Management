@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ProjectFLMData, GateFLMEvaluation, FLMMetricItem, FLMIndicator } from '@/types/flawless-launch.types';
+import { loadAllGates } from './gate-store';
 
 const DATA_FILE = path.join(process.cwd(), '.data', 'flawless_launches.json');
 
@@ -200,3 +201,99 @@ export function evaluateProjectFLM(
 
   return result;
 }
+
+export function getFlawlessLaunchDashboard() {
+  ensureDataFile();
+  let store: Record<string, ProjectFLMData> = {};
+  try {
+    store = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+  } catch {
+    store = {};
+  }
+
+  // Known projects from gates
+  const allGates = loadAllGates();
+  const knownProjectIds = Array.from(
+    new Set(allGates.map((g) => g.project).filter((p): p is string => Boolean(p)))
+  );
+  if (knownProjectIds.length === 0) {
+    knownProjectIds.push('PROJ-0124', 'PROJ-0123', 'PROJ-0122', 'PROJ-0121');
+  }
+
+  const allProjectIds: string[] = Array.from(new Set([...Object.keys(store), ...knownProjectIds]));
+
+  let greenProjectsCount = 0;
+  let redProjectsCount = 0;
+  let ppapGreenCount = 0;
+  let rebillGreenCount = 0;
+  let oeeGreenCount = 0;
+  let otdGreenCount = 0;
+  let oiGreenCount = 0;
+
+  const projectSummaries = allProjectIds.map((pid: string) => {
+    const gate = allGates.find((g) => g.project === pid);
+    const flmData = store[pid] || evaluateProjectFLM(pid, gate?.project_name || pid, 'PL');
+
+    if (flmData.overall_flm_status === 'GREEN') {
+      greenProjectsCount++;
+    } else {
+      redProjectsCount++;
+    }
+
+    const currentGateEval =
+      flmData.gates?.find((g: GateFLMEvaluation) => g.gate_code === flmData.current_gate) ||
+      flmData.gates?.[0];
+    const metrics: FLMMetricItem[] = currentGateEval?.metrics || [];
+
+    const ppapItem = metrics.find((m: FLMMetricItem) => m.id.toLowerCase().includes('ppap'));
+    const rebillItem = metrics.find((m: FLMMetricItem) => m.id.toLowerCase().includes('rebill'));
+    const oeeItem = metrics.find((m: FLMMetricItem) => m.id.toLowerCase().includes('oee'));
+    const otdItem = metrics.find((m: FLMMetricItem) => m.id.toLowerCase().includes('otd'));
+    const oiItem = metrics.find((m: FLMMetricItem) => m.id.toLowerCase().includes('oi'));
+
+    const ppapIsGreen = ppapItem?.indicator === 'GREEN';
+    const rebillIsGreen = rebillItem?.indicator === 'GREEN';
+    const oeeIsGreen = oeeItem?.indicator === 'GREEN';
+    const otdIsGreen = otdItem?.indicator === 'GREEN';
+    const oiIsGreen = oiItem?.indicator === 'GREEN';
+
+    if (ppapIsGreen) ppapGreenCount++;
+    if (rebillIsGreen) rebillGreenCount++;
+    if (oeeIsGreen) oeeGreenCount++;
+    if (otdIsGreen) otdGreenCount++;
+    if (oiIsGreen) oiGreenCount++;
+
+    return {
+      project_id: pid,
+      project_name: flmData.project_name || gate?.project_name || pid,
+      current_gate: flmData.current_gate || 'PL',
+      overall_flm_status: flmData.overall_flm_status,
+      overall_green_count: flmData.overall_green_count,
+      overall_total_metrics: flmData.overall_total_metrics,
+      oi_is_green: flmData.oi_is_green,
+      indicators: {
+        ppap: ppapIsGreen,
+        rebill: rebillIsGreen,
+        oee: oeeIsGreen,
+        otd: otdIsGreen,
+        oi: oiIsGreen,
+      },
+      last_evaluated: flmData.last_evaluated,
+    };
+  });
+
+  const total = allProjectIds.length;
+
+  return {
+    total_projects: total,
+    green_projects: greenProjectsCount,
+    red_projects: redProjectsCount,
+    ppap_green_pct: total > 0 ? Math.round((ppapGreenCount / total) * 100) : 0,
+    rebill_green_pct: total > 0 ? Math.round((rebillGreenCount / total) * 100) : 0,
+    oee_green_pct: total > 0 ? Math.round((oeeGreenCount / total) * 100) : 0,
+    otd_green_pct: total > 0 ? Math.round((otdGreenCount / total) * 100) : 0,
+    oi_green_pct: total > 0 ? Math.round((oiGreenCount / total) * 100) : 0,
+    projects: projectSummaries,
+  };
+}
+

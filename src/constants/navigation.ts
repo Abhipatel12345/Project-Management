@@ -14,6 +14,8 @@ import {
   HelpCircle,
   Activity,
   Boxes,
+  Rocket,
+  GitCommit,
 } from 'lucide-react';
 import { PDMUserSession } from '@/types/auth.types';
 import { accessControlService } from '@/services/access-control.service';
@@ -55,11 +57,35 @@ export const NAVIGATION_SECTIONS: NavSection[] = [
           { title: 'Project Details', href: '/projects/detail' },
           { title: 'Project Charter', href: '/projects/charter' },
           { title: 'Timing Status', href: '/projects/timing-status' },
-          { title: 'Risk Assessment', href: '/projects/risk-assessment' },
-          { title: 'Flawless Launch', href: '/projects/flawless-launch' },
-          { title: 'Stage Mover', href: '/projects/stage-mover' },
           { title: 'Gantt Tab', href: '/projects/gantt' },
           { title: 'Team Allocation', href: '/projects/team' },
+        ],
+      },
+      {
+        title: 'Risk Assessment',
+        href: '/risk-assessment',
+        icon: AlertTriangle,
+        children: [
+          { title: 'Dashboard', href: '/risk-assessment/dashboard' },
+          { title: 'Risk Assessment', href: '/risk-assessment' },
+        ],
+      },
+      {
+        title: 'Flawless Launch',
+        href: '/flawless-launch',
+        icon: Rocket,
+        children: [
+          { title: 'Dashboard', href: '/flawless-launch/dashboard' },
+          { title: 'Flawless Launch', href: '/flawless-launch' },
+        ],
+      },
+      {
+        title: 'Stage Mover',
+        href: '/stage-mover',
+        icon: GitCommit,
+        children: [
+          { title: 'Dashboard', href: '/stage-mover/dashboard' },
+          { title: 'Stage Mover', href: '/stage-mover' },
         ],
       },
       { title: 'Task Management', href: '/tasks', icon: CheckSquare },

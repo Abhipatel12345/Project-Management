@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { ProjectRiskAssessment, RiskArea, RiskItem, RiskRating } from '@/types/risk.types';
+import { loadAllGates } from './gate-store';
 
 const DATA_FILE = path.join(process.cwd(), '.data', 'risk_assessments.json');
 
@@ -466,3 +467,101 @@ export function saveProjectRiskAssessment(
   fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf-8');
   return merged;
 }
+
+export function getRiskAssessmentDashboard() {
+  ensureDataFile();
+  let store: Record<string, ProjectRiskAssessment> = {};
+  try {
+    store = JSON.parse(fs.readFileSync(DATA_FILE, 'utf-8'));
+  } catch {
+    store = {};
+  }
+
+  // Load known project IDs from gates
+  const allGates = loadAllGates();
+  const knownProjectIds = Array.from(
+    new Set(allGates.map((g) => g.project).filter((p): p is string => Boolean(p)))
+  );
+  if (knownProjectIds.length === 0) {
+    knownProjectIds.push('PROJ-0124', 'PROJ-0123', 'PROJ-0122', 'PROJ-0121');
+  }
+
+  // Combine stored projects and known projects
+  const allProjectIds: string[] = Array.from(new Set([...Object.keys(store), ...knownProjectIds]));
+
+  let highRiskItemsTotal = 0;
+  let escalatedProjectsTotal = 0;
+  let okCount = 0;
+  let medCount = 0;
+  let highCount = 0;
+  let totalPlansNeeded = 0;
+  let totalPlansCompleted = 0;
+
+  const projectSummaries = allProjectIds.map((pid: string) => {
+    const assessment = store[pid] || getProjectRiskAssessment(pid);
+    const hCount = assessment.high_risk_count || 0;
+    highRiskItemsTotal += hCount;
+
+    if (assessment.overall_risk_assessment === 'H') highCount++;
+    else if (assessment.overall_risk_assessment === 'L') medCount++;
+    else okCount++;
+
+    if (assessment.escalation_recommendation === 'Y') {
+      escalatedProjectsTotal++;
+    }
+
+    let plansNeeded = 0;
+    let plansCompleted = 0;
+    for (const area of assessment.areas) {
+      for (const item of area.items) {
+        if (item.rating === 'H') {
+          plansNeeded++;
+          if ((item.risk_resolution_plan || '').trim().length > 0) {
+            plansCompleted++;
+          }
+        }
+      }
+    }
+
+    totalPlansNeeded += plansNeeded;
+    totalPlansCompleted += plansCompleted;
+
+    const gate = allGates.find((g) => g.project === pid);
+
+    return {
+      project_id: pid,
+      project_name: assessment.project_name || gate?.project_name || pid,
+      current_phase: assessment.current_pdp_phase || 'PL',
+      high_risk_count: hCount,
+      overall_risk_assessment: assessment.overall_risk_assessment,
+      escalation_recommendation: assessment.escalation_recommendation === 'Y' ? 'Escalate' : 'Pass',
+      total_items: assessment.areas.reduce((acc: number, a: RiskArea) => acc + a.items.length, 0),
+      open_plans_needed: plansNeeded - plansCompleted,
+      plans_completed: plansCompleted,
+      last_updated: assessment.last_updated || new Date().toISOString(),
+      updated_by: assessment.updated_by || 'System',
+    };
+  });
+
+  const assessedCount = Object.keys(store).length;
+
+  return {
+    total_projects: allProjectIds.length,
+    assessed_projects: assessedCount,
+    high_risk_items: highRiskItemsTotal,
+    escalated_projects: escalatedProjectsTotal,
+    risk_distribution: {
+      ok: okCount,
+      medium: medCount,
+      high: highCount,
+    },
+    mitigation_status: {
+      plans_needed: totalPlansNeeded,
+      plans_completed: totalPlansCompleted,
+      completion_rate:
+        totalPlansNeeded > 0 ? Math.round((totalPlansCompleted / totalPlansNeeded) * 100) : 100,
+    },
+    projects: projectSummaries,
+  };
+}
+

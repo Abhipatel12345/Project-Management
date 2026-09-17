@@ -341,3 +341,100 @@ export function executePMOOverride(
 
   return historyEntry;
 }
+
+export function getStageMoverDashboard() {
+  ensureFiles();
+  const allGates = loadAllGates();
+  const knownProjectIds: string[] = Array.from(
+    new Set(allGates.map((g) => g.project).filter((p): p is string => Boolean(p)))
+  );
+  if (knownProjectIds.length === 0) {
+    knownProjectIds.push('PROJ-0124', 'PROJ-0123', 'PROJ-0122', 'PROJ-0121');
+  }
+
+  // Read all history entries across all projects
+  let historyStore: Record<string, StageMovementHistoryEntry[]> = {};
+  try {
+    historyStore = JSON.parse(fs.readFileSync(HISTORY_FILE, 'utf-8'));
+  } catch {
+    historyStore = {};
+  }
+
+  const allMovements: StageMovementHistoryEntry[] = [];
+  for (const pid of Object.keys(historyStore)) {
+    allMovements.push(...historyStore[pid]);
+  }
+  allMovements.sort((a, b) => new Date(b.moved_at).getTime() - new Date(a.moved_at).getTime());
+
+  const stageCounts: Record<PDPStageCode, number> = {
+    PL: 0,
+    VC: 0,
+    TKO: 0,
+    VL: 0,
+    CPA: 0,
+    CT: 0,
+  };
+
+  let passCount = 0;
+  let passFollowupCount = 0;
+  let escalateCount = 0;
+  let pendingCount = 0;
+  let canMoveCount = 0;
+  let blockedCount = 0;
+  let pmoAttentionCount = 0;
+
+  const projectSummaries = knownProjectIds.map((pid) => {
+    const gate = allGates.find((g) => g.project === pid);
+    const status = getProjectStageMoverStatus(pid, gate?.project_name || pid, gate?.gate_type || 'PL');
+
+    const stg = status.current_stage;
+    if (stageCounts[stg] !== undefined) {
+      stageCounts[stg]++;
+    }
+
+    if (status.platform_director_decision === 'Pass') passCount++;
+    else if (status.platform_director_decision === 'Pass with Follow-up') passFollowupCount++;
+    else if (status.platform_director_decision === 'Escalate') {
+      escalateCount++;
+      pmoAttentionCount++;
+    } else {
+      pendingCount++;
+    }
+
+    if (status.can_move) canMoveCount++;
+    else blockedCount++;
+
+    return {
+      project_id: pid,
+      project_name: status.project_name,
+      current_stage: status.current_stage,
+      next_stage: status.next_stage,
+      can_move: status.can_move,
+      block_reason: status.block_reason,
+      pd_decision: status.platform_director_decision,
+      pd_name: status.platform_director_name,
+      board_summary: status.board_decisions_summary,
+      is_locked: status.is_locked,
+      workflow_triggered: status.approval_workflow_triggered,
+    };
+  });
+
+  return {
+    total_projects: knownProjectIds.length,
+    stage_distribution: stageCounts,
+    decisions: {
+      pass: passCount,
+      pass_with_followup: passFollowupCount,
+      escalate: escalateCount,
+      pending: pendingCount,
+    },
+    movement_readiness: {
+      can_move: canMoveCount,
+      blocked: blockedCount,
+    },
+    pmo_attention_count: pmoAttentionCount,
+    recent_movements: allMovements.slice(0, 15),
+    projects: projectSummaries,
+  };
+}
+
