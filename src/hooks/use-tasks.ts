@@ -52,12 +52,15 @@ export function useUploadTaskAttachments() {
       taskId,
       files,
       projectId,
+      documentRole,
     }: {
       taskId: string;
       files: File[];
       projectId?: string;
-    }) => taskService.uploadTaskAttachments(taskId, files, projectId),
+      documentRole?: 'assignment' | 'deliverable' | 'general';
+    }) => taskService.uploadTaskAttachments(taskId, files, projectId, documentRole),
     onSuccess: (_data: any, variables: { taskId: string; files: File[]; projectId?: string }) => {
+      queryClient.invalidateQueries({ queryKey: TASK_KEYS.all });
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.attachments(variables.taskId) });
       queryClient.invalidateQueries({ queryKey: TASK_KEYS.detail(variables.taskId) });
     },

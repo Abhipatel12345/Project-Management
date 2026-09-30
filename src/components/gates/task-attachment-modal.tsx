@@ -26,6 +26,18 @@ interface TaskAttachmentModalProps {
   onAttachmentsChanged?: () => void;
 }
 
+const INTEVA_DOCUMENT_TYPES = [
+  'Engineering',
+  'Design',
+  'Specification',
+  'Quality',
+  'Testing',
+  'APQP',
+  'Process',
+  'Customer',
+  'Other',
+];
+
 export function TaskAttachmentModal({
   isOpen,
   onClose,
@@ -34,7 +46,7 @@ export function TaskAttachmentModal({
   onAttachmentsChanged,
 }: TaskAttachmentModalProps) {
   const { showToast } = useToast();
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [selectedFiles, setSelectedFiles] = useState<Array<{ file: File; documentType: string }>>([]);
   const [isDragging, setIsDragging] = useState(false);
 
   const taskId = task?.name || '';
@@ -51,7 +63,11 @@ export function TaskAttachmentModal({
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
-      setSelectedFiles((prev) => [...prev, ...Array.from(e.target.files!)]);
+      const newFiles = Array.from(e.target.files).map((f) => ({
+        file: f,
+        documentType: 'Engineering',
+      }));
+      setSelectedFiles((prev) => [...prev, ...newFiles]);
     }
   };
 
@@ -59,7 +75,11 @@ export function TaskAttachmentModal({
     e.preventDefault();
     setIsDragging(false);
     if (e.dataTransfer.files && e.dataTransfer.files.length > 0) {
-      setSelectedFiles((prev) => [...prev, ...Array.from(e.dataTransfer.files)]);
+      const newFiles = Array.from(e.dataTransfer.files).map((f) => ({
+        file: f,
+        documentType: 'Engineering',
+      }));
+      setSelectedFiles((prev) => [...prev, ...newFiles]);
     }
   };
 
@@ -67,12 +87,34 @@ export function TaskAttachmentModal({
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleUpdateDocType = (index: number, docType: string) => {
+    setSelectedFiles((prev) =>
+      prev.map((item, i) => (i === index ? { ...item, documentType: docType } : item))
+    );
+  };
+
   const handleUploadSubmit = async () => {
     if (selectedFiles.length === 0) return;
+    const missing = selectedFiles.some((item) => !item.documentType);
+    if (missing) {
+      showToast('Please select a Document Type for all files before uploading', 'warning');
+      return;
+    }
+
     try {
+      const filesWithDocType = selectedFiles.map(({ file, documentType }) => {
+        Object.defineProperty(file, 'documentType', {
+          value: documentType,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+        return file;
+      });
+
       const res = await uploadMutation.mutateAsync({
         taskId: task.name,
-        files: selectedFiles,
+        files: filesWithDocType,
         projectId: projectId || task.project,
       });
 
@@ -209,26 +251,43 @@ export function TaskAttachmentModal({
                   <span>Upload Now</span>
                 </button>
               </div>
-              <div className="space-y-1.5 max-h-36 overflow-y-auto">
-                {selectedFiles.map((file, idx) => (
+              <div className="space-y-1.5 max-h-48 overflow-y-auto">
+                {selectedFiles.map((item, idx) => (
                   <div
                     key={idx}
-                    className="flex items-center justify-between p-2 rounded-xl bg-white border border-slate-200"
+                    className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-xl bg-white border border-slate-200 gap-2"
                   >
-                    <div className="flex items-center gap-2 truncate">
-                      <File className="h-4 w-4 text-slate-400 shrink-0" />
-                      <span className="font-medium text-slate-800 truncate">{file.name}</span>
+                    <div className="flex items-center gap-2 truncate min-w-0 flex-1">
+                      <File className="h-4 w-4 text-emerald-600 shrink-0" />
+                      <span className="font-medium text-slate-800 truncate text-xs">{item.file.name}</span>
                       <span className="text-[10px] text-slate-400 shrink-0">
-                        ({formatFileSize(file.size)})
+                        ({formatFileSize(item.file.size)})
                       </span>
                     </div>
-                    <button
-                      type="button"
-                      onClick={() => handleRemoveQueuedFile(idx)}
-                      className="text-slate-400 hover:text-rose-600 p-1 transition cursor-pointer"
-                    >
-                      <X className="h-3.5 w-3.5" />
-                    </button>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <div className="flex items-center gap-1.5">
+                        <span className="text-[10px] font-bold text-slate-500 uppercase">Type:</span>
+                        <select
+                          value={item.documentType}
+                          onChange={(e) => handleUpdateDocType(idx, e.target.value)}
+                          className="text-xs font-semibold px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-700 focus:outline-hidden focus:border-emerald-500"
+                        >
+                          {INTEVA_DOCUMENT_TYPES.map((dt) => (
+                            <option key={dt} value={dt}>
+                              {dt}
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveQueuedFile(idx)}
+                        className="text-slate-400 hover:text-rose-600 p-1 transition cursor-pointer"
+                        title="Remove file"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                 ))}
               </div>
@@ -267,8 +326,15 @@ export function TaskAttachmentModal({
                         <FileText className="h-4 w-4" />
                       </div>
                       <div className="truncate">
-                        <div className="font-bold text-slate-800 truncate">
-                          {att.file_name || 'Document'}
+                        <div className="flex items-center gap-2">
+                          <span className="font-bold text-slate-800 truncate">
+                            {att.file_name || 'Document'}
+                          </span>
+                          {att.document_type && (
+                            <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200 shrink-0">
+                              {att.document_type}
+                            </span>
+                          )}
                         </div>
                         <div className="text-[10px] text-slate-400 flex items-center gap-2">
                           {att.file_size && <span>{formatFileSize(att.file_size)}</span>}

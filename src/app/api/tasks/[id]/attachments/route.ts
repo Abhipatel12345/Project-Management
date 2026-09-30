@@ -92,9 +92,35 @@ export async function GET(
 
     const aggregated: TaskAttachment[] = [];
 
+    // Fetch Task from ERPNext to get authoritative custom_attach_document and custom_task_deliverable
+    let erpTask: any = null;
+    try {
+      const erpUrl = getErpUrl();
+      const erpTaskRes = await fetch(
+        `${erpUrl}/api/resource/Task/${encodeURIComponent(taskId)}`,
+        {
+          headers: { Authorization: `token ${getApiKey()}:${getApiSecret()}` },
+          cache: 'no-store',
+        }
+      );
+      if (erpTaskRes.ok) {
+        erpTask = (await erpTaskRes.json()).data;
+      }
+    } catch (taskErr) {
+      console.warn('[Task Attachments GET] Error fetching ERPNext Task details:', taskErr);
+    }
+
     // 1. Fetch from Local Server Store
     const localRecords = getTaskAttachmentsFromStore(taskId);
     localRecords.forEach((r) => {
+      let role = r.documentRole;
+      if (!role) {
+        if (erpTask?.custom_task_deliverable && r.fileUrl === erpTask.custom_task_deliverable) {
+          role = 'deliverable';
+        } else {
+          role = 'assignment';
+        }
+      }
       aggregated.push({
         name: r.id,
         file_name: r.fileName,
@@ -103,6 +129,7 @@ export async function GET(
         creation: r.createdAt,
         uploaded_by: r.uploadedByName || r.uploadedBy,
         document_type: r.documentType || 'Engineering',
+        document_role: role,
       });
     });
 
@@ -128,7 +155,15 @@ export async function GET(
         const erpFiles: any[] = erpData.data || [];
 
         erpFiles.forEach((f) => {
-          if (!aggregated.some((existing) => existing.file_name === f.file_name || existing.name === f.name)) {
+          let role: 'assignment' | 'deliverable' = 'assignment';
+          if (erpTask?.custom_task_deliverable && f.file_url === erpTask.custom_task_deliverable) {
+            role = 'deliverable';
+          } else if (erpTask?.custom_attach_document && f.file_url === erpTask.custom_attach_document) {
+            role = 'assignment';
+          }
+
+          const existing = aggregated.find((e) => e.file_name === f.file_name || e.name === f.name);
+          if (!existing) {
             aggregated.push({
               name: f.name,
               file_name: f.file_name,
@@ -136,12 +171,51 @@ export async function GET(
               file_size: f.file_size,
               creation: f.creation,
               uploaded_by: f.owner,
+              document_role: role,
             });
+          } else if (!existing.document_role) {
+            existing.document_role = role;
           }
         });
       }
     } catch (erpErr) {
       console.warn('[Task Attachments GET] Error fetching ERPNext File records:', erpErr);
+    }
+
+    // 3. Fallback: Synthesize Task Assign Document from ERPNext Task field if not yet present
+    if (erpTask?.custom_attach_document) {
+      const exists = aggregated.some((a) => a.file_url === erpTask.custom_attach_document);
+      if (!exists) {
+        const cleanName = decodeURIComponent(erpTask.custom_attach_document.split('/').pop() || 'Assignment_Document.pdf');
+        aggregated.unshift({
+          name: `erp-assign-${taskId}`,
+          file_name: cleanName,
+          file_url: erpTask.custom_attach_document,
+          file_size: 1024 * 100,
+          creation: erpTask.creation,
+          uploaded_by: erpTask.owner || 'Project Manager',
+          document_type: 'Specification',
+          document_role: 'assignment',
+        });
+      }
+    }
+
+    // 4. Fallback: Synthesize Task Deliverable from ERPNext Task field if not yet present
+    if (erpTask?.custom_task_deliverable) {
+      const exists = aggregated.some((a) => a.file_url === erpTask.custom_task_deliverable);
+      if (!exists) {
+        const cleanName = decodeURIComponent(erpTask.custom_task_deliverable.split('/').pop() || 'Task_Deliverable.pdf');
+        aggregated.push({
+          name: `erp-deliverable-${taskId}`,
+          file_name: cleanName,
+          file_url: erpTask.custom_task_deliverable,
+          file_size: 1024 * 150,
+          creation: erpTask.modified,
+          uploaded_by: erpTask._assign || 'Assignee',
+          document_type: 'Engineering',
+          document_role: 'deliverable',
+        });
+      }
     }
 
     return NextResponse.json({ attachments: aggregated }, { status: 200 });
@@ -156,7 +230,7 @@ export async function GET(
 
 /**
  * POST /api/tasks/[id]/attachments
- * Uploads one or multiple documents and links them to the Task
+ * Uploads one or multiple documents and links them to the Task (as Assignment Document or Deliverable)
  */
 export async function POST(
   req: NextRequest,
@@ -176,6 +250,24 @@ export async function POST(
 
     const formData = await req.formData();
     const projectId = (formData.get('projectId') as string) || task?.project || '';
+    const documentRoleParam = (formData.get('documentRole') || formData.get('document_role')) as string | null;
+    const documentRole: 'assignment' | 'deliverable' =
+      documentRoleParam === 'deliverable'
+        ? 'deliverable'
+        : documentRoleParam === 'assignment'
+        ? 'assignment'
+        : session?.role === 'teammember'
+        ? 'deliverable'
+        : 'assignment';
+
+    // RBAC Security: Team Members must NOT upload/replace Task Assign Documents
+    if (documentRole === 'assignment' && session?.role === 'teammember') {
+      return NextResponse.json(
+        { _error_message: '403 Forbidden: Only Project Managers and Administrators are authorized to upload or modify Task Assign Documents.' },
+        { status: 403 }
+      );
+    }
+
     const documentTypesRaw = formData.get('documentTypes') || formData.get('document_types');
     let documentTypeMap: Record<string, string> = {};
     if (documentTypesRaw && typeof documentTypesRaw === 'string') {
@@ -231,7 +323,7 @@ export async function POST(
       try {
         const arrayBuffer = await file.arrayBuffer();
         const buffer = Buffer.from(arrayBuffer);
-        const docType = documentTypeMap[fileName] || singleDocType || 'Engineering';
+        const docType = documentTypeMap[fileName] || singleDocType || (documentRole === 'deliverable' ? 'Engineering' : 'Specification');
 
         const record = await saveTaskAttachment({
           taskId,
@@ -242,6 +334,7 @@ export async function POST(
           uploadedBy: session?.email || 'user',
           uploadedByName: session?.fullName || 'User',
           documentType: docType,
+          documentRole,
           session,
         });
 
@@ -253,6 +346,7 @@ export async function POST(
           creation: record.createdAt,
           uploaded_by: record.uploadedByName || record.uploadedBy,
           document_type: record.documentType,
+          document_role: record.documentRole,
         });
       } catch (uploadErr: any) {
         console.error(`[Task Attachment Upload Error] ${fileName}:`, uploadErr);

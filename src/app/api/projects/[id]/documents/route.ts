@@ -3,19 +3,7 @@ import { PDMUserSession } from '@/types/auth.types';
 import { accessControlService } from '@/services/access-control.service';
 import { getDocumentsByProject, saveDocument } from '@/lib/server/document-store';
 
-/**
- * Safely extract authenticated PDM user session from cookie
- */
-function getSessionFromRequest(req: NextRequest): PDMUserSession | null {
-  try {
-    const cookie = req.cookies.get('pdm_session')?.value;
-    if (!cookie) return null;
-    const jsonStr = Buffer.from(cookie, 'base64').toString('utf-8');
-    return JSON.parse(jsonStr);
-  } catch {
-    return null;
-  }
-}
+import { getSessionFromRequest } from '@/lib/server/session';
 
 /**
  * GET /api/projects/:projectId/documents

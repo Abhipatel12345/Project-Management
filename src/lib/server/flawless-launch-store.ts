@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { ProjectFLMData, GateFLMEvaluation, FLMMetricItem, FLMIndicator } from '@/types/flawless-launch.types';
 import { loadAllGates } from './gate-store';
+import { getProjectScorecard } from './scorecard-store';
 
 const DATA_FILE = path.join(process.cwd(), '.data', 'flawless_launches.json');
 
@@ -93,19 +94,25 @@ export function evaluateProjectFLM(
   const currentGate = currentGateCode || 'PL';
   const gantt = extractGanttMetrics(projectId);
 
-  // Scorecard values (AR target vs current)
-  // Target values are standard automotive program thresholds
-  const oeeTarget = '85.0%';
-  const oeeCurrent = '87.4%';
-  const oeeIsGreen = true;
+  // Scorecard values (AR target vs current) sourced live from authoritative Imperative Scorecard
+  const scorecard = getProjectScorecard(projectId, projectName);
+  const oeeTarget = scorecard.oee_target || '85.0%';
+  const oeeCurrent = scorecard.oee_current || '87.4%';
+  const oeeVal = parseFloat(oeeCurrent.replace('%', '')) || 0;
+  const oeeTgt = parseFloat(oeeTarget.replace('%', '')) || 0;
+  const oeeIsGreen = oeeVal >= oeeTgt;
 
-  const otdTarget = '98.0%';
-  const otdCurrent = '98.5%';
-  const otdIsGreen = true;
+  const otdTarget = scorecard.otd_target || '98.0%';
+  const otdCurrent = scorecard.otd_current || '98.5%';
+  const otdVal = parseFloat(otdCurrent.replace('%', '')) || 0;
+  const otdTgt = parseFloat(otdTarget.replace('%', '')) || 0;
+  const otdIsGreen = otdVal >= otdTgt;
 
-  const oiTarget = '15.0%';
-  const oiCurrent = '15.6%';
-  const oiIsGreen = true; // OI% is mandatory
+  const oiTarget = scorecard.oi_percentage_target || '15.0%';
+  const oiCurrent = scorecard.oi_percentage_current || '15.6%';
+  const oiVal = parseFloat(oiCurrent.replace('%', '')) || 0;
+  const oiTgt = parseFloat(oiTarget.replace('%', '')) || 0;
+  const oiIsGreen = oiVal >= oiTgt; // OI% is mandatory
 
   const gatesEvaluations: GateFLMEvaluation[] = GATES_LIST.map((gate) => {
     const isCurrent = gate === currentGate;

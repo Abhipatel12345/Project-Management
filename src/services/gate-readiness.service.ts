@@ -101,7 +101,13 @@ export function getEffectiveGate(task: Task): IntevaGateCode | null {
     if (normalizedRetimed) return normalizedRetimed;
   }
 
-  const baseGate = task.custom_gate || task.gate || task.custom_phase || task.phase;
+  const baseGate =
+    task.custom_gate ||
+    task.gate ||
+    task.custom_linked_gate ||
+    task.linked_gate ||
+    task.custom_phase ||
+    task.phase;
   return normalizeGateCode(baseGate);
 }
 
@@ -109,7 +115,13 @@ export function getEffectiveGate(task: Task): IntevaGateCode | null {
  * Determine the base (original) Gate for a task, regardless of retiming
  */
 export function getBaseGate(task: Task): IntevaGateCode | null {
-  const baseGate = task.custom_gate || task.gate || task.custom_phase || task.phase;
+  const baseGate =
+    task.custom_gate ||
+    task.gate ||
+    task.custom_linked_gate ||
+    task.linked_gate ||
+    task.custom_phase ||
+    task.phase;
   return normalizeGateCode(baseGate);
 }
 
@@ -147,11 +159,10 @@ export function isTaskSkipped(task: Task): boolean {
  * Determine if a task is a mandatory KGD deliverable
  */
 export function isMandatoryKgdTask(task: Task): boolean {
-  if (task.custom_is_mandatory_pdp === 1 || task.is_mandatory_pdp === true) return true;
+  if (task.custom_is_kgd === 1 || task.is_kgd === true) return true;
   const subj = (task.subject || '').toLowerCase();
-  const desc = (task.description || '').toLowerCase();
   if (subj.includes('[kgd]') || subj.includes('(kgd)') || subj.includes('key gate deliverable')) return true;
-  if (desc.includes('mandatory_pdp') || desc.includes('key gate deliverable')) return true;
+  if (task.description && (task.description.toLowerCase().includes('[kgd]') || task.description.toLowerCase().includes('key gate deliverable'))) return true;
   return false;
 }
 

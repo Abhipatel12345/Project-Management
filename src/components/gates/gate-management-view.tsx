@@ -33,6 +33,7 @@ export type GateTabType =
   | 'KGD tab'
   | 'Gate Review Result summery tab';
 
+
 interface GateManagementViewProps {
   initialProjectId?: string;
   initialTab?: GateTabType;
@@ -205,8 +206,8 @@ export function GateManagementView({
                     isSelected
                       ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                       : isCurrentStage
-                      ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
-                      : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
+                        ? 'bg-emerald-50 border-emerald-300 text-emerald-950'
+                        : 'bg-slate-50/70 border-slate-200 text-slate-700 hover:bg-slate-100'
                   )}
                 >
                   <div className="flex items-center justify-between">

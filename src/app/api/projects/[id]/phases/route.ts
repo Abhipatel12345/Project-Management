@@ -7,40 +7,7 @@ import { PDMUserSession } from '@/types/auth.types';
 
 export const dynamic = 'force-dynamic';
 
-function getSessionFromRequest(req: NextRequest): PDMUserSession | null {
-  const sessionHeader = req.headers.get('x-pdm-user');
-  if (sessionHeader) {
-    try {
-      return JSON.parse(decodeURIComponent(sessionHeader));
-    } catch {
-      try {
-        return JSON.parse(sessionHeader);
-      } catch {
-        // ignore
-      }
-    }
-  }
-
-  const cookie = req.cookies.get('pdm_session')?.value;
-  if (cookie) {
-    try {
-      const decoded = Buffer.from(cookie, 'base64').toString('utf-8');
-      return JSON.parse(decoded);
-    } catch {
-      try {
-        return JSON.parse(decodeURIComponent(cookie));
-      } catch {
-        try {
-          return JSON.parse(cookie);
-        } catch {
-          // ignore
-        }
-      }
-    }
-  }
-
-  return null;
-}
+import { getSessionFromRequest } from '@/lib/server/session';
 
 /**
  * GET /api/projects/:id/phases

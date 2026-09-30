@@ -95,20 +95,135 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
   const deleteAttachmentMutation = useDeleteTaskAttachment();
   const detailFileInputRef = React.useRef<HTMLInputElement>(null);
   const [isUploadingAttachment, setIsUploadingAttachment] = useState(false);
+  const [pendingUploadRole, setPendingUploadRole] = useState<'assignment' | 'deliverable'>('assignment');
+  const [pendingUploadFiles, setPendingUploadFiles] = useState<Array<{ file: File; documentType: string }>>([]);
 
   const { data: comments = [] } = useTaskComments(taskName);
   const { data: attachments = [], refetch: refetchAttachments } = useTaskAttachments(taskName);
   const { data: submissions = [] } = useTaskSubmissions(taskName);
 
-  const handleDetailFileUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  // Authoritative separation: Task Assign Documents vs Task Deliverables
+  const assignmentDocs = React.useMemo(() => {
+    const list: TaskAttachment[] = [];
+    const taskAssignDocUrl = currentTask?.custom_attach_document || (currentTask as any)?.task_assign_document;
+
+    attachments.forEach((a: TaskAttachment) => {
+      const isAssign =
+        a.document_role === 'assignment' ||
+        (taskAssignDocUrl && a.file_url === taskAssignDocUrl) ||
+        (!a.document_role && !a.submission_id && !(currentTask?.custom_task_deliverable && a.file_url === currentTask.custom_task_deliverable));
+      if (isAssign && !list.some((existing) => existing.file_name === a.file_name || existing.file_url === a.file_url)) {
+        list.push({ ...a, document_role: 'assignment' });
+      }
+    });
+
+    if (taskAssignDocUrl && !list.some((existing) => existing.file_url === taskAssignDocUrl)) {
+      const cleanName = decodeURIComponent(taskAssignDocUrl.split('/').pop() || 'Assignment_Document.pdf');
+      list.unshift({
+        name: `assign-${taskName}`,
+        file_name: cleanName,
+        file_url: taskAssignDocUrl,
+        document_role: 'assignment',
+        document_type: 'Specification',
+        creation: currentTask?.creation,
+        uploaded_by: currentTask?.owner || 'Project Manager',
+      });
+    }
+
+    return list;
+  }, [attachments, currentTask, taskName]);
+
+  const deliverableDocs = React.useMemo(() => {
+    const list: TaskAttachment[] = [];
+    const taskDeliverableUrl = currentTask?.custom_task_deliverable || (currentTask as any)?.task_deliverable;
+
+    submissions.forEach((sub: TaskSubmission) => {
+      (sub.attachments || []).forEach((att: TaskSubmissionAttachment) => {
+        if (!list.some((existing) => existing.file_name === att.file_name || existing.file_url === att.file_url)) {
+          list.push({
+            name: att.file_id || att.file_name,
+            file_name: att.file_name,
+            file_url: att.file_url || att.download_url || `/api/documents/${encodeURIComponent(att.file_id)}/download`,
+            file_size: att.file_size,
+            creation: att.uploaded_at || sub.submitted_at,
+            uploaded_by: att.uploaded_by || sub.submitted_by_name,
+            document_role: 'deliverable',
+            submission_id: sub.id,
+          });
+        }
+      });
+    });
+
+    attachments.forEach((a: TaskAttachment) => {
+      const isDeliverable =
+        a.document_role === 'deliverable' ||
+        (taskDeliverableUrl && a.file_url === taskDeliverableUrl);
+      if (isDeliverable && !list.some((existing) => existing.file_name === a.file_name || existing.file_url === a.file_url)) {
+        list.push({ ...a, document_role: 'deliverable' });
+      }
+    });
+
+    if (taskDeliverableUrl && !list.some((existing) => existing.file_url === taskDeliverableUrl)) {
+      const cleanName = decodeURIComponent(taskDeliverableUrl.split('/').pop() || 'Task_Deliverable.pdf');
+      list.push({
+        name: `deliverable-${taskName}`,
+        file_name: cleanName,
+        file_url: taskDeliverableUrl,
+        document_role: 'deliverable',
+        document_type: 'Engineering',
+        creation: currentTask?.modified,
+        uploaded_by: (currentTask as any)?.assigned_employee_name || 'Assignee',
+      });
+    }
+
+    return list;
+  }, [attachments, submissions, currentTask, taskName]);
+
+  const handleDetailFileSelect = (e: React.ChangeEvent<HTMLInputElement>, role: 'assignment' | 'deliverable' = 'assignment') => {
     if (!e.target.files || e.target.files.length === 0) return;
-    const files = Array.from(e.target.files);
+    setPendingUploadRole(role);
+    const files = Array.from(e.target.files).map((f) => ({
+      file: f,
+      documentType: role === 'deliverable' ? 'Engineering' : 'Specification',
+    }));
+    setPendingUploadFiles((prev) => [...prev, ...files]);
+    if (detailFileInputRef.current) detailFileInputRef.current.value = '';
+  };
+
+  const handleUpdatePendingDocType = (idx: number, dt: string) => {
+    setPendingUploadFiles((prev) =>
+      prev.map((item, i) => (i === idx ? { ...item, documentType: dt } : item))
+    );
+  };
+
+  const handleRemovePendingFile = (idx: number) => {
+    setPendingUploadFiles((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const handleConfirmUpload = async () => {
+    if (pendingUploadFiles.length === 0) return;
+    const missing = pendingUploadFiles.some((p) => !p.documentType || !p.documentType.trim());
+    if (missing) {
+      showToast('Please select a Document Type for all files before uploading', 'warning');
+      return;
+    }
     setIsUploadingAttachment(true);
     try {
+      const filesWithDocType = pendingUploadFiles.map(({ file, documentType }) => {
+        Object.defineProperty(file, 'documentType', {
+          value: documentType,
+          writable: true,
+          enumerable: true,
+          configurable: true,
+        });
+        return file;
+      });
+
       const res = await uploadAttachmentsMutation.mutateAsync({
         taskId: taskName,
-        files,
+        files: filesWithDocType,
         projectId: currentTask?.project,
+        documentRole: pendingUploadRole,
       });
       if (res.failed && res.failed.length > 0) {
         showToast(
@@ -116,15 +231,18 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
           'warning'
         );
       } else {
-        showToast(`${files.length} document(s) attached successfully!`, 'success');
+        showToast(
+          `${pendingUploadFiles.length} ${pendingUploadRole === 'deliverable' ? 'deliverable' : 'assignment document'}(s) uploaded successfully!`,
+          'success'
+        );
       }
+      setPendingUploadFiles([]);
       refetchAttachments();
       onRefresh?.();
     } catch (err: any) {
       showToast(err.message || 'Failed to attach documents', 'error');
     } finally {
       setIsUploadingAttachment(false);
-      if (detailFileInputRef.current) detailFileInputRef.current.value = '';
     }
   };
 
@@ -404,7 +522,7 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
                 activeTab === 'attachments' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
               }`}
             >
-              Files ({attachments.length})
+              Task Documents ({assignmentDocs.length + deliverableDocs.length})
             </button>
           </div>
 
@@ -514,47 +632,143 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
                   </div>
                 )}
 
-                {/* Reference Documents & Attachments Card */}
-                {attachments.length > 0 && (
-                  <div className="p-4 rounded-2xl bg-white border border-slate-200 text-xs space-y-3 shadow-2xs">
-                    <div className="flex items-center justify-between">
-                      <span className="font-extrabold text-slate-800 flex items-center gap-2 text-xs uppercase tracking-wider">
-                        <Paperclip className="h-4 w-4 text-sky-600" />
-                        <span>Attached Reference Documents ({attachments.length})</span>
-                      </span>
-                      <button
-                        type="button"
-                        onClick={() => setActiveTab('attachments')}
-                        className="text-[11px] font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
-                      >
-                        <span>View All & Manage</span>
-                        <ArrowRight className="h-3 w-3" />
-                      </button>
+                {/* 1. TASK ASSIGN DOCUMENT (PM Reference & Instructions) */}
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 text-xs space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-sky-50 text-sky-600 border border-sky-200">
+                        <Paperclip className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="font-extrabold text-slate-900 text-xs uppercase tracking-wider block">
+                          Task Assign Document
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          Reference & Instructions provided by Project Manager
+                        </span>
+                      </div>
                     </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('attachments')}
+                      className="text-[11px] font-bold text-sky-600 hover:text-sky-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>Manage</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </button>
+                  </div>
 
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                      {attachments.slice(0, 4).map((att: TaskAttachment) => (
+                  {assignmentDocs.length === 0 ? (
+                    <div className="p-3 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-400 text-center text-[11px]">
+                      No assignment document attached by Project Manager.
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {assignmentDocs.map((att: TaskAttachment) => (
                         <div
                           key={att.name || att.file_name}
-                          className="p-2.5 rounded-xl bg-slate-50 border border-slate-200 flex items-center justify-between gap-2"
+                          className="p-2.5 rounded-xl bg-sky-50/40 border border-sky-100 flex items-center justify-between gap-2"
                         >
                           <div className="flex items-center gap-2 truncate">
                             <FileText className="h-4 w-4 text-sky-600 shrink-0" />
                             <span className="font-bold text-slate-900 truncate text-[11px]">{att.file_name}</span>
+                            {att.file_size ? (
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                ({(att.file_size / 1024).toFixed(0)} KB)
+                              </span>
+                            ) : null}
                           </div>
-                          <a
-                            href={att.file_url}
-                            download={att.file_name}
-                            className="p-1 rounded-lg hover:bg-slate-200 text-slate-600 transition shrink-0"
-                            title="Download"
-                          >
-                            <Download className="h-3.5 w-3.5" />
-                          </a>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <a
+                              href={att.file_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-0.5 rounded-md bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center gap-1 transition"
+                            >
+                              <Eye className="h-3 w-3" /> View
+                            </a>
+                            <a
+                              href={att.file_url}
+                              download={att.file_name}
+                              className="px-2 py-0.5 rounded-md bg-sky-600 hover:bg-sky-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-2xs transition"
+                            >
+                              <Download className="h-3 w-3" /> Download
+                            </a>
+                          </div>
                         </div>
                       ))}
                     </div>
+                  )}
+                </div>
+
+                {/* 2. TASK DELIVERABLE (Assignee Completed Work Output) */}
+                <div className="p-4 rounded-2xl bg-white border border-slate-200 text-xs space-y-3 shadow-2xs">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="p-1.5 rounded-lg bg-emerald-50 text-emerald-600 border border-emerald-200">
+                        <FileCheck className="h-4 w-4" />
+                      </div>
+                      <div>
+                        <span className="font-extrabold text-slate-900 text-xs uppercase tracking-wider block">
+                          Task Deliverable
+                        </span>
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          Completed work & output deliverables submitted by Assignee
+                        </span>
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => setActiveTab('attachments')}
+                      className="text-[11px] font-bold text-emerald-600 hover:text-emerald-700 flex items-center gap-1 cursor-pointer"
+                    >
+                      <span>Manage</span>
+                      <ArrowRight className="h-3 w-3" />
+                    </button>
                   </div>
-                )}
+
+                  {deliverableDocs.length === 0 ? (
+                    <div className="p-3 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-slate-400 text-center text-[11px]">
+                      No deliverable submitted yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-1.5">
+                      {deliverableDocs.map((att: TaskAttachment) => (
+                        <div
+                          key={att.name || att.file_name}
+                          className="p-2.5 rounded-xl bg-emerald-50/40 border border-emerald-100 flex items-center justify-between gap-2"
+                        >
+                          <div className="flex items-center gap-2 truncate">
+                            <FileCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                            <span className="font-bold text-slate-900 truncate text-[11px]">{att.file_name}</span>
+                            {att.file_size ? (
+                              <span className="text-[10px] text-slate-400 font-mono">
+                                ({(att.file_size / 1024).toFixed(0)} KB)
+                              </span>
+                            ) : null}
+                          </div>
+                          <div className="flex items-center gap-1.5 shrink-0">
+                            <a
+                              href={att.file_url}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2 py-0.5 rounded-md bg-white border border-slate-200 hover:bg-slate-100 text-slate-700 font-bold text-[10px] flex items-center gap-1 transition"
+                            >
+                              <Eye className="h-3 w-3" /> View
+                            </a>
+                            <a
+                              href={att.file_url}
+                              download={att.file_name}
+                              className="px-2 py-0.5 rounded-md bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[10px] flex items-center gap-1 shadow-2xs transition"
+                            >
+                              <Download className="h-3 w-3" /> Download
+                            </a>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
 
                 {/* Skip Request Notice / Status Banner */}
                 {pendingSkipRequest && (
@@ -1270,116 +1484,322 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
               </div>
             )}
 
-            {/* TAB: ATTACHMENTS */}
+            {/* TAB: ATTACHMENTS (Two Distinct Areas: Task Assign Document & Task Deliverable) */}
             {activeTab === 'attachments' && (
-              <div className="space-y-4 text-xs">
-                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-3.5 rounded-2xl bg-sky-50/60 border border-sky-200 shadow-2xs">
-                  <div>
-                    <h4 className="font-extrabold text-slate-900 text-xs sm:text-sm flex items-center gap-2">
-                      <Paperclip className="h-4 w-4 text-sky-600" />
-                      <span>Task Deliverables & Reference Documents ({attachments.length})</span>
-                    </h4>
-                    <p className="text-[11px] text-slate-500 mt-0.5">
-                      Specifications, CAD drawings, validation reports, and engineering documents linked to this task.
-                    </p>
-                  </div>
-                  <div className="shrink-0">
-                    <input
-                      ref={detailFileInputRef}
-                      type="file"
-                      multiple
-                      accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png"
-                      onChange={handleDetailFileUpload}
-                      className="hidden"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => detailFileInputRef.current?.click()}
-                      disabled={isUploadingAttachment}
-                      className="flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-xs transition disabled:opacity-50 cursor-pointer"
-                    >
-                      {isUploadingAttachment ? (
-                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      ) : (
-                        <Upload className="h-3.5 w-3.5" />
-                      )}
-                      <span>{isUploadingAttachment ? 'Uploading...' : 'Attach Documents'}</span>
-                    </button>
-                  </div>
-                </div>
+              <div className="space-y-6 text-xs">
+                <input
+                  ref={detailFileInputRef}
+                  type="file"
+                  multiple
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.jpg,.jpeg,.png"
+                  onChange={(e) => handleDetailFileSelect(e, pendingUploadRole)}
+                  className="hidden"
+                />
 
-                {attachments.length === 0 ? (
-                  <div className="p-8 rounded-2xl bg-slate-50 border border-slate-200 text-center space-y-2">
-                    <Paperclip className="h-7 w-7 text-slate-300 mx-auto" />
-                    <p className="font-bold text-slate-700">No reference documents attached to this task.</p>
-                    <p className="text-[11px] text-slate-400 max-w-sm mx-auto">
-                      Click &ldquo;Attach Documents&rdquo; above to upload PDF, Word, Excel, PowerPoint, or image files.
-                    </p>
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {attachments.map((a: TaskAttachment) => {
-                      const canDelete =
-                        canEditTasks ||
-                        (user?.email && a.uploaded_by && user.email.toLowerCase() === a.uploaded_by.toLowerCase());
-
-                      return (
-                        <div
-                          key={a.name || a.file_name}
-                          className="p-3 bg-white rounded-xl border border-slate-200 flex items-center justify-between shadow-2xs hover:bg-slate-50/70 transition"
+                {/* Pending Upload Files with Document Type Selection */}
+                {pendingUploadFiles.length > 0 && (
+                  <div className="p-4 rounded-2xl bg-sky-50/60 border border-sky-200 space-y-3">
+                    <div className="flex items-center justify-between flex-wrap gap-2">
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-sky-600" />
+                        <span className="font-bold text-sky-900 text-xs">
+                          Pending Upload ({pendingUploadFiles.length}) — Destination:{' '}
+                          <span className="px-2 py-0.5 rounded font-black bg-white border border-sky-300 text-sky-800">
+                            {pendingUploadRole === 'deliverable' ? 'Task Deliverable' : 'Task Assign Document'}
+                          </span>
+                        </span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        {canEditTasks && (
+                          <div className="flex items-center bg-white border border-sky-200 rounded-lg p-0.5 text-[11px]">
+                            <button
+                              type="button"
+                              onClick={() => setPendingUploadRole('assignment')}
+                              className={`px-2 py-0.5 rounded-md font-bold cursor-pointer transition ${
+                                pendingUploadRole === 'assignment' ? 'bg-sky-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              Assign Doc
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setPendingUploadRole('deliverable')}
+                              className={`px-2 py-0.5 rounded-md font-bold cursor-pointer transition ${
+                                pendingUploadRole === 'deliverable' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                              }`}
+                            >
+                              Deliverable
+                            </button>
+                          </div>
+                        )}
+                        <button
+                          type="button"
+                          onClick={handleConfirmUpload}
+                          disabled={isUploadingAttachment}
+                          className="px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs flex items-center gap-1.5 transition disabled:opacity-50 cursor-pointer shadow-xs"
                         >
-                          <div className="flex items-center gap-2.5 truncate">
-                            <FileText className="h-4 w-4 text-sky-600 shrink-0" />
-                            <div className="truncate">
-                              <div className="flex items-center gap-2 flex-wrap">
-                                <span className="font-bold text-slate-900 block truncate">{a.file_name}</span>
-                                {a.document_type && (
-                                  <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
-                                    {a.document_type}
-                                  </span>
-                                )}
-                              </div>
-                              <div className="flex items-center gap-2 text-[10px] text-slate-400">
-                                {a.uploaded_by && <span>By {a.uploaded_by}</span>}
-                                {a.file_size && (
-                                  <span className="font-mono">({(a.file_size / 1024).toFixed(0)} KB)</span>
-                                )}
-                                {a.creation && <span>{new Date(a.creation).toLocaleDateString()}</span>}
-                              </div>
-                            </div>
+                          {isUploadingAttachment ? (
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                          ) : (
+                            <Upload className="h-3 w-3" />
+                          )}
+                          <span>Confirm & Upload</span>
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-2">
+                      {pendingUploadFiles.map((p, idx) => (
+                        <div
+                          key={idx}
+                          className="flex flex-col sm:flex-row sm:items-center justify-between p-2.5 rounded-xl bg-white border border-sky-200/80 gap-2"
+                        >
+                          <div className="flex items-center gap-2 truncate min-w-0 flex-1">
+                            <Paperclip className="h-3.5 w-3.5 text-sky-500 shrink-0" />
+                            <span className="font-medium text-slate-800 truncate text-xs">{p.file.name}</span>
+                            <span className="text-[10px] text-slate-400 shrink-0">
+                              ({(p.file.size / 1024).toFixed(0)} KB)
+                            </span>
                           </div>
                           <div className="flex items-center gap-2 shrink-0">
-                            <a
-                              href={a.file_url}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
+                            <span className="text-[10px] font-bold text-slate-500 uppercase">Document Type:</span>
+                            <select
+                              value={p.documentType}
+                              onChange={(e) => handleUpdatePendingDocType(idx, e.target.value)}
+                              className="text-xs font-semibold px-2 py-1 rounded-lg border border-slate-200 bg-slate-50 text-slate-800 focus:outline-hidden focus:border-sky-500"
                             >
-                              <Eye className="h-3 w-3" /> View
-                            </a>
-                            <a
-                              href={a.file_url}
-                              download={a.file_name}
-                              className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition"
+                              {['Engineering', 'Design', 'Specification', 'Quality', 'Testing', 'APQP', 'Process', 'Customer', 'Other'].map(
+                                (dt) => (
+                                  <option key={dt} value={dt}>
+                                    {dt}
+                                  </option>
+                                )
+                              )}
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => handleRemovePendingFile(idx)}
+                              className="text-slate-400 hover:text-rose-600 p-1 transition cursor-pointer"
+                              title="Remove"
                             >
-                              <Download className="h-3 w-3" /> Download
-                            </a>
-                            {canDelete && (
-                              <button
-                                type="button"
-                                onClick={() => handleDeleteAttachment(a.name || a.file_name)}
-                                className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                                title="Remove Document"
-                              >
-                                <Trash2 className="h-3.5 w-3.5" />
-                              </button>
-                            )}
+                              <X className="h-3.5 w-3.5" />
+                            </button>
                           </div>
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
                   </div>
                 )}
+
+                {/* AREA 1: TASK ASSIGN DOCUMENT */}
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <Paperclip className="h-4 w-4 text-sky-600" />
+                        <h4 className="font-extrabold text-slate-900 text-sm">
+                          1. Task Assign Document
+                        </h4>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                          PM Instructions & Specs
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Reference specifications, customer requirements, or briefing documents provided by Project Manager. (ERPNext field: <code className="font-mono text-sky-700">custom_attach_document</code>)
+                      </p>
+                    </div>
+
+                    {canEditTasks && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setPendingUploadRole('assignment');
+                          detailFileInputRef.current?.click();
+                        }}
+                        disabled={isUploadingAttachment}
+                        className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-600 hover:bg-sky-500 text-white font-bold text-xs shadow-xs transition disabled:opacity-50 cursor-pointer shrink-0"
+                      >
+                        <Upload className="h-3.5 w-3.5" />
+                        <span>Upload Assign Doc</span>
+                      </button>
+                    )}
+                  </div>
+
+                  {assignmentDocs.length === 0 ? (
+                    <div className="p-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-1">
+                      <p className="font-bold text-slate-600">No Task Assign Document currently attached.</p>
+                      <p className="text-[11px] text-slate-400">
+                        {canEditTasks
+                          ? 'Upload technical requirements or briefing files for the assignee using the button above.'
+                          : 'The Project Manager has not uploaded an assignment document for this task.'}
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {assignmentDocs.map((a: TaskAttachment) => {
+                        const canDelete = canEditTasks;
+                        return (
+                          <div
+                            key={a.name || a.file_name}
+                            className="p-3 bg-sky-50/30 rounded-xl border border-sky-100 flex items-center justify-between shadow-2xs hover:bg-sky-50/60 transition"
+                          >
+                            <div className="flex items-center gap-2.5 truncate">
+                              <FileText className="h-4 w-4 text-sky-600 shrink-0" />
+                              <div className="truncate">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-slate-900 block truncate">{a.file_name}</span>
+                                  {a.document_type && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
+                                      {a.document_type}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                                  {a.uploaded_by && <span>By {a.uploaded_by}</span>}
+                                  {a.file_size && (
+                                    <span className="font-mono">({(a.file_size / 1024).toFixed(0)} KB)</span>
+                                  )}
+                                  {a.creation && <span>{new Date(a.creation).toLocaleDateString()}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <a
+                                href={a.file_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
+                              >
+                                <Eye className="h-3 w-3" /> View
+                              </a>
+                              <a
+                                href={a.file_url}
+                                download={a.file_name}
+                                className="px-2.5 py-1 rounded-lg bg-sky-600 hover:bg-sky-500 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition"
+                              >
+                                <Download className="h-3 w-3" /> Download
+                              </a>
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAttachment(a.name || a.file_name)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                                  title="Remove Document"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+
+                {/* AREA 2: TASK DELIVERABLE */}
+                <div className="p-5 rounded-2xl bg-white border border-slate-200 space-y-3.5 shadow-2xs">
+                  <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-100 pb-3">
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <FileCheck className="h-4 w-4 text-emerald-600" />
+                        <h4 className="font-extrabold text-slate-900 text-sm">
+                          2. Task Deliverable
+                        </h4>
+                        <span className="px-2 py-0.5 rounded text-[10px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                          Work Package Output
+                        </span>
+                      </div>
+                      <p className="text-[11px] text-slate-500 mt-0.5">
+                        Completed engineering models, test reports, or output submitted by assignee. (ERPNext field: <code className="font-mono text-emerald-700">custom_task_deliverable</code>)
+                      </p>
+                    </div>
+
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setPendingUploadRole('deliverable');
+                        detailFileInputRef.current?.click();
+                      }}
+                      disabled={isUploadingAttachment}
+                      className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-xs shadow-xs transition disabled:opacity-50 cursor-pointer shrink-0"
+                    >
+                      <Upload className="h-3.5 w-3.5" />
+                      <span>Upload Deliverable</span>
+                    </button>
+                  </div>
+
+                  {deliverableDocs.length === 0 ? (
+                    <div className="p-6 rounded-xl bg-slate-50 border border-dashed border-slate-200 text-center space-y-1">
+                      <p className="font-bold text-slate-600">No Task Deliverable uploaded yet.</p>
+                      <p className="text-[11px] text-slate-400">
+                        The assigned user can upload completed reports or deliverables using the button above.
+                      </p>
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {deliverableDocs.map((a: TaskAttachment) => {
+                        const canDelete =
+                          canEditTasks ||
+                          (user?.email && a.uploaded_by && user.email.toLowerCase() === a.uploaded_by.toLowerCase());
+                        return (
+                          <div
+                            key={a.name || a.file_name}
+                            className="p-3 bg-emerald-50/30 rounded-xl border border-emerald-100 flex items-center justify-between shadow-2xs hover:bg-emerald-50/60 transition"
+                          >
+                            <div className="flex items-center gap-2.5 truncate">
+                              <FileCheck className="h-4 w-4 text-emerald-600 shrink-0" />
+                              <div className="truncate">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <span className="font-bold text-slate-900 block truncate">{a.file_name}</span>
+                                  {a.document_type && (
+                                    <span className="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-50 text-emerald-700 border border-emerald-200">
+                                      {a.document_type}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="flex items-center gap-2 text-[10px] text-slate-400">
+                                  {a.uploaded_by && <span>By {a.uploaded_by}</span>}
+                                  {a.file_size && (
+                                    <span className="font-mono">({(a.file_size / 1024).toFixed(0)} KB)</span>
+                                  )}
+                                  {a.creation && <span>{new Date(a.creation).toLocaleDateString()}</span>}
+                                </div>
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2 shrink-0">
+                              <a
+                                href={a.file_url}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-2.5 py-1 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold text-[11px] flex items-center gap-1 transition"
+                              >
+                                <Eye className="h-3 w-3" /> View
+                              </a>
+                              <a
+                                href={a.file_url}
+                                download={a.file_name}
+                                className="px-2.5 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-500 text-white font-bold text-[11px] flex items-center gap-1 shadow-2xs transition"
+                              >
+                                <Download className="h-3 w-3" /> Download
+                              </a>
+                              {canDelete && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleDeleteAttachment(a.name || a.file_name)}
+                                  className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
+                                  title="Remove Document"
+                                >
+                                  <Trash2 className="h-3.5 w-3.5" />
+                                </button>
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
               </div>
             )}
           </div>

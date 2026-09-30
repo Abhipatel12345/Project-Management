@@ -15,6 +15,7 @@ import { useCreateSkipRequest } from '@/hooks/use-skip-requests';
 import { useProjectTeam } from '@/hooks/use-project-team';
 import { useToast } from '@/providers/toast-context';
 import baselineService from '@/services/baseline.service';
+import taskService from '@/services/task.service';
 import { ProjectBaseline } from '@/types/baseline.types';
 import { TaskFormValues } from '@/lib/validations/task.schema';
 import { GanttHeaderSummary } from '@/components/planning/gantt-header-summary';
@@ -198,6 +199,8 @@ export default function PlanningPage() {
           assigned_to: values.assigned_to,
           parent_task: values.parent_task,
           depends_on: values.depends_on,
+          is_milestone: editingTask.is_milestone ?? false,
+          custom_is_milestone: editingTask.custom_is_milestone ?? 0,
           rasic: {
             responsible: values.rasic_responsible,
             accountable: values.rasic_accountable,
@@ -232,6 +235,8 @@ export default function PlanningPage() {
         assigned_to: values.assigned_to,
         parent_task: values.parent_task,
         depends_on: values.depends_on,
+        is_milestone: false,
+        custom_is_milestone: 0,
         rasic: {
           responsible: values.rasic_responsible,
           accountable: values.rasic_accountable,
@@ -318,16 +323,34 @@ export default function PlanningPage() {
     }
   };
 
-  const handleCreateCustomMilestone = async (milestoneData: Partial<Task>) => {
+  const handleCreateCustomMilestone = async (milestoneData: Partial<Task>, files?: File[]) => {
     try {
-      await createTaskMutation.mutateAsync({
-        ...milestoneData,
-        project: selectedProjectId,
-      });
-      showToast(`Custom milestone created successfully for ${selectedProjectId}!`, 'success');
+      if (milestoneData.name) {
+        // Edit mode
+        await updateTaskMutation.mutateAsync({
+          name: milestoneData.name,
+          data: {
+            ...milestoneData,
+            project: selectedProjectId,
+          },
+        });
+        if (files && files.length > 0) {
+          await taskService.uploadTaskAttachments(milestoneData.name, files, selectedProjectId);
+        }
+        showToast(`Milestone "${milestoneData.subject}" updated successfully!`, 'success');
+      } else {
+        // Create mode
+        await createTaskMutation.mutateAsync({
+          ...milestoneData,
+          project: selectedProjectId,
+          attachments: files,
+        });
+        showToast(`Milestone "${milestoneData.subject}" created successfully for ${selectedProjectId}!`, 'success');
+      }
       refetch();
     } catch (err: any) {
-      showToast(err.message || 'Failed to create custom milestone', 'error');
+      showToast(err.message || 'Failed to save milestone', 'error');
+      throw err;
     }
   };
 

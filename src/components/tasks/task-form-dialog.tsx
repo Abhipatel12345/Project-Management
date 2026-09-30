@@ -311,6 +311,12 @@ export function TaskFormDialog({
         enumerable: true,
         configurable: true,
       });
+      Object.defineProperty(f, 'documentRole', {
+        value: 'assignment',
+        writable: true,
+        enumerable: true,
+        configurable: true,
+      });
       return f;
     });
 
@@ -711,12 +717,12 @@ export function TaskFormDialog({
               </div>
             </div>
 
-            {/* Attachments / Reference Documents Section */}
-            <div className="p-4 rounded-2xl bg-slate-50/90 border border-slate-200 space-y-3">
+            {/* Task Assign Document Section */}
+            <div className="p-4 rounded-2xl bg-sky-50/50 border border-sky-200/80 space-y-3">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2 text-slate-800 font-black text-xs uppercase tracking-wider">
                   <Paperclip className="h-4 w-4 text-sky-600" />
-                  <span>Attachments / Reference Documents</span>
+                  <span>Task Assign Document (PM Instructions & Specifications)</span>
                 </div>
                 <button
                   type="button"
@@ -724,7 +730,7 @@ export function TaskFormDialog({
                   className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-white text-sky-700 hover:bg-sky-50 border border-sky-200 text-xs font-bold transition cursor-pointer shadow-2xs"
                 >
                   <Upload className="h-3.5 w-3.5" />
-                  <span>Upload Documents</span>
+                  <span>Upload Assign Document</span>
                 </button>
                 <input
                   ref={fileInputRef}
@@ -737,7 +743,7 @@ export function TaskFormDialog({
               </div>
 
               <p className="text-[11px] text-slate-500 font-medium leading-relaxed">
-                Attach reference engineering drawings, customer specifications, or validation reports directly to this task. Supported formats: PDF, DOCX, XLSX, PPTX, JPG, PNG (Max 25MB each).
+                Upload instructions, specifications, or reference drawings provided by the Project Manager to the assignee. This file is stored in ERPNext Task Assign Document. Supported formats: PDF, DOCX, XLSX, PPTX, JPG, PNG (Max 25MB).
               </p>
 
               {fileError && (

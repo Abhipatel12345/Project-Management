@@ -1,18 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getGateByName, saveOrUpdateGate, deleteGateFromStore } from '@/lib/server/gate-store';
 import { isGateReviewer } from '@/utils/user-matcher';
+import { getSessionFromRequest } from '@/lib/server/session';
 import { PDMUserSession } from '@/types/auth.types';
-
-function getSessionFromRequest(req: NextRequest): PDMUserSession | null {
-  try {
-    const cookie = req.cookies.get('pdm_session')?.value;
-    if (!cookie) return null;
-    const jsonStr = Buffer.from(cookie, 'base64').toString('utf-8');
-    return JSON.parse(jsonStr);
-  } catch {
-    return null;
-  }
-}
 
 export async function GET(
   req: NextRequest,
@@ -108,7 +98,7 @@ export async function PUT(
         return isNewApproved && !wasApproved;
       });
 
-      if (hasApprovalChange && !isGateReviewer(existingGate, session)) {
+      if (hasApprovalChange && !isGateReviewer(existingGate, session) && session.role !== 'admin') {
         const assignedReviewer =
           existingGate.gate_reviewer ||
           existingGate.reviewer_user_id ||

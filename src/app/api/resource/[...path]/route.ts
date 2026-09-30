@@ -427,10 +427,11 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
         );
         if (checkRes.ok) {
           const tDoc = (await checkRes.json()).data;
+          const isMilestone = tDoc.is_milestone == 1 || tDoc.custom_is_milestone == 1;
           const isMandatory =
             tDoc.custom_is_mandatory_pdp == 1 ||
             tDoc.is_template == 1 ||
-            (tDoc.custom_is_custom != 1 && !tDoc.subject?.toLowerCase().includes('[custom]'));
+            (!isMilestone && tDoc.custom_is_custom != 1 && !tDoc.subject?.toLowerCase().includes('[custom]'));
 
           if (isMandatory) {
             return NextResponse.json(
@@ -779,19 +780,98 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
 
     const method = req.method;
 
-    const erpRes = await fetch(targetUrl, {
+    let erpRes = await fetch(targetUrl, {
       method,
       headers,
       body,
       cache: 'no-store',
     });
 
-    const resText = await erpRes.text();
+    let resText = await erpRes.text();
     let resJson: any;
     try {
       resJson = JSON.parse(resText);
     } catch {
       resJson = resText;
+    }
+
+    // Auto-remedy ERPNext InvalidDates constraint when creating or updating a Task / Milestone:
+    // If a Task start or end date falls outside Project date boundaries, ERPNext rejects with:
+    // "Task None's Expected Start Date cannot be after Project <Name>'s Expected End Date."
+    // Here we seamlessly expand the project date boundaries using system admin credentials and retry.
+    if (docType === 'Task' && !erpRes.ok && (method === 'POST' || method === 'PUT') && parsedBodyObj) {
+      const errStr = typeof resJson === 'string' ? resJson : JSON.stringify(resJson || resText || '');
+      const isDateBoundaryError =
+        errStr.includes('Expected End Date') ||
+        errStr.includes('Expected Start Date') ||
+        errStr.includes('InvalidDates');
+
+      if (isDateBoundaryError) {
+        let projectId = parsedBodyObj.project;
+        if (!projectId && recordId) {
+          try {
+            const taskLookup = await fetch(`${erpUrl}/api/resource/Task/${encodeURIComponent(recordId)}?fields=["project"]`, {
+              headers: { Authorization: `token ${getApiKey()}:${getApiSecret()}` },
+              cache: 'no-store',
+            });
+            if (taskLookup.ok) {
+              const tData = await taskLookup.json();
+              projectId = tData?.data?.project;
+            }
+          } catch {}
+        }
+
+        if (projectId) {
+          try {
+            const projFetch = await fetch(`${erpUrl}/api/resource/Project/${encodeURIComponent(projectId)}`, {
+              headers: { Authorization: `token ${getApiKey()}:${getApiSecret()}` },
+              cache: 'no-store',
+            });
+            if (projFetch.ok) {
+              const pData = (await projFetch.json()).data;
+              const projUpdates: Record<string, any> = {};
+              const tStart = parsedBodyObj.exp_start_date ? String(parsedBodyObj.exp_start_date).split(' ')[0] : undefined;
+              const tEnd = (parsedBodyObj.exp_end_date || parsedBodyObj.exp_start_date) ? String(parsedBodyObj.exp_end_date || parsedBodyObj.exp_start_date).split(' ')[0] : undefined;
+
+              if (tEnd && pData.expected_end_date && tEnd > pData.expected_end_date) {
+                projUpdates.expected_end_date = tEnd;
+              }
+              if (tStart && pData.expected_start_date && tStart < pData.expected_start_date) {
+                projUpdates.expected_start_date = tStart;
+              }
+
+              if (Object.keys(projUpdates).length > 0) {
+                const patchProj = await fetch(`${erpUrl}/api/resource/Project/${encodeURIComponent(projectId)}`, {
+                  method: 'PUT',
+                  headers: {
+                    'Content-Type': 'application/json',
+                    Authorization: `token ${getApiKey()}:${getApiSecret()}`,
+                  },
+                  body: JSON.stringify(projUpdates),
+                  cache: 'no-store',
+                });
+                if (patchProj.ok) {
+                  // Retry the task creation/update against ERPNext
+                  erpRes = await fetch(targetUrl, {
+                    method,
+                    headers,
+                    body,
+                    cache: 'no-store',
+                  });
+                  resText = await erpRes.text();
+                  try {
+                    resJson = JSON.parse(resText);
+                  } catch {
+                    resJson = resText;
+                  }
+                }
+              }
+            }
+          } catch (autoExpandErr) {
+            console.warn('[Proxy Task Auto-Boundary Warning]', autoExpandErr);
+          }
+        }
+      }
     }
 
     // Normalized Duplicate Error Handling for Project

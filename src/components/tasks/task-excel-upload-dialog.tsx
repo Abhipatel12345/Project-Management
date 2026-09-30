@@ -426,6 +426,8 @@ export function TaskExcelUploadDialog({
           expected_time: row.expected_time,
           assigned_to: row.assigned_to,
           rasic: row.rasic,
+          is_milestone: false,
+          custom_is_milestone: 0,
         });
         successCount++;
       } catch (err: any) {

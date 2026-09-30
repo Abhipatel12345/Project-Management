@@ -1,17 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getAuditRecordsByProject, saveAuditRecord } from '@/lib/server/audit-store';
-import { PDMUserSession } from '@/types/auth.types';
-
-function getSessionFromRequest(req: NextRequest): PDMUserSession | null {
-  try {
-    const cookie = req.cookies.get('pdm_session')?.value;
-    if (!cookie) return null;
-    const jsonStr = Buffer.from(cookie, 'base64').toString('utf-8');
-    return JSON.parse(jsonStr);
-  } catch {
-    return null;
-  }
-}
+import { getSessionFromRequest } from '@/lib/server/session';
 
 export async function GET(req: NextRequest) {
   try {

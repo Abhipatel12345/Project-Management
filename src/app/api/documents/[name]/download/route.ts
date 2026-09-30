@@ -3,22 +3,7 @@ import { PDMUserSession } from '@/types/auth.types';
 import { accessControlService } from '@/services/access-control.service';
 import { getDocumentBinary, readDocumentsFile } from '@/lib/server/document-store';
 
-function getSessionFromRequest(req: NextRequest): PDMUserSession | null {
-  try {
-    const cookie = req.cookies.get('pdm_session')?.value;
-    if (cookie) {
-      const jsonStr = Buffer.from(cookie, 'base64').toString('utf-8');
-      return JSON.parse(jsonStr);
-    }
-    const userCookie = req.cookies.get('pdm_user')?.value;
-    if (userCookie) {
-      return JSON.parse(decodeURIComponent(userCookie));
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
+import { getSessionFromRequest } from '@/lib/server/session';
 
 /**
  * GET /api/documents/:name/download

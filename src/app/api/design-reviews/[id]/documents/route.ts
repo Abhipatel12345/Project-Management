@@ -3,24 +3,8 @@ import {
   getDesignReviewByName,
   saveOrUpdateDesignReview,
 } from '@/lib/server/design-review-store';
+import { getSessionFromRequest } from '@/lib/server/session';
 import { PDMUserSession } from '@/types/auth.types';
-
-function getSessionFromRequest(req: NextRequest): PDMUserSession | null {
-  try {
-    const cookie = req.cookies.get('pdm_session')?.value;
-    if (cookie) {
-      const jsonStr = Buffer.from(cookie, 'base64').toString('utf-8');
-      return JSON.parse(jsonStr);
-    }
-    const userCookie = req.cookies.get('pdm_user')?.value;
-    if (userCookie) {
-      return JSON.parse(decodeURIComponent(userCookie));
-    }
-    return null;
-  } catch {
-    return null;
-  }
-}
 
 export async function POST(
   req: NextRequest,

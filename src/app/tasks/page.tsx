@@ -362,6 +362,8 @@ export default function GlobalTaskManagementPage() {
         assigned_to: values.assigned_to,
         parent_task: values.parent_task,
         depends_on: values.depends_on,
+        is_milestone: false,
+        custom_is_milestone: 0,
         rasic: {
           responsible: values.rasic_responsible,
           accountable: values.rasic_accountable,
@@ -414,6 +416,8 @@ export default function GlobalTaskManagementPage() {
           assigned_to: values.assigned_to,
           parent_task: values.parent_task,
           depends_on: values.depends_on,
+          is_milestone: editingTask.is_milestone ?? false,
+          custom_is_milestone: editingTask.custom_is_milestone ?? 0,
           rasic: {
             responsible: values.rasic_responsible,
             accountable: values.rasic_accountable,
@@ -1374,13 +1378,13 @@ export default function GlobalTaskManagementPage() {
                 <div className="space-y-2">
                   <label className="block text-xs font-bold text-slate-700 flex items-center justify-between">
                     <span className="flex items-center gap-1.5">
-                      <Paperclip className="h-3.5 w-3.5 text-sky-600" />
-                      Supporting Deliverables & Task Documents
+                      <FileCheck className="h-3.5 w-3.5 text-emerald-600" />
+                      Task Deliverable (Work Package Output)
                     </span>
                     <span className="text-[10px] text-slate-400">PDF, DOCX, XLSX, Images</span>
                   </label>
 
-                  <label className="p-4 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 hover:bg-slate-50 transition text-center cursor-pointer flex flex-col items-center justify-center gap-1">
+                  <label className="p-4 rounded-2xl border-2 border-dashed border-emerald-200 bg-emerald-50/30 hover:bg-emerald-50/60 transition text-center cursor-pointer flex flex-col items-center justify-center gap-1">
                     <input
                       type="file"
                       multiple
@@ -1404,9 +1408,9 @@ export default function GlobalTaskManagementPage() {
                         });
                       }}
                     />
-                    <UploadCloud className="h-5 w-5 text-sky-600" />
-                    <p className="text-xs font-bold text-slate-700">Click to attach task files / deliverables</p>
-                    <p className="text-[10px] text-slate-400">Files will be attached to this task & available to Stage-Gates.</p>
+                    <UploadCloud className="h-5 w-5 text-emerald-600" />
+                    <p className="text-xs font-bold text-slate-700">Click to upload completed work deliverable</p>
+                    <p className="text-[10px] text-slate-400">File will be stored in ERPNext Task Deliverable field (custom_task_deliverable).</p>
                   </label>
 
                   {/* Attached files list */}

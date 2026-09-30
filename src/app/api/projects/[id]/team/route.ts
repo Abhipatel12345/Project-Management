@@ -10,16 +10,7 @@ import { getManagedProjectIdsForUser, isProjectManagedByUser } from '@/lib/serve
 
 export const dynamic = 'force-dynamic';
 
-function getSessionFromRequest(req: NextRequest): PDMUserSession | null {
-  const pdmCookie = req.cookies.get('pdm_session')?.value;
-  if (!pdmCookie) return null;
-  try {
-    const decodedStr = Buffer.from(pdmCookie, 'base64').toString('utf-8');
-    return JSON.parse(decodedStr);
-  } catch {
-    return null;
-  }
-}
+import { getSessionFromRequest } from '@/lib/server/session';
 
 async function verifyCanManageProjectTeam(
   projectId: string,

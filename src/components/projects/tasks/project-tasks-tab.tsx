@@ -41,9 +41,12 @@ import {
   CheckCircle2,
   Clock,
   SlidersHorizontal,
+  ShieldCheck,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { useToast } from '@/providers/toast-context';
+import { ProjectGateCriteriaSection } from './project-gate-criteria-section';
+import { useGates } from '@/hooks/use-gates';
 
 interface ProjectTasksTabProps {
   projectId: string;
@@ -54,6 +57,7 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
   const { showToast } = useToast();
   const { user } = useAuth();
   const canCreateTasks = user?.role === 'admin' || user?.role === 'projectmanager';
+  const [activeCategory, setActiveCategory] = useState<'all' | 'tasks' | 'gate_criteria'>('all');
   const [viewMode, setViewMode] = useState<'list' | 'kanban' | 'dependencies'>('list');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedPhase, setSelectedPhase] = useState('ALL');
@@ -61,6 +65,16 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
   const [selectedPriority, setSelectedPriority] = useState('ALL');
   const [selectedAssignee, setSelectedAssignee] = useState('ALL');
   const [showOverdueOnly, setShowOverdueOnly] = useState(false);
+
+  // Query Gates for this Project to get Gate Criteria count and synchronization
+  const { data: projectGatesData } = useGates({ project: projectId, pageSize: 100 });
+  const projectGates = useMemo(() => {
+    return (projectGatesData?.gates || []).filter((g: any) => g.project === projectId);
+  }, [projectGatesData, projectId]);
+
+  const totalCriteriaCount = useMemo(() => {
+    return projectGates.reduce((acc: number, g: any) => acc + (g.criteria?.length || 0), 0);
+  }, [projectGates]);
 
   // Accordion open/close state for each phase (default all open)
   const [openPhases, setOpenPhases] = useState<Record<string, boolean>>({
@@ -106,15 +120,28 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
     });
   }, [rawTasks]);
 
-  const summary = data?.summary || {
-    totalTasks: 0,
-    openTasks: 0,
-    inProgressTasks: 0,
-    completedTasks: 0,
-    overdueTasks: 0,
-    unassignedTasks: 0,
-    avgCompletionRate: 0,
-  };
+  const summary = useMemo(() => {
+    if (data?.summary && data.summary.totalTasks > 0) {
+      return data.summary;
+    }
+    const totalTasks = tasks.length;
+    const completedTasks = tasks.filter((t) => t.status === 'Completed').length;
+    const inProgressTasks = tasks.filter((t) => t.status === 'In Progress' || t.status === 'Working').length;
+    const openTasks = tasks.filter((t) => t.status === 'Open' || t.status === 'Pending').length;
+    const overdueTasks = tasks.filter((t) => t.is_overdue || (t.exp_end_date && new Date(t.exp_end_date) < new Date() && t.status !== 'Completed')).length;
+    const unassignedTasks = tasks.filter((t) => !t.assigned_to || t.assigned_to === 'Unassigned').length;
+    const totalProg = tasks.reduce((acc, t) => acc + (t.progress || 0), 0);
+    const avgCompletionRate = totalTasks > 0 ? Math.round(totalProg / totalTasks) : 0;
+    return {
+      totalTasks,
+      openTasks,
+      inProgressTasks,
+      completedTasks,
+      overdueTasks,
+      unassignedTasks,
+      avgCompletionRate,
+    };
+  }, [data?.summary, tasks]);
 
   const { data: projectPhases = STANDARD_PROJECT_PHASES } = useProjectPhases(projectId);
 
@@ -135,7 +162,7 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
       map.get(pName)!.push(task);
     });
 
-    return allPhases.map((phase) => {
+    const standardGroups = allPhases.map((phase) => {
       const phaseTasks = map.get(phase.name) || [];
       const completedCount = phaseTasks.filter((t) => t.status === 'Completed').length;
       const progress = phaseTasks.length > 0 ? Math.round((completedCount / phaseTasks.length) * 100) : 0;
@@ -148,6 +175,28 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
         progress,
       };
     });
+
+    const knownPhaseNames = new Set(allPhases.map((p) => p.name));
+    const extraGroups: any[] = [];
+    map.forEach((phaseTasks, pName) => {
+      if (!knownPhaseNames.has(pName) && phaseTasks.length > 0) {
+        const completedCount = phaseTasks.filter((t) => t.status === 'Completed').length;
+        const progress = Math.round((completedCount / phaseTasks.length) * 100);
+        extraGroups.push({
+          phase: {
+            id: pName.toLowerCase().replace(/\s+/g, '-'),
+            name: pName,
+            color: getPhaseBadgeColors(pName),
+          },
+          tasks: phaseTasks,
+          total: phaseTasks.length,
+          completed: completedCount,
+          progress,
+        });
+      }
+    });
+
+    return [...standardGroups, ...extraGroups];
   }, [tasks, projectPhases]);
 
   // Filtered phase groups if a specific phase is selected in the dropdown
@@ -232,6 +281,8 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
         assigned_to: values.assigned_to,
         parent_task: values.parent_task,
         depends_on: values.depends_on,
+        is_milestone: false,
+        custom_is_milestone: 0,
         rasic: {
           responsible: values.rasic_responsible,
           accountable: values.rasic_accountable,
@@ -285,6 +336,8 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
           assigned_to: values.assigned_to,
           parent_task: values.parent_task,
           depends_on: values.depends_on,
+          is_milestone: editingTask.is_milestone ?? false,
+          custom_is_milestone: editingTask.custom_is_milestone ?? 0,
           rasic: {
             responsible: values.rasic_responsible,
             accountable: values.rasic_accountable,
@@ -431,17 +484,99 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
         </div>
       </div>
 
-      {viewMode === 'dependencies' ? (
-        <TaskDependencyGraph
-          projectId={projectId}
-          tasks={tasks}
-          onViewTask={(t) => setViewingTask(t)}
-          onEditTask={(t) => setEditingTask(t)}
-        />
-      ) : (
-        <>
-          {/* Summary Metrics */}
-          <TaskSummaryCards summary={summary} />
+      {/* Category Navigation Bar: Project Tasks vs Gate Criteria / Gate Deliverables */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 p-2 rounded-2xl bg-white border border-slate-200 shadow-2xs">
+        <div className="flex items-center gap-1.5 p-1 rounded-xl bg-slate-100 border border-slate-200/80">
+          <button
+            type="button"
+            onClick={() => setActiveCategory('all')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+              activeCategory === 'all'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <Layers className="h-3.5 w-3.5 text-indigo-600" />
+            <span>All Sections</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveCategory('tasks')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+              activeCategory === 'tasks'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <CheckSquare className="h-3.5 w-3.5 text-sky-600" />
+            <span>1. Project Tasks</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-slate-200 text-slate-700 text-[10px] font-black">
+              {tasks.length}
+            </span>
+          </button>
+
+          <button
+            type="button"
+            onClick={() => setActiveCategory('gate_criteria')}
+            className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
+              activeCategory === 'gate_criteria'
+                ? 'bg-white text-slate-900 shadow-2xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            <ShieldCheck className="h-3.5 w-3.5 text-indigo-600" />
+            <span>2. Gate Criteria / Gate Deliverables</span>
+            <span className="px-1.5 py-0.2 rounded-full bg-indigo-100 text-indigo-800 text-[10px] font-black">
+              {totalCriteriaCount}
+            </span>
+          </button>
+        </div>
+
+        <div className="text-[11px] text-slate-500 font-medium px-2">
+          {activeCategory === 'all' && (
+            <span>Showing both <strong>1. Project Tasks</strong> & <strong>2. Gate Criteria</strong></span>
+          )}
+          {activeCategory === 'tasks' && (
+            <span>Showing <strong>1. Project Tasks</strong> ({tasks.length})</span>
+          )}
+          {activeCategory === 'gate_criteria' && (
+            <span>Showing <strong>2. Gate Criteria / Deliverables</strong> ({totalCriteriaCount})</span>
+          )}
+        </div>
+      </div>
+
+      {/* SECTION 1: PROJECT TASKS */}
+      {(activeCategory === 'all' || activeCategory === 'tasks') && (
+        <div className="space-y-4">
+          <div className="flex items-center justify-between gap-3 p-4 rounded-2xl bg-sky-50/70 border border-sky-200">
+            <div className="flex items-center gap-2.5">
+              <div className="p-2 rounded-xl bg-white text-sky-700 border border-sky-200 shadow-2xs">
+                <CheckSquare className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="text-sm font-black text-slate-900 tracking-tight">1. PROJECT TASKS</h3>
+                <p className="text-xs text-slate-500">
+                  Standard project execution deliverables and operational work packages grouped by phase.
+                </p>
+              </div>
+            </div>
+            <span className="px-2.5 py-1 rounded-full bg-sky-100 text-sky-800 text-xs font-black">
+              {tasks.length} {tasks.length === 1 ? 'Task' : 'Tasks'}
+            </span>
+          </div>
+
+          {viewMode === 'dependencies' ? (
+            <TaskDependencyGraph
+              projectId={projectId}
+              tasks={tasks}
+              onViewTask={(t) => setViewingTask(t)}
+              onEditTask={(t) => setEditingTask(t)}
+            />
+          ) : (
+            <>
+              {/* Summary Metrics */}
+              <TaskSummaryCards summary={summary} />
 
           {/* Filter Toolbar */}
           <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
@@ -551,9 +686,9 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
                             <div>
                               <div className="flex items-center gap-2 flex-wrap">
                                 <span
-                                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider border ${phase.color.badge}`}
+                                  className={`inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider border ${phase.color?.badge || 'bg-slate-50 text-slate-700 border-slate-200'}`}
                                 >
-                                  <span className={`h-2 w-2 rounded-full ${phase.color.dot}`} />
+                                  <span className={`h-2 w-2 rounded-full ${phase.color?.dot || 'bg-slate-500'}`} />
                                   <span>{phase.name}</span>
                                 </span>
 
@@ -656,6 +791,18 @@ export function ProjectTasksTab({ projectId, projectName }: ProjectTasksTabProps
             </>
           )}
         </>
+      )}
+        </div>
+      )}
+
+      {/* SECTION 2: GATE CRITERIA / GATE DELIVERABLES */}
+      {(activeCategory === 'all' || activeCategory === 'gate_criteria') && (
+        <ProjectGateCriteriaSection
+          projectId={projectId}
+          projectName={projectName}
+          projectTasks={tasks}
+          onViewTask={(t) => setViewingTask(t)}
+        />
       )}
 
       {/* Modals */}

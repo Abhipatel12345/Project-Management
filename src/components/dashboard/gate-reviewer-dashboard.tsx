@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '@/providers/auth-context';
@@ -229,10 +229,26 @@ export function GateReviewerDashboard({ assignedGates: propsAssignedGates }: Gat
   }, [myAssignedGates]);
 
   // Audit Logs for Reviewer Activities
+  const [allAuditLogs, setAllAuditLogs] = useState<AuditLogEntry[]>(() => auditService.getLogs());
+
+  useEffect(() => {
+    let active = true;
+    auditService
+      .getAllLogs()
+      .then((logs) => {
+        if (active && logs && logs.length > 0) {
+          setAllAuditLogs(logs);
+        }
+      })
+      .catch(() => {});
+    return () => {
+      active = false;
+    };
+  }, []);
+
   const recentAuditLogs = useMemo(() => {
-    const logs = auditService.getLogs();
     const reviewerName = (user?.fullName || user?.username || '').toLowerCase();
-    return logs
+    return allAuditLogs
       .filter(
         (l) =>
           l.entityType === 'Gate' ||
@@ -243,7 +259,7 @@ export function GateReviewerDashboard({ assignedGates: propsAssignedGates }: Gat
           (l.user && l.user.toLowerCase().includes(reviewerName))
       )
       .slice(0, 8);
-  }, [user]);
+  }, [allAuditLogs, user]);
 
   // Document Helpers
   const handleDownloadDoc = async (gate: Gate, del: GateDeliverable) => {

@@ -1,3 +1,5 @@
+import api from './api';
+
 export interface AuditLogEntry {
   id: string;
   timestamp: string;
@@ -29,6 +31,40 @@ const STORAGE_KEY = 'pdm_audit_logs';
 
 export const auditService = {
   /**
+   * Fetch all system-wide audit activity history from server API
+   */
+  async getAllLogs(search?: string): Promise<AuditLogEntry[]> {
+    try {
+      const url = `/api/audit-logs?project=ALL${search ? `&search=${encodeURIComponent(search)}` : ''}`;
+      const data = await api.get<{ activities?: any[] }>(url);
+      if (data && data.activities && Array.isArray(data.activities)) {
+        const mapped: AuditLogEntry[] = data.activities.map((a: any) => ({
+          id: a.id,
+          timestamp: a.created_at || a.timestamp,
+          project_id: a.project_id,
+          user: a.user_name || a.user,
+          role: a.role,
+          action: a.action,
+          entityType: a.entity_type || a.entityType,
+          entityId: a.entity_id || a.entityId,
+          oldValue: a.old_value || a.oldValue,
+          newValue: a.new_value || a.newValue,
+          details: a.description || a.details,
+        }));
+        if (typeof window !== 'undefined') {
+          try {
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(mapped));
+          } catch {}
+        }
+        return mapped;
+      }
+    } catch (err) {
+      console.warn('[Audit Service] Failed to fetch server audit logs:', err);
+    }
+    return this.getLogs();
+  },
+
+  /**
    * Fetch project-scoped activity history from server API
    */
   async getProjectActivities(projectId: string, search?: string): Promise<AuditLogEntry[]> {
@@ -37,24 +73,21 @@ export const auditService = {
       const url = `/api/projects/${encodeURIComponent(projectId)}/activities${
         search ? `?search=${encodeURIComponent(search)}` : ''
       }`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.activities && Array.isArray(data.activities)) {
-          return data.activities.map((a: any) => ({
-            id: a.id,
-            timestamp: a.created_at || a.timestamp,
-            project_id: a.project_id,
-            user: a.user_name || a.user,
-            role: a.role,
-            action: a.action,
-            entityType: a.entity_type || a.entityType,
-            entityId: a.entity_id || a.entityId,
-            oldValue: a.old_value || a.oldValue,
-            newValue: a.new_value || a.newValue,
-            details: a.description || a.details,
-          }));
-        }
+      const data = await api.get<{ activities?: any[] }>(url);
+      if (data && data.activities && Array.isArray(data.activities)) {
+        return data.activities.map((a: any) => ({
+          id: a.id,
+          timestamp: a.created_at || a.timestamp,
+          project_id: a.project_id,
+          user: a.user_name || a.user,
+          role: a.role,
+          action: a.action,
+          entityType: a.entity_type || a.entityType,
+          entityId: a.entity_id || a.entityId,
+          oldValue: a.old_value || a.oldValue,
+          newValue: a.new_value || a.newValue,
+          details: a.description || a.details,
+        }));
       }
     } catch (err) {
       console.warn('[Audit Service] Failed to fetch server activities, using local store fallback:', err);
@@ -110,10 +143,8 @@ export const auditService = {
         const logs = this.getLogs();
         localStorage.setItem(STORAGE_KEY, JSON.stringify([newEntry, ...logs]));
 
-        fetch('/api/audit-logs', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
+        api
+          .post('/api/audit-logs', {
             project_id: projectId || 'GLOBAL',
             user_name: user,
             role,
@@ -123,8 +154,8 @@ export const auditService = {
             description: details,
             old_value: oldValue,
             new_value: newValue,
-          }),
-        }).catch((e) => console.warn('[Audit Sync Notice]', e));
+          })
+          .catch((e) => console.warn('[Audit Sync Notice]', e));
       } catch (err) {
         console.warn('[Audit Store Local Error]', err);
       }

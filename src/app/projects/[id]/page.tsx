@@ -24,6 +24,8 @@ import { ProjectTimingStatusView } from '@/components/projects/timing/project-ti
 import { ProjectRiskAssessmentView } from '@/components/projects/risk/project-risk-assessment-view';
 import { ProjectFlawlessLaunchView } from '@/components/projects/flawless-launch/project-flawless-launch-view';
 import { ProjectStageMoverView } from '@/components/projects/stage-mover/project-stage-mover-view';
+import { ProjectScorecardView } from '@/components/projects/scorecard/project-scorecard-view';
+import { ProjectStatusView } from '@/components/projects/status/project-status-view';
 import { AccessDenied } from '@/components/shared/access-denied';
 import { useAuth } from '@/providers/auth-context';
 import {
@@ -50,6 +52,7 @@ import {
   CalendarDays,
   Folder,
   Activity,
+  Target,
   ShieldAlert,
   Network,
   Boxes,
@@ -77,6 +80,8 @@ export default function ProjectDetailPage() {
   // Workspace Tabs
   const [activeTab, setActiveTab] = useState<
     | 'overview'
+    | 'status'
+    | 'scorecard'
     | 'charter'
     | 'timing'
     | 'risk'
@@ -94,6 +99,8 @@ export default function ProjectDetailPage() {
   >(() => {
     const validTabs = [
       'overview',
+      'status',
+      'scorecard',
       'charter',
       'timing',
       'risk',
@@ -116,6 +123,8 @@ export default function ProjectDetailPage() {
     if (tabParam) {
       const validTabs = [
         'overview',
+        'status',
+        'scorecard',
         'charter',
         'timing',
         'risk',
@@ -493,6 +502,38 @@ export default function ProjectDetailPage() {
             <span>Overview</span>
           </button>
 
+          {/* Tab: Project Status */}
+          <button
+            ref={(el) => {
+              tabRefs.current['status'] = el;
+            }}
+            onClick={() => setActiveTab('status')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 cursor-pointer ${
+              activeTab === 'status'
+                ? 'bg-sky-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Activity className="h-4 w-4" />
+            <span>Project Status</span>
+          </button>
+
+          {/* Tab: Scorecard */}
+          <button
+            ref={(el) => {
+              tabRefs.current['scorecard'] = el;
+            }}
+            onClick={() => setActiveTab('scorecard')}
+            className={`px-3.5 py-2 rounded-lg flex items-center gap-2 transition whitespace-nowrap shrink-0 cursor-pointer ${
+              activeTab === 'scorecard'
+                ? 'bg-indigo-600 text-white font-bold shadow-2xs'
+                : 'text-slate-500 hover:text-slate-800 hover:bg-slate-50'
+            }`}
+          >
+            <Target className="h-4 w-4" />
+            <span>Scorecard</span>
+          </button>
+
           {/* Tab: Charter */}
           <button
             ref={(el) => {
@@ -769,6 +810,22 @@ export default function ProjectDetailPage() {
         />
       )}
 
+      {/* Tab: PROJECT STATUS */}
+      {activeTab === 'status' && (
+        <ProjectStatusView
+          projectId={projectId}
+          onNavigateTab={(tab) => setActiveTab(tab as any)}
+        />
+      )}
+
+      {/* Tab: IMPERATIVE SCORECARD */}
+      {activeTab === 'scorecard' && (
+        <ProjectScorecardView
+          projectId={projectId}
+          projectName={project.project_name || project.name}
+        />
+      )}
+
       {/* Tab 1: OVERVIEW */}
       {activeTab === 'overview' && (
         <div className="space-y-6">
@@ -825,7 +882,7 @@ export default function ProjectDetailPage() {
                   Program Owner
                 </div>
                 <div className="text-xs font-bold text-slate-900 mt-0.5 truncate max-w-[140px]">
-                  {project.owner || 'Administrator'}
+                  {project.custom_project_manager || project.owner || 'Administrator'}
                 </div>
               </div>
             </div>
@@ -864,15 +921,15 @@ export default function ProjectDetailPage() {
                     </div>
                   </div>
                   <div>
-                    <span className="text-slate-500 font-medium">Actual Start Date:</span>
+                    <span className="text-slate-500 font-medium">Start Date:</span>
                     <div className="font-bold text-slate-900 mt-1 font-mono">
-                      {project.actual_start_date || project.expected_start_date || 'Pending commencement'}
+                      {project.expected_start_date || project.actual_start_date || 'N/A'}
                     </div>
                   </div>
                   <div>
-                    <span className="text-slate-500 font-medium">Actual End Date:</span>
+                    <span className="text-slate-500 font-medium">End Date:</span>
                     <div className="font-bold text-slate-900 mt-1 font-mono">
-                      {project.actual_end_date || project.expected_end_date || 'In Progress'}
+                      {project.expected_end_date || project.actual_end_date || 'N/A'}
                     </div>
                   </div>
                   <div>

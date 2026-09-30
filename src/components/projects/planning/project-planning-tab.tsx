@@ -134,6 +134,8 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
         assigned_to: values.assigned_to,
         parent_task: values.parent_task,
         depends_on: values.depends_on,
+        is_milestone: false,
+        custom_is_milestone: 0,
         rasic: {
           responsible: values.rasic_responsible,
           accountable: values.rasic_accountable,
@@ -186,6 +188,8 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
           assigned_to: values.assigned_to,
           parent_task: values.parent_task,
           depends_on: values.depends_on,
+          is_milestone: editingTask.is_milestone ?? false,
+          custom_is_milestone: editingTask.custom_is_milestone ?? 0,
           rasic: {
             responsible: values.rasic_responsible,
             accountable: values.rasic_accountable,
@@ -275,16 +279,34 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
     }
   };
 
-  const handleCreateCustomMilestone = async (milestoneData: Partial<Task>) => {
+  const handleCreateCustomMilestone = async (milestoneData: Partial<Task>, files?: File[]) => {
     try {
-      await createTaskMutation.mutateAsync({
-        ...milestoneData,
-        project: projectId,
-      });
-      showToast(`Custom milestone created successfully for ${projectId}!`, 'success');
+      if (milestoneData.name) {
+        // Edit mode
+        await updateTaskMutation.mutateAsync({
+          name: milestoneData.name,
+          data: {
+            ...milestoneData,
+            project: projectId,
+          },
+        });
+        if (files && files.length > 0) {
+          await taskService.uploadTaskAttachments(milestoneData.name, files, projectId);
+        }
+        showToast(`Milestone "${milestoneData.subject}" updated successfully!`, 'success');
+      } else {
+        // Create mode
+        await createTaskMutation.mutateAsync({
+          ...milestoneData,
+          project: projectId,
+          attachments: files,
+        });
+        showToast(`Milestone "${milestoneData.subject}" created successfully for ${projectId}!`, 'success');
+      }
       refetchTasks();
     } catch (err: any) {
-      showToast(err.message || 'Failed to create custom milestone', 'error');
+      showToast(err.message || 'Failed to save milestone', 'error');
+      throw err;
     }
   };
 

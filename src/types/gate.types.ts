@@ -59,6 +59,15 @@ export interface GateCriterion {
   approved_by?: string;
   approved_at?: string;
   source_file?: string;
+  source_file_url?: string;
+  function?: string;
+  completion_percentage?: number;
+  related_task?: string;
+  related_task_id?: string;
+  related_task_subject?: string;
+  document_reference?: string;
+  linked_document_id?: string;
+  linked_document_name?: string;
 }
 
 export interface GateDeliverable {

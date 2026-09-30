@@ -217,24 +217,35 @@ export function recalculateSchedule(
 
   for (const taskId of topoOrder) {
     const task = taskMap.get(taskId)!;
-    const origStart = parseDate(task.exp_start_date);
-    const origEnd = parseDate(task.exp_end_date);
-    const dur = Math.max(1, getDurationDays(origStart, origEnd));
+    const origStart = parseDate(task.exp_start_date || task.planned_date);
+    const origEnd = parseDate(task.exp_end_date || task.planned_date);
+    const isMilestone = Boolean(task.is_milestone || task.custom_is_milestone === 1);
+    const dur = isMilestone ? 0 : Math.max(1, getDurationDays(origStart, origEnd));
     durations.set(taskId, dur);
 
     let es = new Date(origStart);
+
+    // If milestone is linked to another task in the project, inherit/align to the task schedule
+    if (isMilestone && task.linked_task) {
+      const linkedPred = taskMap.get(task.linked_task) || tasks.find((t) => t.subject === task.linked_task);
+      if (linkedPred) {
+        const linkedEf = earlyFinish.get(linkedPred.name) || parseDate(linkedPred.exp_end_date);
+        es = new Date(linkedEf);
+      }
+    }
 
     // Apply predecessor constraints
     const preds = predecessorsMap.get(taskId) || [];
     for (const dep of preds) {
       const pEf = earlyFinish.get(dep.predecessor_id) || parseDate(taskMap.get(dep.predecessor_id)?.exp_end_date);
       const pEs = earlyStart.get(dep.predecessor_id) || parseDate(taskMap.get(dep.predecessor_id)?.exp_start_date);
+      const pDur = durations.get(dep.predecessor_id) ?? 1;
       const lag = dep.lag_days || 0;
 
       switch (dep.dependency_type) {
         case 'FS': {
-          // Successor start >= Predecessor finish + 1 + lag
-          const minStart = addDays(pEf, 1 + lag);
+          // Successor start >= Predecessor finish + (if pred was zero-dur milestone: lag, else 1 + lag)
+          const minStart = pDur === 0 ? addDays(pEf, lag) : addDays(pEf, 1 + lag);
           if (minStart > es) es = minStart;
           break;
         }
@@ -245,23 +256,23 @@ export function recalculateSchedule(
           break;
         }
         case 'FF': {
-          // Successor finish >= Predecessor finish + lag -> Successor start >= Predecessor finish + lag - dur + 1
+          // Successor finish >= Predecessor finish + lag
           const minFinish = addDays(pEf, lag);
-          const minStart = addDays(minFinish, -(dur - 1));
+          const minStart = dur === 0 ? minFinish : addDays(minFinish, -(dur - 1));
           if (minStart > es) es = minStart;
           break;
         }
         case 'SF': {
           // Successor finish >= Predecessor start + lag
           const minFinish = addDays(pEs, lag);
-          const minStart = addDays(minFinish, -(dur - 1));
+          const minStart = dur === 0 ? minFinish : addDays(minFinish, -(dur - 1));
           if (minStart > es) es = minStart;
           break;
         }
       }
     }
 
-    const ef = addDays(es, dur - 1);
+    const ef = dur === 0 ? new Date(es) : addDays(es, dur - 1);
     earlyStart.set(taskId, es);
     earlyFinish.set(taskId, ef);
   }
@@ -278,7 +289,7 @@ export function recalculateSchedule(
   // Reverse topological order
   const revOrder = [...topoOrder].reverse();
   for (const taskId of revOrder) {
-    const dur = durations.get(taskId) || 1;
+    const dur = durations.get(taskId) ?? 1;
     let lf = new Date(maxProjectFinish);
 
     const succs = successorsMap.get(taskId) || [];
@@ -290,15 +301,15 @@ export function recalculateSchedule(
 
         switch (dep.dependency_type) {
           case 'FS': {
-            // Predecessor finish <= Successor start - 1 - lag
-            const maxEf = addDays(sLs, -(1 + lag));
+            // Predecessor finish <= Successor start - (dur === 0 ? lag : 1 + lag)
+            const maxEf = dur === 0 ? addDays(sLs, -lag) : addDays(sLs, -(1 + lag));
             if (maxEf < lf) lf = maxEf;
             break;
           }
           case 'SS': {
-            // Predecessor start <= Successor start - lag -> finish <= start - lag + dur - 1
+            // Predecessor start <= Successor start - lag
             const maxEs = addDays(sLs, -lag);
-            const maxEf = addDays(maxEs, dur - 1);
+            const maxEf = dur === 0 ? maxEs : addDays(maxEs, dur - 1);
             if (maxEf < lf) lf = maxEf;
             break;
           }
@@ -311,7 +322,7 @@ export function recalculateSchedule(
           case 'SF': {
             // Predecessor start <= Successor finish - lag
             const maxEs = addDays(sLf, -lag);
-            const maxEf = addDays(maxEs, dur - 1);
+            const maxEf = dur === 0 ? maxEs : addDays(maxEs, dur - 1);
             if (maxEf < lf) lf = maxEf;
             break;
           }
@@ -319,7 +330,7 @@ export function recalculateSchedule(
       }
     }
 
-    const ls = addDays(lf, -(dur - 1));
+    const ls = dur === 0 ? new Date(lf) : addDays(lf, -(dur - 1));
     lateFinish.set(taskId, lf);
     lateStart.set(taskId, ls);
   }
@@ -335,7 +346,7 @@ export function recalculateSchedule(
     const ef = earlyFinish.get(taskId)!;
     const ls = lateStart.get(taskId) || es;
     const lf = lateFinish.get(taskId) || ef;
-    const dur = durations.get(taskId) || 1;
+    const dur = durations.get(taskId) ?? 1;
 
     // Total Float in days = Late Finish - Early Finish
     const floatMs = lf.getTime() - ef.getTime();
@@ -358,11 +369,76 @@ export function recalculateSchedule(
     rygStatus.set(taskId, computeTaskRYG({ ...task, exp_start_date: newStartStr, exp_end_date: newEndStr }));
   }
 
-    return {
+  return {
     updatedTasks,
     criticalPathTaskIds,
     taskFloatDays,
     rygStatus,
+  };
+}
+
+/**
+ * Determine milestone schedule state and delay/on-time status
+ */
+export function getMilestoneScheduleState(milestone: Task): {
+  state: 'Planned' | 'In Progress' | 'Completed' | 'Delayed';
+  isDelayed: boolean;
+  isOnTime: boolean;
+  delayDays: number;
+} {
+  const isCompleted = milestone.status === 'Completed' || (milestone.progress || 0) >= 100;
+  const plannedDateStr = milestone.planned_date || milestone.exp_end_date || milestone.exp_start_date;
+  const actualDateStr = milestone.actual_date || milestone.actual_end_date || milestone.act_end_date;
+
+  const todayStr = formatDate(new Date());
+
+  if (isCompleted) {
+    if (actualDateStr && plannedDateStr && actualDateStr > plannedDateStr) {
+      const p = parseDate(plannedDateStr);
+      const a = parseDate(actualDateStr);
+      const days = Math.max(0, Math.round((a.getTime() - p.getTime()) / 86400000));
+      return {
+        state: 'Delayed',
+        isDelayed: true,
+        isOnTime: false,
+        delayDays: days,
+      };
+    }
+    return {
+      state: 'Completed',
+      isDelayed: false,
+      isOnTime: true,
+      delayDays: 0,
+    };
+  }
+
+  // If not completed and planned date is in the past -> Delayed
+  if (plannedDateStr && plannedDateStr < todayStr) {
+    const p = parseDate(plannedDateStr);
+    const now = parseDate(todayStr);
+    const days = Math.max(0, Math.round((now.getTime() - p.getTime()) / 86400000));
+    return {
+      state: 'Delayed',
+      isDelayed: true,
+      isOnTime: false,
+      delayDays: days,
+    };
+  }
+
+  if (milestone.status === 'Working' || milestone.status === 'In Progress' || (milestone.progress || 0) > 0) {
+    return {
+      state: 'In Progress',
+      isDelayed: false,
+      isOnTime: true,
+      delayDays: 0,
+    };
+  }
+
+  return {
+    state: 'Planned',
+    isDelayed: false,
+    isOnTime: true,
+    delayDays: 0,
   };
 }
 

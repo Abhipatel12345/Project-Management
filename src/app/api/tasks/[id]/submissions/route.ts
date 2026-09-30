@@ -5,6 +5,7 @@ import {
   createTaskSubmission,
   reviewTaskSubmission,
 } from '@/lib/server/task-submission-store';
+import { saveTaskAttachment } from '@/lib/server/task-attachment-store';
 import { getSessionFromRequest, DEFAULT_ADMIN_SESSION } from '@/lib/server/session';
 import { isTaskAssignedToUser } from '@/lib/server/rbac-scoping';
 
@@ -15,11 +16,11 @@ const getErpUrl = (): string => {
 };
 
 const getApiKey = (): string => {
-  return process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
+  return process.env.ERP_API_KEY || process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
 };
 
 const getApiSecret = (): string => {
-  return process.env.NEXT_PUBLIC_API_SECRET || '0c6ca7a5dc05f42';
+  return process.env.ERP_API_SECRET || process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
 };
 
 /**
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
 
 /**
  * POST /api/tasks/:id/submissions
- * Yash/Assignee submits task with comment, progress, and file uploads
+ * Yash/Assignee submits task with comment, progress, and file deliverables
  */
 export async function POST(req: NextRequest, props: { params: Promise<{ id: string }> }) {
   try {
@@ -95,10 +96,59 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
       session
     );
 
-    // 2. Synchronize Task status with ERPNext
+    // 2. Upload deliverable files to ERPNext Task attachments & get deliverable URL
+    let deliverableUrl: string | undefined = undefined;
+    for (const f of files) {
+      if (f.dataUrl || f.file_url) {
+        try {
+          let buffer: Buffer;
+          if (f.dataUrl && f.dataUrl.startsWith('data:')) {
+            const base64Index = f.dataUrl.indexOf(';base64,');
+            buffer =
+              base64Index !== -1
+                ? Buffer.from(f.dataUrl.slice(base64Index + 8), 'base64')
+                : Buffer.from(f.dataUrl.slice(f.dataUrl.indexOf(',') + 1), 'utf-8');
+          } else {
+            buffer = Buffer.from('Task deliverable submission', 'utf-8');
+          }
+
+          const savedAtt = await saveTaskAttachment({
+            taskId,
+            projectId,
+            fileName: f.name || 'deliverable.pdf',
+            buffer,
+            mimeType: f.mimeType,
+            uploadedBy: session?.email || 'Assignee',
+            uploadedByName: session?.fullName || 'Assignee',
+            documentType: 'Engineering',
+            documentRole: 'deliverable',
+            session,
+          });
+
+          if (!deliverableUrl && savedAtt.fileUrl) {
+            deliverableUrl = savedAtt.fileUrl;
+          }
+        } catch (attErr) {
+          console.warn('[Submission Deliverable Upload Notice]:', attErr);
+        }
+      }
+    }
+
+    if (!deliverableUrl && submission.attachments && submission.attachments.length > 0) {
+      deliverableUrl = submission.attachments[0].file_url || submission.attachments[0].download_url;
+    }
+
+    // 3. Synchronize Task status & Task Deliverable with ERPNext (Task Assign Document is preserved untouched)
     try {
       const erpUrl = getErpUrl();
-      const updatedDescriptionNote = `\n\n[Submission #${submission.submission_number} by ${submission.submitted_by_name} on ${new Date().toLocaleDateString()}] ${comment ? `Note: ${comment}` : ''}`;
+      const taskUpdates: Record<string, any> = {
+        status: 'Working',
+        progress: progress ?? 100,
+      };
+
+      if (deliverableUrl) {
+        taskUpdates.custom_task_deliverable = deliverableUrl;
+      }
 
       await fetch(`${erpUrl}/api/resource/Task/${encodeURIComponent(taskId)}`, {
         method: 'PUT',
@@ -106,10 +156,7 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
           'Content-Type': 'application/json',
           Authorization: `token ${getApiKey()}:${getApiSecret()}`,
         },
-        body: JSON.stringify({
-          status: 'Working', // or Submitted in local UI
-          progress: progress ?? 100,
-        }),
+        body: JSON.stringify(taskUpdates),
       });
     } catch (erpErr) {
       console.warn('[Task Submission API] ERPNext sync notice:', erpErr);

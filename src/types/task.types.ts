@@ -28,6 +28,8 @@ export interface Task {
   exp_end_date?: string;
   actual_start_date?: string;
   actual_end_date?: string;
+  act_start_date?: string;
+  act_end_date?: string;
   expected_time?: number; // In hours
   progress?: number; // 0 - 100
   description?: string;
@@ -64,6 +66,15 @@ export interface Task {
   target_start_date?: string;
   target_finish_date?: string;
   predecessors?: string;
+  // Milestone & Customer Milestone Specific Fields
+  is_customer_milestone?: boolean;
+  milestone_type?: MilestoneType | string;
+  linked_task?: string | null;
+  linked_gate?: string;
+  is_kgd?: boolean;
+  planned_date?: string;
+  actual_date?: string;
+  reference_documents?: string[];
   // Raw Custom Field Mappings
   custom_wbs?: string;
   custom_phase?: string;
@@ -80,7 +91,34 @@ export interface Task {
   custom_target_start_date?: string;
   custom_target_finish_date?: string;
   custom_predecessors?: string;
+  custom_is_customer_milestone?: number;
+  custom_milestone_type?: string;
+  custom_linked_task?: string;
+  custom_linked_gate?: string;
+  custom_is_kgd?: number;
+  // Task Document Fields (Authoritative ERPNext DocType Fields)
+  custom_attach_document?: string | null;
+  custom_task_deliverable?: string | null;
+  task_assign_document?: string | null;
+  task_deliverable?: string | null;
 }
+
+export type MilestoneType =
+  | 'Customer Milestone'
+  | 'Internal Milestone'
+  | 'Gate Milestone'
+  | 'Manufacturing Milestone'
+  | 'PPAP Milestone'
+  | 'Other';
+
+export const MILESTONE_TYPES: MilestoneType[] = [
+  'Customer Milestone',
+  'Internal Milestone',
+  'Gate Milestone',
+  'Manufacturing Milestone',
+  'PPAP Milestone',
+  'Other',
+];
 
 export interface TaskSummary {
   totalTasks: number;
@@ -148,6 +186,7 @@ export interface TaskAttachment {
   uploaded_by?: string;
   submission_id?: string;
   document_type?: string;
+  document_role?: 'assignment' | 'deliverable' | 'general';
 }
 
 export interface TaskSubmissionAttachment {
@@ -178,3 +217,5 @@ export interface TaskSubmission {
   review_comment?: string;
   attachments: TaskSubmissionAttachment[];
 }
+
+export type { TaskRelationship } from './task-dependency.types';

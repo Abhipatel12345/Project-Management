@@ -22,6 +22,7 @@ export interface TaskAttachmentRecord {
   createdAt: string;
   erpFileId?: string;
   documentType?: string;
+  documentRole?: 'assignment' | 'deliverable' | 'general';
 }
 
 let inMemoryAttachments: Record<string, TaskAttachmentRecord[]> | null = null;
@@ -70,7 +71,7 @@ export function getTaskAttachmentsFromStore(taskId: string): TaskAttachmentRecor
 }
 
 /**
- * Save a document attachment to the task and synchronize with ERPNext File DocType
+ * Save a document attachment to the task and synchronize with ERPNext Task fields & File DocType
  */
 export async function saveTaskAttachment(params: {
   taskId: string;
@@ -81,6 +82,7 @@ export async function saveTaskAttachment(params: {
   uploadedBy?: string;
   uploadedByName?: string;
   documentType?: string;
+  documentRole?: 'assignment' | 'deliverable' | 'general';
   session?: PDMUserSession | null;
 }) {
   const {
@@ -91,6 +93,7 @@ export async function saveTaskAttachment(params: {
     uploadedBy = 'system',
     uploadedByName = 'User',
     documentType = 'Engineering',
+    documentRole = 'assignment',
     session,
   } = params;
 
@@ -109,12 +112,12 @@ export async function saveTaskAttachment(params: {
   let fileUrl = `/files/${encodeURIComponent(cleanFileName)}`;
   let erpFileId: string | undefined = undefined;
 
-  // Sync to ERPNext File DocType via /api/method/upload_file
-  try {
-    const erpUrl = (process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
-    const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
-    const apiSecret = process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
+  const erpUrl = (process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
+  const apiKey = process.env.ERP_API_KEY || process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
+  const apiSecret = process.env.ERP_API_SECRET || process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
 
+  // 1. Sync to ERPNext File DocType via /api/method/upload_file
+  try {
     const formData = new FormData();
     formData.append('file', new Blob([new Uint8Array(buffer)], { type: mime }), cleanFileName);
     formData.append('is_private', '0');
@@ -122,6 +125,11 @@ export async function saveTaskAttachment(params: {
     formData.append('docname', taskId);
     formData.append('attached_to_doctype', 'Task');
     formData.append('attached_to_name', taskId);
+    if (documentRole === 'assignment') {
+      formData.append('fieldname', 'custom_attach_document');
+    } else if (documentRole === 'deliverable') {
+      formData.append('fieldname', 'custom_task_deliverable');
+    }
 
     const erpRes = await fetch(`${erpUrl}/api/method/upload_file`, {
       method: 'POST',
@@ -146,6 +154,29 @@ export async function saveTaskAttachment(params: {
     console.warn('[ERPNext Attachment Sync Warning] Fallback to local storage:', syncErr);
   }
 
+  // 2. Authoritative ERPNext Task Document Field Sync
+  try {
+    const taskFieldUpdates: Record<string, string> = {};
+    if (documentRole === 'assignment') {
+      taskFieldUpdates.custom_attach_document = fileUrl;
+    } else if (documentRole === 'deliverable') {
+      taskFieldUpdates.custom_task_deliverable = fileUrl;
+    }
+
+    if (Object.keys(taskFieldUpdates).length > 0) {
+      await fetch(`${erpUrl}/api/resource/Task/${encodeURIComponent(taskId)}`, {
+        method: 'PUT',
+        headers: {
+          Authorization: `token ${apiKey}:${apiSecret}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(taskFieldUpdates),
+      });
+    }
+  } catch (fieldSyncErr) {
+    console.warn('[ERPNext Task Field Sync Warning]:', fieldSyncErr);
+  }
+
   const recordId = erpFileId || `att-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
   const record: TaskAttachmentRecord = {
     id: recordId,
@@ -161,6 +192,7 @@ export async function saveTaskAttachment(params: {
     createdAt: new Date().toISOString(),
     erpFileId,
     documentType,
+    documentRole,
   };
 
   const all = loadAllTaskAttachments();
@@ -184,10 +216,10 @@ export async function saveTaskAttachment(params: {
       user_id: session?.email || uploadedBy,
       user_name: session?.fullName || uploadedByName,
       role: session?.roleLabel || session?.role || 'User',
-      action: 'Task Document Attached',
+      action: documentRole === 'deliverable' ? 'Task Deliverable Uploaded' : 'Task Document Attached',
       entity_type: 'Task',
       entity_id: taskId,
-      description: `Attached document "${cleanFileName}" to task ${taskId} (${(buffer.length / 1024).toFixed(1)} KB)`,
+      description: `${documentRole === 'deliverable' ? 'Submitted deliverable' : 'Attached document'} "${cleanFileName}" to task ${taskId} (${(buffer.length / 1024).toFixed(1)} KB)`,
       new_value: cleanFileName,
     });
   } catch (auditErr) {
@@ -227,14 +259,49 @@ export async function deleteTaskAttachmentFromStore(
     } catch {}
   }
 
+  const erpUrl = (process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
+  const apiKey = process.env.ERP_API_KEY || process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
+  const apiSecret = process.env.ERP_API_SECRET || process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
+
+  // Clear corresponding field on Task in ERPNext if this attachment was referenced
+  try {
+    const taskRes = await fetch(`${erpUrl}/api/resource/Task/${encodeURIComponent(taskId)}`, {
+      headers: { Authorization: `token ${apiKey}:${apiSecret}` },
+    });
+    if (taskRes.ok) {
+      const taskData = (await taskRes.json()).data;
+      const updates: Record<string, any> = {};
+      if (
+        taskData?.custom_attach_document &&
+        (taskData.custom_attach_document === removed.fileUrl || taskData.custom_attach_document.includes(removed.fileName))
+      ) {
+        updates.custom_attach_document = null;
+      }
+      if (
+        taskData?.custom_task_deliverable &&
+        (taskData.custom_task_deliverable === removed.fileUrl || taskData.custom_task_deliverable.includes(removed.fileName))
+      ) {
+        updates.custom_task_deliverable = null;
+      }
+      if (Object.keys(updates).length > 0) {
+        await fetch(`${erpUrl}/api/resource/Task/${encodeURIComponent(taskId)}`, {
+          method: 'PUT',
+          headers: {
+            Authorization: `token ${apiKey}:${apiSecret}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(updates),
+        });
+      }
+    }
+  } catch (clearErr) {
+    console.warn('[Task Attachment Clear Field Warning]', clearErr);
+  }
+
   // Attempt to delete from ERPNext if File DocType record exists
   const targetErpFile = removed.erpFileId || (removed.id.startsWith('att-') ? undefined : removed.id);
   if (targetErpFile) {
     try {
-      const erpUrl = (process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
-      const apiKey = process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
-      const apiSecret = process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
-
       await fetch(`${erpUrl}/api/resource/File/${encodeURIComponent(targetErpFile)}`, {
         method: 'DELETE',
         headers: {

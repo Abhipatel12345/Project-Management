@@ -48,6 +48,8 @@ export function ProjectConnectionsTab({ projectId, projectName }: ProjectConnect
       const created: any = await createTaskMutation.mutateAsync({
         ...values,
         project: projectId,
+        is_milestone: false,
+        custom_is_milestone: 0,
         attachments,
       });
       if (created?.failedUploads && created.failedUploads.length > 0) {

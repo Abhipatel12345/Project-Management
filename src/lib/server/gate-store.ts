@@ -455,8 +455,8 @@ export function executeCriterionApprovalAction(
     throw new Error(`Gate ${gateName} not found`);
   }
 
-  // 1. STRICT BACKEND PERMISSION CHECK: Must be the assigned Gate Reviewer for THIS specific gate!
-  const isReviewer = isGateReviewer(gate, session);
+  // 1. STRICT BACKEND PERMISSION CHECK: Must be the assigned Gate Reviewer or Admin!
+  const isReviewer = isGateReviewer(gate, session) || session.role === 'admin';
   if (!isReviewer) {
     const assignedReviewer =
       gate.gate_reviewer_user_id ||
@@ -481,6 +481,7 @@ export function executeCriterionApprovalAction(
   const todayStr = new Date().toISOString().split('T')[0];
 
   criterion.status = 'Completed';
+  criterion.completion_percentage = 100;
   criterion.approved_by = reviewerIdentity;
   criterion.approved_at = todayStr;
 

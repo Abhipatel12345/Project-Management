@@ -119,7 +119,8 @@ function ITAdminDashboard() {
   const loadLocalData = async () => {
     const list = await userManagementService.getUsers();
     setUsersList(list);
-    setAuditLogs(auditService.getLogs().filter((l) => l.entityType === 'User' || l.action.toLowerCase().includes('user')));
+    const all = await auditService.getAllLogs();
+    setAuditLogs(all.filter((l) => l.entityType === 'User' || l.action.toLowerCase().includes('user')));
   };
 
   useEffect(() => {
@@ -381,7 +382,27 @@ function PDMAdminDashboard() {
   const { data, refetch, isFetching } = useDashboardSummary();
 
   const [matRequests] = useState<MaterialRequestItem[]>(() => materialRequestService.getRequests());
-  const [auditLogs] = useState<AuditLogEntry[]>(() => auditService.getLogs());
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => auditService.getLogs());
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setIsLoadingAudit(true);
+    auditService
+      .getAllLogs()
+      .then((logs) => {
+        if (active && logs && logs.length > 0) {
+          setAuditLogs(logs);
+        }
+      })
+      .catch((err) => console.warn('[Dashboard Audit Fetch Notice]', err))
+      .finally(() => {
+        if (active) setIsLoadingAudit(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const projects = data?.projects || [];
 
@@ -591,21 +612,34 @@ function PDMAdminDashboard() {
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Clock className="h-4 w-4 text-sky-600" /> PDM Business Audit Log
             </h3>
+            {isLoadingAudit && (
+              <span className="text-[10px] text-slate-400 font-medium">Syncing...</span>
+            )}
           </div>
           <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
-            {auditLogs.slice(0, 8).map((log) => (
-              <div key={log.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-                <div className="flex items-center justify-between font-bold">
-                  <span className="text-sky-600">{log.action}</span>
-                  <span className="text-[10px] text-slate-400">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                </div>
-                <div className="text-slate-700 font-medium">{log.details}</div>
-                <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-200/50">
-                  <span>By: {log.user}</span>
-                  <span className="font-mono">{log.entityId}</span>
-                </div>
+            {auditLogs.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                <Clock className="h-6 w-6 mx-auto mb-2 text-slate-300" />
+                <p className="font-semibold text-slate-600">No audit events recorded yet</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Project and task actions will appear here in real-time.</p>
               </div>
-            ))}
+            ) : (
+              auditLogs.slice(0, 8).map((log) => (
+                <div key={log.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                  <div className="flex items-center justify-between font-bold">
+                    <span className="text-sky-600">{log.action}</span>
+                    <span className="text-[10px] text-slate-400">
+                      {log.timestamp ? new Date(log.timestamp).toLocaleDateString() + ' ' + new Date(log.timestamp).toLocaleTimeString() : ''}
+                    </span>
+                  </div>
+                  <div className="text-slate-700 font-medium">{log.details}</div>
+                  <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-200/50">
+                    <span>By: {log.user}</span>
+                    <span className="font-mono">{log.entityId}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -620,7 +654,27 @@ function ProjectManagerDashboard() {
   const { user } = useAuth();
   const { data, refetch, isFetching } = useDashboardSummary();
   const [matRequests] = useState<MaterialRequestItem[]>(() => materialRequestService.getRequests());
-  const [auditLogs] = useState<AuditLogEntry[]>(() => auditService.getLogs());
+  const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => auditService.getLogs());
+  const [isLoadingAudit, setIsLoadingAudit] = useState(false);
+
+  useEffect(() => {
+    let active = true;
+    setIsLoadingAudit(true);
+    auditService
+      .getAllLogs()
+      .then((logs) => {
+        if (active && logs && logs.length > 0) {
+          setAuditLogs(logs);
+        }
+      })
+      .catch((err) => console.warn('[PM Dashboard Audit Fetch Notice]', err))
+      .finally(() => {
+        if (active) setIsLoadingAudit(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
 
   const projects = data?.projects || [];
 
@@ -846,21 +900,34 @@ function ProjectManagerDashboard() {
             <h3 className="text-sm font-bold text-slate-900 flex items-center gap-2">
               <Clock className="h-4 w-4 text-sky-600" /> PM Governance Audit Log
             </h3>
+            {isLoadingAudit && (
+              <span className="text-[10px] text-slate-400 font-medium">Syncing...</span>
+            )}
           </div>
           <div className="space-y-2.5 max-h-96 overflow-y-auto pr-1">
-            {auditLogs.slice(0, 7).map((log) => (
-              <div key={log.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
-                <div className="flex items-center justify-between font-bold">
-                  <span className="text-sky-600">{log.action}</span>
-                  <span className="text-[10px] text-slate-400">{new Date(log.timestamp).toLocaleTimeString()}</span>
-                </div>
-                <div className="text-slate-700 font-medium">{log.details}</div>
-                <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-200/50">
-                  <span>By: {log.user}</span>
-                  <span className="font-mono">{log.entityId}</span>
-                </div>
+            {auditLogs.length === 0 ? (
+              <div className="py-8 text-center text-slate-400 text-xs">
+                <Clock className="h-6 w-6 mx-auto mb-2 text-slate-300" />
+                <p className="font-semibold text-slate-600">No audit events recorded yet</p>
+                <p className="text-[11px] text-slate-400 mt-0.5">Project and task actions will appear here in real-time.</p>
               </div>
-            ))}
+            ) : (
+              auditLogs.slice(0, 7).map((log) => (
+                <div key={log.id} className="p-3 rounded-xl bg-slate-50 border border-slate-200 text-xs space-y-1">
+                  <div className="flex items-center justify-between font-bold">
+                    <span className="text-sky-600">{log.action}</span>
+                    <span className="text-[10px] text-slate-400">
+                      {log.timestamp ? new Date(log.timestamp).toLocaleDateString() + ' ' + new Date(log.timestamp).toLocaleTimeString() : ''}
+                    </span>
+                  </div>
+                  <div className="text-slate-700 font-medium">{log.details}</div>
+                  <div className="text-[10px] text-slate-400 flex items-center justify-between pt-1 border-t border-slate-200/50">
+                    <span>By: {log.user}</span>
+                    <span className="font-mono">{log.entityId}</span>
+                  </div>
+                </div>
+              ))
+            )}
           </div>
         </div>
       </div>
@@ -1194,6 +1261,8 @@ function TeamMemberDashboard() {
         assigned_to: values.assigned_to,
         parent_task: values.parent_task,
         depends_on: values.depends_on,
+        is_milestone: false,
+        custom_is_milestone: 0,
         rasic: {
           responsible: values.rasic_responsible,
           accountable: values.rasic_accountable,
@@ -1246,6 +1315,8 @@ function TeamMemberDashboard() {
           assigned_to: values.assigned_to,
           parent_task: values.parent_task,
           depends_on: values.depends_on,
+          is_milestone: editingTask.is_milestone ?? false,
+          custom_is_milestone: editingTask.custom_is_milestone ?? 0,
           rasic: {
             responsible: values.rasic_responsible,
             accountable: values.rasic_accountable,

@@ -279,6 +279,14 @@ export const gateService = {
       responsible_person: criterion.responsible_person || gate.gate_owner,
       due_date: criterion.due_date || gate.planned_date,
       comments: criterion.comments,
+      function: criterion.function || 'QA',
+      completion_percentage: criterion.completion_percentage ?? (criterion.status === 'Completed' ? 100 : 0),
+      related_task: criterion.related_task,
+      related_task_id: criterion.related_task_id,
+      related_task_subject: criterion.related_task_subject,
+      document_reference: criterion.document_reference,
+      linked_document_id: criterion.linked_document_id,
+      linked_document_name: criterion.linked_document_name,
     };
 
     gate.criteria = gate.criteria || [];

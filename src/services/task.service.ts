@@ -14,6 +14,7 @@ import {
   inferTaskPhase,
   getPhaseNumber,
 } from '@/constants/phases';
+import { normalizeGateCode } from './gate-readiness.service';
 
 const TASK_FIELDS = [
   'name',
@@ -39,21 +40,9 @@ const TASK_FIELDS = [
   '_assign',
   'duration',
   'is_milestone',
-  'custom_wbs',
-  'custom_phase',
-  'custom_gate',
-  'custom_function',
-  'custom_role',
-  'custom_rasic',
-  'custom_is_mandatory_pdp',
-  'custom_is_custom',
-  'custom_is_milestone',
-  'custom_is_skipped',
-  'custom_skip_reason',
-  'custom_retimed_to',
-  'custom_target_start_date',
-  'custom_target_finish_date',
-  'custom_predecessors',
+  'is_template',
+  'custom_attach_document',
+  'custom_task_deliverable',
 ];
 
 const todayStr = new Date().toISOString().split('T')[0];
@@ -135,6 +124,13 @@ const ERPNEXT_ALLOWED_TASK_FIELDS = [
   'custom_target_start_date',
   'custom_target_finish_date',
   'custom_predecessors',
+  'custom_is_customer_milestone',
+  'custom_milestone_type',
+  'custom_linked_task',
+  'custom_linked_gate',
+  'custom_is_kgd',
+  'custom_attach_document',
+  'custom_task_deliverable',
 ];
 
 const formatDateForERPNext = (val: any): string | undefined => {
@@ -176,15 +172,26 @@ const normalizeTask = (t: any): Task => {
     assignedName = resolveUserDisplayName(t.assigned_to);
   }
 
-  // Parse Phase, RASIC, and Skip Reason from description metadata block if present
+  // Parse Phase, RASIC, Skip Reason, and Milestone Metadata from description block if present
   let rasic = t.rasic;
   let skipReason = t.skip_reason || t.custom_skip_reason;
   let phase = t.custom_phase || t.phase;
   let cleanDescription = t.description || '';
+  let milestoneMeta: any = null;
 
   if (t.custom_rasic) {
     try {
       rasic = JSON.parse(t.custom_rasic);
+    } catch {}
+  }
+
+  if (t.description && t.description.includes('<!-- MILESTONE_META:')) {
+    try {
+      const match = t.description.match(/<!-- MILESTONE_META: (.*?) -->/);
+      if (match && match[1]) {
+        milestoneMeta = JSON.parse(match[1]);
+        cleanDescription = cleanDescription.replace(/<!-- MILESTONE_META: .*? -->/, '').trim();
+      }
     } catch {}
   }
 
@@ -229,43 +236,120 @@ const normalizeTask = (t: any): Task => {
   const finalAssignedTo = assignedEmail || 'Unassigned';
   const finalAssignedName = assignedName || (assignedEmail ? resolveUserDisplayName(assignedEmail) : 'Unassigned');
 
-  // Compute Duration
-  let duration = typeof t.duration === 'number' && !isNaN(t.duration) ? t.duration : 1;
-  if (cleanExpStart && cleanExpEnd) {
+  const is_milestone = Boolean(
+    (t.custom_is_milestone === 1 || t.is_milestone === 1 || t.is_milestone === true) &&
+    t.custom_is_milestone !== 0 &&
+    t.is_milestone !== 0 &&
+    t.is_milestone !== false
+  );
+
+  // Clean task subject (strip any unintended [Milestone] prefix from normal tasks)
+  const cleanSubject = (!is_milestone && t.subject)
+    ? t.subject.replace(/^\[milestone\]\s*/i, '').trim()
+    : (t.subject || '');
+
+  // Compute Duration (Milestones are strictly 0 duration, normal tasks are >= 1 day)
+  let duration = is_milestone ? 0 : typeof t.duration === 'number' && !isNaN(t.duration) && t.duration > 0 ? t.duration : 1;
+  if (!is_milestone && cleanExpStart && cleanExpEnd) {
     const s = new Date(cleanExpStart).getTime();
     const e = new Date(cleanExpEnd).getTime();
     if (!isNaN(s) && !isNaN(e)) {
-      duration = Math.max(0, Math.round((e - s) / 86400000) + 1);
+      duration = Math.max(1, Math.round((e - s) / 86400000) + 1);
     }
   }
 
-  const is_milestone = t.custom_is_milestone === 1 || t.is_milestone === 1 || t.is_milestone === true || duration === 0;
+  const is_customer_milestone =
+    is_milestone &&
+    (Boolean(milestoneMeta?.is_customer_milestone) ||
+      t.custom_is_customer_milestone === 1 ||
+      t.is_customer_milestone === true ||
+      t.milestone_type === 'Customer Milestone' ||
+      t.custom_milestone_type === 'Customer Milestone');
+
+  const milestone_type = is_milestone
+    ? milestoneMeta?.milestone_type ||
+      t.custom_milestone_type ||
+      t.milestone_type ||
+      (is_customer_milestone ? 'Customer Milestone' : 'Internal Milestone')
+    : undefined;
+
+  // Safely map linked_task from custom_linked_task, milestone metadata, or fallback to null
+  const linked_task: string | null =
+    (typeof t.custom_linked_task === 'string' && t.custom_linked_task.trim() !== ''
+      ? t.custom_linked_task.trim()
+      : null) ||
+    (typeof milestoneMeta?.linked_task === 'string' && milestoneMeta.linked_task.trim() !== ''
+      ? milestoneMeta.linked_task.trim()
+      : null) ||
+    (typeof t.linked_task === 'string' && t.linked_task.trim() !== ''
+      ? t.linked_task.trim()
+      : null) ||
+    null;
+  const fallbackGate = (finalPhase ? normalizeGateCode(finalPhase) || undefined : undefined) || '1. PL';
+  const linked_gate =
+    milestoneMeta?.linked_gate ||
+    t.custom_linked_gate ||
+    t.linked_gate ||
+    t.custom_gate ||
+    t.gate ||
+    fallbackGate;
+  const is_kgd = Boolean(
+    t.custom_is_kgd === 1 ||
+      t.is_kgd === true ||
+      milestoneMeta?.is_kgd === true ||
+      (t.description && (t.description.includes('<!-- KGD: true -->') || t.description.toLowerCase().includes('[kgd]') || t.description.toLowerCase().includes('key gate deliverable'))) ||
+      (t.subject && (t.subject.toLowerCase().includes('[kgd]') || t.subject.toLowerCase().includes('(kgd)')))
+  );
+
+  const planned_date =
+    formatDateForERPNext(milestoneMeta?.planned_date) ||
+    formatDateForERPNext(t.planned_date) ||
+    cleanExpStart ||
+    cleanExpEnd;
+
+  const actual_date =
+    formatDateForERPNext(milestoneMeta?.actual_date) ||
+    formatDateForERPNext(t.actual_date) ||
+    formatDateForERPNext(t.act_end_date) ||
+    formatDateForERPNext(t.act_start_date) ||
+    (t.status === 'Completed' ? cleanExpEnd : undefined);
+
   const is_mandatory_pdp = t.custom_is_mandatory_pdp === 1 || t.is_template === 1 || (t.custom_is_custom !== 1 && !t.subject?.toLowerCase().includes('[custom]'));
   const is_custom = t.custom_is_custom === 1 || t.is_custom === true;
   const is_skipped = t.custom_is_skipped === 1 || t.status === 'Skipped';
 
   return {
     ...t,
+    subject: cleanSubject,
     wbs: t.custom_wbs || t.wbs,
     phase: finalPhase,
     phase_id: finalPhaseId,
-    gate: t.custom_gate || t.gate,
+    gate: linked_gate,
+    linked_gate,
+    custom_gate: linked_gate,
     function_name: t.custom_function || t.function_name,
     role: t.custom_role || t.role,
     duration,
     is_mandatory_pdp,
     is_custom,
     is_milestone,
+    is_customer_milestone,
+    milestone_type,
+    linked_task,
+    is_kgd,
+    planned_date,
+    actual_date,
+    reference_documents: milestoneMeta?.reference_documents || t.reference_documents || [],
     is_skipped,
     retimed_to: t.custom_retimed_to || t.retimed_to,
     target_start_date: formatDateForERPNext(t.custom_target_start_date) || t.target_start_date,
     target_finish_date: formatDateForERPNext(t.custom_target_finish_date) || t.target_finish_date,
     predecessors: t.custom_predecessors || t.predecessors,
-    exp_start_date: cleanExpStart,
-    exp_end_date: cleanExpEnd,
+    exp_start_date: cleanExpStart || planned_date,
+    exp_end_date: cleanExpEnd || planned_date,
     description: cleanDescription,
-    actual_start_date: t.act_start_date || cleanExpStart,
-    actual_end_date: t.act_end_date || cleanExpEnd,
+    actual_start_date: actual_date || t.act_start_date || cleanExpStart,
+    actual_end_date: actual_date || t.act_end_date || cleanExpEnd,
     status: is_skipped ? 'Skipped' : t.status || 'Open',
     priority: t.priority || 'Medium',
     progress: typeof t.progress === 'number' ? t.progress : t.status === 'Completed' ? 100 : 0,
@@ -276,6 +360,10 @@ const normalizeTask = (t: any): Task => {
     submissions: t.submissions || [],
     is_overdue,
     overdue_days,
+    custom_attach_document: t.custom_attach_document || null,
+    custom_task_deliverable: t.custom_task_deliverable || null,
+    task_assign_document: t.custom_attach_document || null,
+    task_deliverable: t.custom_task_deliverable || null,
   };
 };
 
@@ -331,7 +419,95 @@ const cleanPayload = (data: Partial<Task>): Record<string, any> => {
     .replace(/<!-- PHASE: .*? -->/, '')
     .replace(/<!-- RASIC: .*? -->/, '')
     .replace(/<!-- SKIP_REASON: .*? -->/, '')
+    .replace(/<!-- MILESTONE_META: .*? -->/, '')
     .trim();
+
+  // Authoritative Milestone Status:
+  // ONLY true if explicitly specified as milestone (is_milestone === true or custom_is_milestone === 1)
+  // Normal tasks MUST NOT become milestones from duration or task name!
+  const isMilestone = Boolean(
+    (data.is_milestone === true || data.custom_is_milestone === 1) &&
+    data.is_milestone !== false &&
+    data.custom_is_milestone !== 0
+  );
+
+  if (data.subject !== undefined) {
+    if (!isMilestone) {
+      payload.subject = data.subject.replace(/^\[milestone\]\s*/i, '').trim();
+    } else {
+      payload.subject = data.subject.trim();
+    }
+  }
+
+  if (isMilestone) {
+    const isCustomer = Boolean(
+      data.is_customer_milestone ||
+        data.custom_is_customer_milestone === 1 ||
+        data.milestone_type === 'Customer Milestone' ||
+        data.custom_milestone_type === 'Customer Milestone'
+    );
+
+    const mType =
+      data.milestone_type ||
+      data.custom_milestone_type ||
+      (isCustomer ? 'Customer Milestone' : 'Internal Milestone');
+
+    const metaObj = {
+      is_customer_milestone: isCustomer,
+      milestone_type: mType,
+      linked_task: data.linked_task || data.custom_linked_task,
+      linked_gate: data.linked_gate || data.custom_linked_gate || data.gate || data.custom_gate,
+      is_kgd: Boolean(
+        data.is_kgd ||
+          data.custom_is_kgd === 1
+      ),
+      planned_date: formatDateForERPNext(data.planned_date || data.exp_start_date || data.exp_end_date),
+      actual_date: formatDateForERPNext(data.actual_date || data.actual_end_date),
+      reference_documents: data.reference_documents || [],
+    };
+
+    description = `${description}\n\n<!-- MILESTONE_META: ${JSON.stringify(metaObj)} -->`.trim();
+
+    payload.is_milestone = 1;
+    payload.custom_is_milestone = 1;
+    payload.duration = 0;
+    payload.custom_is_customer_milestone = isCustomer ? 1 : 0;
+    payload.custom_milestone_type = mType;
+    if (metaObj.linked_task) payload.custom_linked_task = metaObj.linked_task;
+    if (metaObj.linked_gate) {
+      payload.custom_linked_gate = metaObj.linked_gate;
+      payload.custom_gate = metaObj.linked_gate;
+      payload.gate = metaObj.linked_gate;
+    }
+    payload.custom_is_kgd = metaObj.is_kgd ? 1 : 0;
+
+    if (metaObj.planned_date) {
+      payload.exp_start_date = metaObj.planned_date;
+      payload.exp_end_date = metaObj.planned_date;
+    }
+    if (metaObj.actual_date) {
+      payload.act_start_date = metaObj.actual_date;
+      payload.act_end_date = metaObj.actual_date;
+    }
+  } else {
+    // Normal Task: Strictly NOT a milestone
+    payload.is_milestone = 0;
+    payload.custom_is_milestone = 0;
+    payload.custom_is_customer_milestone = 0;
+    payload.custom_milestone_type = '';
+
+    // Duration for normal task: calculate >= 1 day
+    let dur = typeof data.duration === 'number' && !isNaN(data.duration) && data.duration > 0 ? data.duration : undefined;
+    if (!dur && data.exp_start_date && data.exp_end_date) {
+      const s = new Date(data.exp_start_date).getTime();
+      const e = new Date(data.exp_end_date).getTime();
+      if (!isNaN(s) && !isNaN(e)) {
+        dur = Math.max(1, Math.round((e - s) / 86400000) + 1);
+      }
+    }
+    if (!dur) dur = 1;
+    payload.duration = dur;
+  }
 
   if (targetPhase) {
     const formattedPhase = formatPhaseName(targetPhase);
@@ -360,15 +536,19 @@ const cleanPayload = (data: Partial<Task>): Record<string, any> => {
   if (data.is_mandatory_pdp !== undefined) payload.custom_is_mandatory_pdp = data.is_mandatory_pdp ? 1 : 0;
   if (data.is_custom !== undefined) payload.custom_is_custom = data.is_custom ? 1 : 0;
   if (data.is_milestone !== undefined) {
-    payload.custom_is_milestone = data.is_milestone ? 1 : 0;
-    payload.is_milestone = data.is_milestone ? 1 : 0;
+    payload.custom_is_milestone = isMilestone ? 1 : 0;
+    payload.is_milestone = isMilestone ? 1 : 0;
   }
   if (data.is_skipped !== undefined) payload.custom_is_skipped = data.is_skipped ? 1 : 0;
   if (data.retimed_to !== undefined) payload.custom_retimed_to = data.retimed_to;
   if (data.target_start_date !== undefined) payload.custom_target_start_date = formatDateForERPNext(data.target_start_date);
   if (data.target_finish_date !== undefined) payload.custom_target_finish_date = formatDateForERPNext(data.target_finish_date);
   if (data.predecessors !== undefined) payload.custom_predecessors = data.predecessors;
-  if (data.duration !== undefined) payload.duration = Math.max(0, Math.round(Number(data.duration)));
+  if (data.duration !== undefined && !isMilestone) payload.duration = Math.max(1, Math.round(Number(data.duration)));
+  if (data.custom_attach_document !== undefined) payload.custom_attach_document = data.custom_attach_document;
+  if (data.custom_task_deliverable !== undefined) payload.custom_task_deliverable = data.custom_task_deliverable;
+  if (data.task_assign_document !== undefined) payload.custom_attach_document = data.task_assign_document;
+  if (data.task_deliverable !== undefined) payload.custom_task_deliverable = data.task_deliverable;
 
   for (const [key, value] of Object.entries(data)) {
     if (ERPNEXT_ALLOWED_TASK_FIELDS.includes(key)) {
@@ -448,6 +628,28 @@ export const taskService = {
         const targetProj = params.project.trim();
         tasks = tasks.filter((t) => (t.project || '').trim() === targetProj);
       }
+
+      // Date Logic: Synchronize linked milestone dates with authoritative tasks within project
+      const taskMap = new Map<string, Task>();
+      tasks.forEach((t) => taskMap.set(t.name, t));
+
+      tasks = tasks.map((t) => {
+        if (t.is_milestone && t.linked_task) {
+          const linked = taskMap.get(t.linked_task) || tasks.find((item) => item.subject === t.linked_task);
+          if (linked) {
+            const authoritativeDate = linked.exp_end_date || linked.exp_start_date;
+            if (authoritativeDate) {
+              return {
+                ...t,
+                planned_date: t.planned_date || authoritativeDate,
+                exp_start_date: t.exp_start_date || authoritativeDate,
+                exp_end_date: t.exp_end_date || authoritativeDate,
+              };
+            }
+          }
+        }
+        return t;
+      });
 
       // Client-side additional filters if assigned_to or is_overdue specified
       if (params.assigned_to && params.assigned_to !== 'ALL') {
@@ -562,8 +764,55 @@ export const taskService = {
     }
 
     try {
-      const payload = cleanPayload(data);
-      const response = await api.post<{ data: any }>('/api/resource/Task', payload);
+      const taskInput: Partial<Task> = {
+        is_milestone: false,
+        custom_is_milestone: 0,
+        ...data,
+      };
+      const payload = cleanPayload(taskInput);
+
+      let response: any;
+      try {
+        response = await api.post<{ data: any }>('/api/resource/Task', payload);
+      } catch (postErr: any) {
+        // If ERPNext throws date validation against project boundaries:
+        // Automatically sync/expand project date boundaries to accommodate the task/milestone
+        const rawErrMsg = postErr?.response?.data?.exception || postErr?.response?.data?._server_messages || postErr?.message || '';
+        const isDateBoundaryError = typeof rawErrMsg === 'string' && (
+          rawErrMsg.includes('Expected End Date') ||
+          rawErrMsg.includes('Expected Start Date') ||
+          rawErrMsg.includes('InvalidDates')
+        );
+
+        if (isDateBoundaryError && payload.project) {
+          try {
+            const projRes = await api.get<{ data: any }>(`/api/resource/Project/${encodeURIComponent(payload.project)}`);
+            const proj = projRes.data;
+            const projUpdates: Record<string, any> = {};
+            const tStart = payload.exp_start_date ? String(payload.exp_start_date).split(' ')[0] : undefined;
+            const tEnd = (payload.exp_end_date || payload.exp_start_date) ? String(payload.exp_end_date || payload.exp_start_date).split(' ')[0] : undefined;
+
+            if (tEnd && proj.expected_end_date && tEnd > proj.expected_end_date) {
+              projUpdates.expected_end_date = tEnd;
+            }
+            if (tStart && proj.expected_start_date && tStart < proj.expected_start_date) {
+              projUpdates.expected_start_date = tStart;
+            }
+
+            if (Object.keys(projUpdates).length > 0) {
+              await api.put(`/api/resource/Project/${encodeURIComponent(payload.project)}`, projUpdates);
+              response = await api.post<{ data: any }>('/api/resource/Task', payload);
+            } else {
+              throw postErr;
+            }
+          } catch {
+            throw postErr;
+          }
+        } else {
+          throw postErr;
+        }
+      }
+
       const task = normalizeTask(response.data) as Task & { failedUploads?: string[] };
 
       const targetEmail = resolveUserEmail(data.assigned_to);
@@ -581,12 +830,17 @@ export const taskService = {
         }
       }
 
-      // If document attachments were provided during Task Creation, upload and link them immediately
+      // If document attachments were provided during Task Creation, upload and link them immediately as Task Assign Document
       if (files && files.length > 0 && task.name) {
         try {
-          const uploadRes = await this.uploadTaskAttachments(task.name, files, data.project);
+          const uploadRes = await this.uploadTaskAttachments(task.name, files, data.project, 'assignment');
           if (uploadRes.failed && uploadRes.failed.length > 0) {
             task.failedUploads = uploadRes.failed.map((f) => f.fileName);
+          }
+          if (uploadRes.uploaded && uploadRes.uploaded.length > 0) {
+            const firstFile = uploadRes.uploaded[0];
+            task.custom_attach_document = firstFile.file_url;
+            task.task_assign_document = firstFile.file_url;
           }
         } catch (attErr: any) {
           console.warn('[Task Creation Attachments Warning]', attErr);
@@ -617,10 +871,49 @@ export const taskService = {
 
     try {
       // Primary Attempt: Standard ERPNext REST Resource PUT
-      const response = await api.put<{ data: any }>(
-        `/api/resource/Task/${encodeURIComponent(name)}`,
-        payload
-      );
+      let response: any;
+      try {
+        response = await api.put<{ data: any }>(
+          `/api/resource/Task/${encodeURIComponent(name)}`,
+          payload
+        );
+      } catch (putErr: any) {
+        const rawErrMsg = putErr?.response?.data?.exception || putErr?.response?.data?._server_messages || putErr?.message || '';
+        const isDateBoundaryError = typeof rawErrMsg === 'string' && (
+          rawErrMsg.includes('Expected End Date') ||
+          rawErrMsg.includes('Expected Start Date') ||
+          rawErrMsg.includes('InvalidDates')
+        );
+
+        const projId = payload.project || data.project;
+        if (isDateBoundaryError && projId) {
+          try {
+            const projRes = await api.get<{ data: any }>(`/api/resource/Project/${encodeURIComponent(projId)}`);
+            const proj = projRes.data;
+            const projUpdates: Record<string, any> = {};
+            const tStart = payload.exp_start_date ? String(payload.exp_start_date).split(' ')[0] : undefined;
+            const tEnd = (payload.exp_end_date || payload.exp_start_date) ? String(payload.exp_end_date || payload.exp_start_date).split(' ')[0] : undefined;
+
+            if (tEnd && proj.expected_end_date && tEnd > proj.expected_end_date) {
+              projUpdates.expected_end_date = tEnd;
+            }
+            if (tStart && proj.expected_start_date && tStart < proj.expected_start_date) {
+              projUpdates.expected_start_date = tStart;
+            }
+
+            if (Object.keys(projUpdates).length > 0) {
+              await api.put(`/api/resource/Project/${encodeURIComponent(projId)}`, projUpdates);
+              response = await api.put<{ data: any }>(`/api/resource/Task/${encodeURIComponent(name)}`, payload);
+            } else {
+              throw putErr;
+            }
+          } catch {
+            throw putErr;
+          }
+        } else {
+          throw putErr;
+        }
+      }
 
       const targetEmail = resolveUserEmail(data.assigned_to);
       if (targetEmail) {
@@ -767,7 +1060,8 @@ export const taskService = {
   async uploadTaskAttachments(
     taskId: string,
     files: File[],
-    projectId?: string
+    projectId?: string,
+    documentRole: 'assignment' | 'deliverable' | 'general' = 'assignment'
   ): Promise<{ uploaded: TaskAttachment[]; failed: { fileName: string; reason: string }[] }> {
     if (!files || files.length === 0) {
       return { uploaded: [], failed: [] };
@@ -777,6 +1071,7 @@ export const taskService = {
     if (projectId) {
       formData.append('projectId', projectId);
     }
+    formData.append('documentRole', documentRole);
     const documentTypesMap: Record<string, string> = {};
     files.forEach((f: any) => {
       formData.append('files', f);

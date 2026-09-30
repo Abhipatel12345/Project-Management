@@ -36,6 +36,9 @@ import {
   AlertCircle,
   FileSpreadsheet,
   FileCode,
+  Star,
+  ShieldCheck,
+  Tag,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { formatPhaseName, getPhaseBadgeColors } from '@/constants/phases';
@@ -47,8 +50,10 @@ import {
   getDurationDays,
   recalculateSchedule,
   computeTaskRYG,
+  getMilestoneScheduleState,
 } from '@/utils/gantt-scheduling-engine';
-import { exportGanttToExcel, exportGanttToMspXml } from '@/utils/msp-exporter';
+import { isMandatoryKgdTask } from '@/services/gate-readiness.service';
+import { exportGanttToExcel, exportGanttToMspXml, exportDevelopmentTimePlan } from '@/utils/msp-exporter';
 import { MspImportTask } from '@/utils/msp-importer';
 import { CreateCustomTaskDialog } from './dialogs/create-custom-task-dialog';
 import { CreateCustomMilestoneDialog } from './dialogs/create-custom-milestone-dialog';
@@ -67,7 +72,7 @@ interface GanttChartViewProps {
   onViewTask: (task: Task) => void;
   onDateChange: (task: Task, newStart: string, newEnd: string) => Promise<void>;
   onCreateCustomTask?: (taskData: Partial<Task>, files?: File[]) => Promise<void>;
-  onCreateCustomMilestone?: (milestoneData: Partial<Task>) => Promise<void>;
+  onCreateCustomMilestone?: (milestoneData: Partial<Task>, files?: File[]) => Promise<void>;
   onDeleteTask?: (task: Task) => Promise<void>;
   onRetimeTask?: (task: Task, retimedToGate: string, newStart: string, newEnd: string, reason: string) => Promise<void>;
   onImportTasks?: (tasks: MspImportTask[]) => Promise<void>;
@@ -128,6 +133,9 @@ export function GanttChartView({
   const [roleFilter, setRoleFilter] = useState('ALL');
   const [ownerFilter, setOwnerFilter] = useState('ALL');
   const [phaseFilter, setPhaseFilter] = useState('ALL');
+  const [gateFilter, setGateFilter] = useState('ALL');
+  const [typeFilter, setTypeFilter] = useState<'ALL' | 'TASKS' | 'MILESTONES' | 'CUSTOMER_MILESTONES'>('ALL');
+  const [showGateReviewOnly, setShowGateReviewOnly] = useState(false);
 
   // WBS Expand/Collapse state
   const [collapsedPhases, setCollapsedPhases] = useState<Set<string>>(new Set());
@@ -135,6 +143,7 @@ export function GanttChartView({
   // Dialogs state
   const [isCreateTaskOpen, setIsCreateTaskOpen] = useState(false);
   const [isCreateMilestoneOpen, setIsCreateMilestoneOpen] = useState(false);
+  const [editingMilestone, setEditingMilestone] = useState<Task | null>(null);
   const [retimingTask, setRetimingTask] = useState<Task | null>(null);
   const [isImportOpen, setIsImportOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
@@ -270,7 +279,7 @@ export function GanttChartView({
 
     return gates
       .map((g) => {
-        const dStr = g.target_date || g.actual_date;
+        const dStr = g.target_date || g.planned_date || g.actual_date;
         if (!dStr) return null;
         const gTime = parseDate(dStr).getTime();
         if (gTime < firstColDate || gTime > lastColDate + 86400000) return null;
@@ -284,13 +293,57 @@ export function GanttChartView({
       .filter(Boolean) as { gateName: string; date: string; leftPct: number }[];
   }, [timelineColumns, gates]);
 
-  // Filter Tasks
+  // Filter Tasks with Strict Project Isolation & Distinct Types
   const filteredTasks = useMemo(() => {
     let result = [...tasks];
+
+    // Strict Project Isolation: ensure only tasks/milestones for this project are included
+    if (activeProjectId && activeProjectId !== 'ALL') {
+      result = result.filter((t) => !t.project || t.project === activeProjectId);
+    }
 
     // Critical Path only
     if (showCriticalPathOnly) {
       result = result.filter((t) => scheduleCalc.criticalPathTaskIds.has(t.name));
+    }
+
+    // Gate Review Filter (Show All Gate Review: gate-linked tasks, gate milestones, KGDs)
+    if (showGateReviewOnly) {
+      result = result.filter(
+        (t) =>
+          Boolean(t.gate) ||
+          Boolean(t.custom_gate) ||
+          Boolean(t.linked_gate) ||
+          t.milestone_type === 'Gate Milestone' ||
+          isMandatoryKgdTask(t) ||
+          Boolean(t.is_kgd)
+      );
+    }
+
+    // Three Distinct Types Filter
+    if (typeFilter === 'TASKS') {
+      result = result.filter((t) => !t.is_milestone);
+    } else if (typeFilter === 'MILESTONES') {
+      result = result.filter((t) => t.is_milestone);
+    } else if (typeFilter === 'CUSTOMER_MILESTONES') {
+      result = result.filter(
+        (t) =>
+          t.is_milestone &&
+          (t.is_customer_milestone ||
+            t.milestone_type === 'Customer Milestone' ||
+            t.custom_is_customer_milestone === 1)
+      );
+    }
+
+    // Gate Filter
+    if (gateFilter !== 'ALL') {
+      result = result.filter(
+        (t) =>
+          t.gate === gateFilter ||
+          t.custom_gate === gateFilter ||
+          t.linked_gate === gateFilter ||
+          t.custom_retimed_to === gateFilter
+      );
     }
 
     // Search query
@@ -300,7 +353,8 @@ export function GanttChartView({
         (t) =>
           t.subject.toLowerCase().includes(q) ||
           t.name.toLowerCase().includes(q) ||
-          (t.wbs && t.wbs.toLowerCase().includes(q))
+          (t.wbs && t.wbs.toLowerCase().includes(q)) ||
+          (t.milestone_type && t.milestone_type.toLowerCase().includes(q))
       );
     }
 
@@ -335,13 +389,17 @@ export function GanttChartView({
 
     // Phase filter
     if (phaseFilter !== 'ALL') {
-      result = result.filter((t) => t.phase === phaseFilter || t.gate === phaseFilter);
+      result = result.filter((t) => t.phase === phaseFilter);
     }
 
     return result;
   }, [
     tasks,
+    activeProjectId,
     showCriticalPathOnly,
+    showGateReviewOnly,
+    typeFilter,
+    gateFilter,
     scheduleCalc.criticalPathTaskIds,
     searchQuery,
     statusFilter,
@@ -363,6 +421,29 @@ export function GanttChartView({
     });
     return Array.from(map.entries());
   }, [filteredTasks]);
+
+  // Gate Review and Milestone summary counts
+  const gateReviewCount = useMemo(() => {
+    return tasks.filter(
+      (t) =>
+        Boolean(t.gate) ||
+        Boolean(t.custom_gate) ||
+        Boolean(t.linked_gate) ||
+        t.milestone_type === 'Gate Milestone' ||
+        isMandatoryKgdTask(t) ||
+        Boolean(t.is_kgd)
+    ).length;
+  }, [tasks]);
+
+  const customerMilestoneCount = useMemo(() => {
+    return tasks.filter(
+      (t) =>
+        t.is_milestone &&
+        (t.is_customer_milestone ||
+          t.milestone_type === 'Customer Milestone' ||
+          t.custom_is_customer_milestone === 1)
+    ).length;
+  }, [tasks]);
 
   // WBS Expand/Collapse handlers
   const togglePhaseCollapse = (phase: string) => {
@@ -386,7 +467,10 @@ export function GanttChartView({
     setRoleFilter('ALL');
     setOwnerFilter('ALL');
     setPhaseFilter('ALL');
+    setGateFilter('ALL');
+    setTypeFilter('ALL');
     setShowCriticalPathOnly(false);
+    setShowGateReviewOnly(false);
   };
 
   const hasActiveFilters =
@@ -397,7 +481,10 @@ export function GanttChartView({
     roleFilter !== 'ALL' ||
     ownerFilter !== 'ALL' ||
     phaseFilter !== 'ALL' ||
-    showCriticalPathOnly;
+    gateFilter !== 'ALL' ||
+    typeFilter !== 'ALL' ||
+    showCriticalPathOnly ||
+    showGateReviewOnly;
 
   // Timeline Navigation Handlers
   const handlePrev = () => {
@@ -501,6 +588,29 @@ export function GanttChartView({
               </span>
             </button>
 
+            {/* Show All Gate Review Toggle */}
+            <button
+              onClick={() => setShowGateReviewOnly(!showGateReviewOnly)}
+              className={`flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold border transition cursor-pointer ${
+                showGateReviewOnly
+                  ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
+                  : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100'
+              }`}
+              title="Show all Gate-linked tasks, gate milestones, and KGD deliverables"
+            >
+              <ShieldCheck className={`h-3.5 w-3.5 ${showGateReviewOnly ? 'text-white' : 'text-purple-600'}`} />
+              <span>{showGateReviewOnly ? 'Gate Review (Active)' : 'Show All Gate Review'}</span>
+              <span
+                className={`ml-1 px-1.5 py-0.2 rounded-md text-[10px] font-black border ${
+                  showGateReviewOnly
+                    ? 'bg-purple-700 border-purple-500 text-white'
+                    : 'bg-white border-purple-200 text-purple-700'
+                }`}
+              >
+                {gateReviewCount}
+              </span>
+            </button>
+
             {/* Expand / Collapse All */}
             <button
               onClick={collapsedPhases.size > 0 ? expandAllPhases : collapseAllPhases}
@@ -561,11 +671,14 @@ export function GanttChartView({
             {/* Add Custom Milestone Trigger */}
             {onCreateCustomMilestone && (
               <button
-                onClick={() => setIsCreateMilestoneOpen(true)}
+                onClick={() => {
+                  setEditingMilestone(null);
+                  setIsCreateMilestoneOpen(true);
+                }}
                 className="flex items-center gap-1 px-3 py-2 rounded-xl bg-amber-500 hover:bg-amber-400 text-white font-bold text-xs transition cursor-pointer shadow-xs"
               >
                 <Sparkles className="h-3.5 w-3.5" />
-                <span>Milestone</span>
+                <span>Add Milestone</span>
               </button>
             )}
 
@@ -593,7 +706,20 @@ export function GanttChartView({
               </button>
 
               {isExportMenuOpen && (
-                <div className="absolute right-0 mt-1 w-44 rounded-xl bg-white border border-slate-200 shadow-xl py-1 z-30 animate-in fade-in zoom-in duration-100">
+                <div className="absolute right-0 mt-1 w-60 rounded-xl bg-white border border-slate-200 shadow-xl py-1 z-30 animate-in fade-in zoom-in duration-100">
+                  <button
+                    onClick={() => {
+                      exportDevelopmentTimePlan(activeProjectName, activeProjectId, tasks, projectDependencies, gates);
+                      setIsExportMenuOpen(false);
+                    }}
+                    className="w-full text-left px-3.5 py-2.5 text-xs font-bold text-slate-800 hover:bg-purple-50 hover:text-purple-700 flex items-center gap-2 cursor-pointer border-b border-slate-100"
+                  >
+                    <Layers className="h-4 w-4 text-purple-600" />
+                    <div>
+                      <div>Development Time Plan</div>
+                      <div className="text-[10px] font-normal text-slate-400">Visual Time Plan & Milestones (PDF)</div>
+                    </div>
+                  </button>
                   <button
                     onClick={() => {
                       exportGanttToExcel(activeProjectName, activeProjectId, tasks, projectDependencies);
@@ -671,18 +797,45 @@ export function GanttChartView({
         )}
 
         {/* Multi-Filter Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-7 gap-2.5 border-t border-slate-100 pt-3 text-xs">
+        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 border-t border-slate-100 pt-3 text-xs">
           {/* Search */}
-          <div className="relative col-span-2 sm:col-span-1">
+          <div className="relative col-span-2 sm:col-span-2 lg:col-span-1">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search tasks or WBS..."
-              className="w-full pl-8 pr-3 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-sky-500"
+              placeholder="Search..."
+              className="w-full pl-8 pr-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-sky-500"
             />
           </div>
+
+          {/* Type Filter */}
+          <select
+            value={typeFilter}
+            onChange={(e) => setTypeFilter(e.target.value as any)}
+            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer"
+          >
+            <option value="ALL">Type: All</option>
+            <option value="TASKS">Normal Tasks</option>
+            <option value="MILESTONES">All Milestones</option>
+            <option value="CUSTOMER_MILESTONES">Customer MS ({customerMilestoneCount})</option>
+          </select>
+
+          {/* Gate Filter */}
+          <select
+            value={gateFilter}
+            onChange={(e) => setGateFilter(e.target.value)}
+            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer truncate"
+          >
+            <option value="ALL">Gate: All</option>
+            <option value="1. PL">1. PL</option>
+            <option value="2. VC">2. VC</option>
+            <option value="3. TKO">3. TKO</option>
+            <option value="4. VL">4. VL</option>
+            <option value="5. CPA">5. CPA</option>
+            <option value="6. CT">6. CT</option>
+          </select>
 
           {/* Function Filter */}
           <select
@@ -712,7 +865,7 @@ export function GanttChartView({
           <select
             value={ownerFilter}
             onChange={(e) => setOwnerFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer truncate"
           >
             <option value="ALL">Owner: All</option>
             {teamMembers.map((m) => (
@@ -722,24 +875,18 @@ export function GanttChartView({
             ))}
           </select>
 
-          {/* Phase / Gate Filter */}
+          {/* Phase Filter */}
           <select
             value={phaseFilter}
             onChange={(e) => setPhaseFilter(e.target.value)}
             className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer truncate"
           >
-            <option value="ALL">Phase/Gate: All</option>
+            <option value="ALL">Phase: All</option>
             <option value="Phase 1: Concept & Planning">Phase 1</option>
             <option value="Phase 2: Product Design & Development">Phase 2</option>
             <option value="Phase 3: Process Design & Development">Phase 3</option>
             <option value="Phase 4: Validation & Launch">Phase 4</option>
             <option value="Phase 5: Production & Feedback">Phase 5</option>
-            <option value="1. PL">Gate 1. PL</option>
-            <option value="2. VC">Gate 2. VC</option>
-            <option value="3. TKO">Gate 3. TKO</option>
-            <option value="4. VL">Gate 4. VL</option>
-            <option value="5. CPA">Gate 5. CPA</option>
-            <option value="6. CT">Gate 6. CT</option>
           </select>
 
           {/* Status Filter */}
@@ -825,20 +972,35 @@ export function GanttChartView({
                           </td>
                         </tr>
 
-                        {/* Individual Task Rows */}
+                        {/* Individual Task / Milestone Rows */}
                         {!isCollapsed &&
                           phaseTasks.map((t, idx) => {
                             const isCritical = scheduleCalc.criticalPathTaskIds.has(t.name);
                             const ryg = scheduleCalc.rygStatus.get(t.name) || 'Green';
-                            const isMilestone = t.is_milestone;
+                            const isMilestone = Boolean(t.is_milestone);
+                            const isCustomerMilestone =
+                              isMilestone &&
+                              (Boolean(t.is_customer_milestone) ||
+                                t.milestone_type === 'Customer Milestone' ||
+                                t.custom_is_customer_milestone === 1);
+                            const milestoneSchedState = isMilestone ? getMilestoneScheduleState(t) : null;
                             const isSkipped = t.status === 'Skipped';
                             const isMandatory = t.is_mandatory_pdp;
+                            const isKgd = Boolean(t.is_kgd) || isMandatoryKgdTask(t);
 
                             return (
                               <tr
                                 key={t.name}
                                 className={`hover:bg-slate-50/80 transition h-14 ${
-                                  isSkipped ? 'bg-purple-50/30' : isCritical ? 'bg-rose-50/20' : ''
+                                  isSkipped
+                                    ? 'bg-purple-50/30'
+                                    : isCustomerMilestone
+                                    ? 'bg-purple-50/20'
+                                    : isMilestone
+                                    ? 'bg-amber-50/20'
+                                    : isCritical
+                                    ? 'bg-rose-50/20'
+                                    : ''
                                 }`}
                               >
                                 {/* WBS */}
@@ -847,30 +1009,58 @@ export function GanttChartView({
                                 </td>
 
                                 {/* Task Name & ID */}
-                                <td className="py-2 px-3 max-w-[190px]">
+                                <td className="py-2 px-3 max-w-[210px]">
                                   <div className="flex items-center gap-1.5">
                                     {isCritical && (
-                                      <span title="Critical Path Task">
+                                      <span title="Critical Path (Calculated from dependencies)">
                                         <Flame className="h-3.5 w-3.5 text-rose-500 shrink-0" />
                                       </span>
                                     )}
-                                    {isMilestone && (
-                                      <span title="Project Milestone" className="text-amber-500 font-bold text-sm shrink-0">
+                                    {isCustomerMilestone ? (
+                                      <span
+                                        title="Customer Milestone"
+                                        className="flex items-center justify-center h-4 w-4 rounded-full bg-purple-100 text-purple-700 border border-purple-300 shrink-0 shadow-2xs"
+                                      >
+                                        <Star className="h-2.5 w-2.5 fill-purple-600 text-purple-600" />
+                                      </span>
+                                    ) : isMilestone ? (
+                                      <span
+                                        title={`Project Milestone (${t.milestone_type || 'Internal'})`}
+                                        className="text-amber-500 font-black text-sm shrink-0"
+                                      >
                                         ◆
                                       </span>
-                                    )}
+                                    ) : null}
                                     <div className="min-w-0">
                                       <div
-                                        className={`font-bold truncate text-[11px] ${
+                                        className={`font-bold truncate text-[11px] flex items-center gap-1 ${
                                           isSkipped ? 'line-through text-purple-900' : 'text-slate-900'
                                         }`}
                                         title={t.subject}
                                       >
-                                        {t.subject}
+                                        <span className="truncate">{t.subject}</span>
                                       </div>
-                                      <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1">
+                                      <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1 flex-wrap">
                                         <span>{t.name}</span>
-                                        {t.is_custom && (
+                                        {isCustomerMilestone && (
+                                          <span className="px-1 py-0.2 rounded bg-purple-100 text-purple-800 text-[8px] font-black border border-purple-200">
+                                            Customer MS
+                                          </span>
+                                        )}
+                                        {!isCustomerMilestone && isMilestone && t.milestone_type && (
+                                          <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-800 text-[8px] font-bold border border-amber-200">
+                                            {t.milestone_type}
+                                          </span>
+                                        )}
+                                        {isKgd && (
+                                          <span
+                                            className="px-1 py-0.2 rounded bg-indigo-100 text-indigo-800 text-[8px] font-black border border-indigo-200"
+                                            title="Key Gate Deliverable"
+                                          >
+                                            KGD
+                                          </span>
+                                        )}
+                                        {t.is_custom && !isMilestone && (
                                           <span className="px-1 py-0.2 rounded bg-sky-50 text-sky-700 text-[8px] font-bold border border-sky-200">
                                             Custom
                                           </span>
@@ -882,7 +1072,7 @@ export function GanttChartView({
 
                                 {/* Owner / Assignee */}
                                 <td className="py-2 px-2 max-w-[100px] truncate text-[11px] font-semibold text-slate-800">
-                                  {t.assigned_employee_name || t.assigned_to || 'Unassigned'}
+                                  {t.assigned_employee_name || t.assigned_to || (isMilestone ? 'Project Event' : 'Unassigned')}
                                 </td>
 
                                 {/* Function & Role */}
@@ -891,20 +1081,44 @@ export function GanttChartView({
                                     <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 text-[9px] font-bold">
                                       {t.function_name || t.custom_function || '-'}
                                     </span>
-                                    {t.gate && (
-                                      <span className="text-[9px] font-mono text-slate-400">{t.gate}</span>
+                                    {(t.gate || t.linked_gate) && (
+                                      <span className="text-[9px] font-mono text-purple-700 font-bold">
+                                        {t.linked_gate || t.gate}
+                                      </span>
                                     )}
                                   </div>
                                 </td>
 
-                                {/* Status */}
+                                {/* Status & Delay State */}
                                 <td className="py-2 px-2 text-center">
-                                  <TaskStatusBadge status={t.status} />
+                                  <div className="flex flex-col items-center gap-0.5">
+                                    <TaskStatusBadge status={t.status} />
+                                    {isMilestone && milestoneSchedState && (
+                                      <>
+                                        {milestoneSchedState.isDelayed && (
+                                          <span className="px-1 py-0.2 rounded bg-rose-100 text-rose-700 text-[8px] font-black border border-rose-200">
+                                            +{milestoneSchedState.delayDays}d Delay
+                                          </span>
+                                        )}
+                                        {milestoneSchedState.isOnTime && t.status === 'Completed' && (
+                                          <span className="px-1 py-0.2 rounded bg-emerald-100 text-emerald-700 text-[8px] font-bold">
+                                            On-Time
+                                          </span>
+                                        )}
+                                      </>
+                                    )}
+                                  </div>
                                 </td>
 
                                 {/* Progress */}
                                 <td className="py-2 px-2 text-center">
-                                  <span className="font-mono font-black text-slate-900">{t.progress || 0}%</span>
+                                  {isMilestone ? (
+                                    <span className="font-mono text-[10px] font-bold text-slate-400">
+                                      {t.status === 'Completed' ? '100%' : '0%'}
+                                    </span>
+                                  ) : (
+                                    <span className="font-mono font-black text-slate-900">{t.progress || 0}%</span>
+                                  )}
                                 </td>
 
                                 {/* RYG Indicator */}
@@ -925,7 +1139,7 @@ export function GanttChartView({
                                 <td className="py-2 px-3 text-right">
                                   <div className="flex items-center justify-end gap-1">
                                     {/* Skip Task */}
-                                    {onSkipTask && !isSkipped && t.status !== 'Completed' && (
+                                    {onSkipTask && !isSkipped && t.status !== 'Completed' && !isMilestone && (
                                       <button
                                         onClick={() => onSkipTask(t)}
                                         className="p-1 rounded text-slate-400 hover:text-purple-600 hover:bg-purple-50 transition cursor-pointer"
@@ -957,20 +1171,27 @@ export function GanttChartView({
 
                                     {/* Edit */}
                                     <button
-                                      onClick={() => onEditTask(t)}
+                                      onClick={() => {
+                                        if (isMilestone && onCreateCustomMilestone) {
+                                          setEditingMilestone(t);
+                                          setIsCreateMilestoneOpen(true);
+                                        } else {
+                                          onEditTask(t);
+                                        }
+                                      }}
                                       className="p-1 rounded text-slate-400 hover:text-blue-600 hover:bg-blue-50 transition cursor-pointer"
-                                      title="Edit Task"
+                                      title={isMilestone ? 'Edit Milestone' : 'Edit Task'}
                                     >
                                       <Edit2 className="h-3.5 w-3.5" />
                                     </button>
 
                                     {/* Delete: Only Custom Tasks/Milestones; Mandatory PDP Protected */}
                                     {onDeleteTask && (
-                                      t.is_custom ? (
+                                      t.is_custom || isMilestone ? (
                                         <button
                                           onClick={() => onDeleteTask(t)}
                                           className="p-1 rounded text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition cursor-pointer"
-                                          title="Delete Custom Task"
+                                          title={isMilestone ? 'Delete Milestone' : 'Delete Custom Task'}
                                         >
                                           <Trash2 className="h-3.5 w-3.5" />
                                         </button>
@@ -1058,7 +1279,13 @@ export function GanttChartView({
                         const barSpan = getTaskBarSpan(t.exp_start_date, t.exp_end_date);
                         const isCritical = scheduleCalc.criticalPathTaskIds.has(t.name);
                         const isSkipped = t.status === 'Skipped';
-                        const isMilestone = t.is_milestone;
+                        const isMilestone = Boolean(t.is_milestone);
+                        const isCustomerMilestone =
+                          isMilestone &&
+                          (Boolean(t.is_customer_milestone) ||
+                            t.milestone_type === 'Customer Milestone' ||
+                            t.custom_is_customer_milestone === 1);
+                        const milestoneSchedState = isMilestone ? getMilestoneScheduleState(t) : null;
                         const ryg = scheduleCalc.rygStatus.get(t.name) || 'Green';
 
                         const taskPreds = projectDependencies.filter((d: TaskRelationship) => d.successor_id === t.name);
@@ -1096,17 +1323,62 @@ export function GanttChartView({
                             {/* Milestone Marker (Diamond ◆) vs Task Bar */}
                             {isMilestone ? (
                               <div
-                                className="relative flex items-center z-10 cursor-pointer"
+                                className="relative flex items-center z-10 cursor-pointer group"
                                 style={{ left: barSpan.left }}
-                                onClick={() => onEditTask(t)}
-                                title={`Milestone: ${t.subject} (${t.exp_start_date})`}
+                                onClick={() => {
+                                  if (onCreateCustomMilestone) {
+                                    setEditingMilestone(t);
+                                    setIsCreateMilestoneOpen(true);
+                                  } else {
+                                    onEditTask(t);
+                                  }
+                                }}
+                                title={`Milestone: ${t.subject}\nType: ${t.milestone_type || 'Milestone'}\nPlanned: ${t.planned_date || t.exp_start_date || 'N/A'}\nActual: ${t.actual_date || t.act_end_date || 'N/A'}\nStatus: ${t.status}${milestoneSchedState?.isDelayed ? ` (Delayed by ${milestoneSchedState.delayDays}d)` : ''}`}
                               >
-                                <div className="h-5 w-5 rotate-45 bg-amber-500 border-2 border-amber-600 shadow-md flex items-center justify-center">
-                                  <div className="h-1.5 w-1.5 bg-white rounded-full" />
-                                </div>
-                                <span className="ml-2 text-[10px] font-black text-amber-900 truncate max-w-[120px] bg-white/80 px-1 rounded">
-                                  {t.subject}
-                                </span>
+                                {isCustomerMilestone ? (
+                                  /* Customer Milestone: Purple/Indigo Diamond with Star */
+                                  <div className="relative flex items-center">
+                                    <div className="h-6 w-6 rotate-45 bg-gradient-to-br from-purple-600 to-indigo-700 border-2 border-white ring-2 ring-purple-500 shadow-md flex items-center justify-center transition-transform group-hover:scale-110">
+                                      <Star className="h-3 w-3 text-amber-300 fill-amber-300 -rotate-45" />
+                                    </div>
+                                    <div className="ml-2 flex items-center gap-1.5 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-md border border-purple-200 shadow-2xs">
+                                      <span className="text-[10px] font-black text-purple-900 truncate max-w-[130px]">
+                                        {t.subject}
+                                      </span>
+                                      {milestoneSchedState?.isDelayed ? (
+                                        <span className="px-1 py-0.2 rounded bg-rose-100 text-rose-700 text-[8px] font-black">
+                                          +{milestoneSchedState.delayDays}d Delay
+                                        </span>
+                                      ) : t.status === 'Completed' ? (
+                                        <span className="px-1 py-0.2 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">
+                                          Done
+                                        </span>
+                                      ) : null}
+                                    </div>
+                                  </div>
+                                ) : (
+                                  /* Standard Milestone: Amber Diamond */
+                                  <div className="relative flex items-center">
+                                    <div className="h-5 w-5 rotate-45 bg-amber-500 border-2 border-white ring-2 ring-amber-400 shadow-md flex items-center justify-center transition-transform group-hover:scale-110">
+                                      <div className="h-1.5 w-1.5 bg-white rounded-full" />
+                                    </div>
+                                    <div className="ml-2 flex items-center gap-1 bg-white/90 backdrop-blur-xs px-1.5 py-0.5 rounded-md border border-amber-200 shadow-2xs">
+                                      <span className="text-[10px] font-black text-amber-950 truncate max-w-[120px]">
+                                        {t.subject}
+                                      </span>
+                                      {t.milestone_type && t.milestone_type !== 'Internal Milestone' && (
+                                        <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-800 text-[8px] font-bold">
+                                          {t.milestone_type}
+                                        </span>
+                                      )}
+                                      {milestoneSchedState?.isDelayed && (
+                                        <span className="px-1 py-0.2 rounded bg-rose-100 text-rose-700 text-[8px] font-black">
+                                          +{milestoneSchedState.delayDays}d
+                                        </span>
+                                      )}
+                                    </div>
+                                  </div>
+                                )}
                               </div>
                             ) : (
                               /* Standard Task Bar with Drag Handles */
@@ -1203,9 +1475,19 @@ export function GanttChartView({
       {isCreateMilestoneOpen && onCreateCustomMilestone && (
         <CreateCustomMilestoneDialog
           isOpen={isCreateMilestoneOpen}
-          onClose={() => setIsCreateMilestoneOpen(false)}
+          onClose={() => {
+            setIsCreateMilestoneOpen(false);
+            setEditingMilestone(null);
+          }}
           projectId={activeProjectId}
-          onSubmit={onCreateCustomMilestone}
+          initialData={editingMilestone}
+          existingTasks={tasks}
+          gates={gates}
+          onSubmit={async (milestoneData, files) => {
+            await onCreateCustomMilestone(milestoneData, files);
+            setIsCreateMilestoneOpen(false);
+            setEditingMilestone(null);
+          }}
         />
       )}
 

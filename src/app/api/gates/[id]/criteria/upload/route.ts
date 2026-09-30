@@ -2,22 +2,12 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getGateByName, saveOrUpdateGate } from '@/lib/server/gate-store';
 import { saveAuditRecord } from '@/lib/server/audit-store';
 import { uploadDocumentFile } from '@/lib/server/file-storage';
+import { getSessionFromRequest } from '@/lib/server/session';
 import { PDMUserSession } from '@/types/auth.types';
 import { GateCriterion, CriterionStatus } from '@/types/gate.types';
 import { getAccessibleProjectIdsForTeamMember } from '@/lib/server/rbac-scoping';
 
 export const dynamic = 'force-dynamic';
-
-function getSessionFromRequest(req: NextRequest): PDMUserSession | null {
-  try {
-    const cookie = req.cookies.get('pdm_session')?.value;
-    if (!cookie) return null;
-    const jsonStr = Buffer.from(cookie, 'base64').toString('utf-8');
-    return JSON.parse(jsonStr);
-  } catch {
-    return null;
-  }
-}
 
 export async function POST(
   req: NextRequest,
