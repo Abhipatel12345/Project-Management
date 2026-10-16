@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useProjects, useProject } from '@/hooks/use-projects';
@@ -29,17 +29,23 @@ export default function ProjectTimingStatusPage() {
   const projectParam = searchParams.get('project');
 
   const { data, isLoading } = useProjects({ page: 1, pageSize: 200 });
-  const projects = data?.projects || [];
+  const projects = useMemo(() => data?.projects || [], [data?.projects]);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projectParam);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Synchronize selected project with URL query parameter
+  // Synchronize selected project with URL query parameter & handle deleted/stale project
   useEffect(() => {
     if (projectParam) {
-      setSelectedProjectId(projectParam);
+      if (!isLoading && projects.length > 0 && !projects.some((p: Project) => p.name === projectParam)) {
+        // Project was deleted or does not exist: clear stale identifier and redirect to overview
+        setSelectedProjectId(null);
+        router.replace('/projects/timing-status');
+      } else {
+        setSelectedProjectId(projectParam);
+      }
     }
-  }, [projectParam]);
+  }, [projectParam, projects, isLoading, router]);
 
   // Fetch complete details of selected project
   const { data: selectedProject, refetch: refetchProject } = useProject(selectedProjectId || '');

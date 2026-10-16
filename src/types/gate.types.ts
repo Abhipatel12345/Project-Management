@@ -54,6 +54,7 @@ export interface GateCriterion {
   is_required: boolean;
   status: CriterionStatus;
   responsible_person?: string;
+  responsible_user_id?: string;
   due_date?: string;
   comments?: string;
   approved_by?: string;
@@ -162,6 +163,8 @@ export interface Gate {
   approval_status: GateApprovalStatus;
   completion_percentage: number;
   readiness_percentage: number;
+  is_locked?: boolean;
+  gate_locked?: number | boolean;
   completed_criteria_count?: number;
   total_criteria_count?: number;
   completed_deliverables_count?: number;

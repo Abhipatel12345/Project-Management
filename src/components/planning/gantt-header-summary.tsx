@@ -14,6 +14,7 @@ import {
   ChevronDown,
   BookmarkPlus,
   Bookmark,
+  TrendingUp,
 } from 'lucide-react';
 
 interface GanttHeaderSummaryProps {
@@ -48,9 +49,9 @@ export function GanttHeaderSummary({
   activeBaselineName,
 }: GanttHeaderSummaryProps) {
   return (
-    <div className="space-y-4 font-sans">
+    <div className="space-y-4 font-sans pt-1">
       {/* Top Banner & Project Selector */}
-      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-6 rounded-3xl border border-slate-200 shadow-xs">
+      <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-4 bg-white p-5 sm:p-6 rounded-3xl border border-slate-200 shadow-xs">
         <div className="space-y-1">
           <div className="flex items-center gap-2">
             <span className="px-2.5 py-0.5 rounded-md bg-sky-50 text-sky-700 text-[10px] font-black uppercase tracking-wider border border-sky-200">
@@ -119,51 +120,54 @@ export function GanttHeaderSummary({
           </div>
         </div>
 
-        {/* Dynamic Metric Cards */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 text-center">
-          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1">
-            <div className="text-[10px] text-slate-500 font-bold uppercase flex items-center justify-center gap-1">
-              <Layers className="h-3 w-3 text-slate-400" />
-              Total Tasks
+        {/* Dynamic Metric Cards - Fully visible without clipping, responsive wrapping */}
+        <div className="grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 gap-3 text-center">
+          <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col items-center justify-center min-h-[76px] transition hover:border-slate-300">
+            <div className="text-[10px] text-slate-500 font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 whitespace-nowrap">
+              <Layers className="h-3.5 w-3.5 text-slate-400 shrink-0" />
+              <span>Total Tasks</span>
             </div>
-            <div className="text-xl font-black text-slate-900">{totalTasks}</div>
+            <div className="text-2xl font-black text-slate-900 tracking-tight mt-1">{totalTasks}</div>
           </div>
 
-          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1">
-            <div className="text-[10px] text-emerald-700 font-bold uppercase flex items-center justify-center gap-1">
-              <CheckCircle2 className="h-3 w-3 text-emerald-500" />
-              Completed
+          <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col items-center justify-center min-h-[76px] transition hover:border-emerald-300">
+            <div className="text-[10px] text-emerald-700 font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 whitespace-nowrap">
+              <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 shrink-0" />
+              <span>Completed</span>
             </div>
-            <div className="text-xl font-black text-emerald-600">{completedTasks}</div>
+            <div className="text-2xl font-black text-emerald-600 tracking-tight mt-1">{completedTasks}</div>
           </div>
 
-          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1">
-            <div className="text-[10px] text-blue-700 font-bold uppercase flex items-center justify-center gap-1">
-              <Activity className="h-3 w-3 text-blue-500" />
-              In Progress
+          <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col items-center justify-center min-h-[76px] transition hover:border-blue-300">
+            <div className="text-[10px] text-blue-700 font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 whitespace-nowrap">
+              <Activity className="h-3.5 w-3.5 text-blue-500 shrink-0" />
+              <span>In Progress</span>
             </div>
-            <div className="text-xl font-black text-blue-600">{inProgressTasks}</div>
+            <div className="text-2xl font-black text-blue-600 tracking-tight mt-1">{inProgressTasks}</div>
           </div>
 
-          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1">
-            <div className="text-[10px] text-rose-700 font-bold uppercase flex items-center justify-center gap-1">
-              <AlertTriangle className="h-3 w-3 text-rose-500" />
-              Overdue
+          <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col items-center justify-center min-h-[76px] transition hover:border-rose-300">
+            <div className="text-[10px] text-rose-700 font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 whitespace-nowrap">
+              <AlertTriangle className="h-3.5 w-3.5 text-rose-500 shrink-0" />
+              <span>Overdue</span>
             </div>
-            <div className="text-xl font-black text-rose-600">{overdueTasks}</div>
+            <div className="text-2xl font-black text-rose-600 tracking-tight mt-1">{overdueTasks}</div>
           </div>
 
-          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1">
-            <div className="text-[10px] text-amber-700 font-bold uppercase flex items-center justify-center gap-1">
-              <Clock className="h-3 w-3 text-amber-500" />
-              Upcoming
+          <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col items-center justify-center min-h-[76px] transition hover:border-amber-300">
+            <div className="text-[10px] text-amber-700 font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 whitespace-nowrap">
+              <Clock className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+              <span>Upcoming</span>
             </div>
-            <div className="text-xl font-black text-amber-600">{upcomingTasks}</div>
+            <div className="text-2xl font-black text-amber-600 tracking-tight mt-1">{upcomingTasks}</div>
           </div>
 
-          <div className="p-3 rounded-xl bg-white border border-slate-200 shadow-2xs space-y-1">
-            <div className="text-[10px] text-teal-700 font-bold uppercase">Overall Progress</div>
-            <div className="text-xl font-black text-teal-600">{overallProgress}%</div>
+          <div className="p-3.5 rounded-2xl bg-white border border-slate-200 shadow-2xs flex flex-col items-center justify-center min-h-[76px] transition hover:border-teal-300">
+            <div className="text-[10px] text-teal-700 font-bold uppercase tracking-wider flex items-center justify-center gap-1.5 whitespace-nowrap">
+              <TrendingUp className="h-3.5 w-3.5 text-teal-500 shrink-0" />
+              <span>Overall Progress</span>
+            </div>
+            <div className="text-2xl font-black text-teal-600 tracking-tight mt-1">{overallProgress}%</div>
           </div>
         </div>
       </div>

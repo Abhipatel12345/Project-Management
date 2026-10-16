@@ -3,6 +3,7 @@
 import React, { createContext, useContext, useState, useCallback } from 'react';
 import { AnimatePresence, motion } from 'framer-motion';
 import { CheckCircle2, AlertTriangle, Info, X } from 'lucide-react';
+import { ErpMessageDialog, ErpMessageIndicator } from '@/components/shared/erp-message-dialog';
 
 export type ToastType = 'success' | 'error' | 'info' | 'warning';
 
@@ -12,14 +13,24 @@ export interface ToastMessage {
   type: ToastType;
 }
 
+export interface ErpModalState {
+  isOpen: boolean;
+  message: string;
+  title?: string;
+  indicator?: ErpMessageIndicator;
+}
+
 interface ToastContextType {
   showToast: (message: string, type?: ToastType) => void;
+  showErpMessage: (message: string, title?: string, indicator?: ErpMessageIndicator) => void;
+  hideErpMessage: () => void;
 }
 
 const ToastContext = createContext<ToastContextType | undefined>(undefined);
 
 export function ToastProvider({ children }: { children: React.ReactNode }) {
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  const [erpModal, setErpModal] = useState<ErpModalState | null>(null);
 
   const showToast = useCallback((message: string, type: ToastType = 'info') => {
     const id = Math.random().toString(36).substring(2, 9);
@@ -34,8 +45,19 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
     setToasts((prev) => prev.filter((t) => t.id !== id));
   };
 
+  const showErpMessage = useCallback(
+    (message: string, title: string = 'Message', indicator: ErpMessageIndicator = 'red') => {
+      setErpModal({ isOpen: true, message, title, indicator });
+    },
+    []
+  );
+
+  const hideErpMessage = useCallback(() => {
+    setErpModal(null);
+  }, []);
+
   return (
-    <ToastContext.Provider value={{ showToast }}>
+    <ToastContext.Provider value={{ showToast, showErpMessage, hideErpMessage }}>
       {children}
 
       {/* Floating Toast Notification Container */}
@@ -74,6 +96,17 @@ export function ToastProvider({ children }: { children: React.ReactNode }) {
           ))}
         </AnimatePresence>
       </div>
+
+      {/* Native-style ERPNext Message Popup Dialog */}
+      {erpModal && erpModal.isOpen && (
+        <ErpMessageDialog
+          isOpen={erpModal.isOpen}
+          title={erpModal.title || 'Message'}
+          message={erpModal.message}
+          indicator={erpModal.indicator || 'red'}
+          onClose={hideErpMessage}
+        />
+      )}
     </ToastContext.Provider>
   );
 }
@@ -85,3 +118,4 @@ export function useToast() {
   }
   return context;
 }
+

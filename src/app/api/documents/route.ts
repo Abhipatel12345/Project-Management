@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/server/session';
 import { PDMUserSession } from '@/types/auth.types';
-import { getDocumentsByProject, saveDocument, deleteDocument } from '@/lib/server/document-store';
+import { getDocumentsByProject, saveDocument, updateDocumentItem, deleteDocument } from '@/lib/server/document-store';
 
 export async function GET(req: NextRequest) {
   try {
@@ -64,6 +64,34 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     return NextResponse.json(
       { _error_message: error.message || 'Failed to create document' },
+      { status: 500 }
+    );
+  }
+}
+
+export async function PUT(req: NextRequest) {
+  try {
+    const session = getSessionFromRequest(req);
+    if (!session) {
+      return NextResponse.json(
+        { _error_message: '401 Unauthorized: Session required.' },
+        { status: 401 }
+      );
+    }
+
+    const body = await req.json();
+    if (!body.name) {
+      return NextResponse.json(
+        { _error_message: 'Document name/ID is required for update.' },
+        { status: 400 }
+      );
+    }
+
+    const updated = await updateDocumentItem(body.name, body);
+    return NextResponse.json({ success: true, document: updated });
+  } catch (error: any) {
+    return NextResponse.json(
+      { _error_message: error.message || 'Failed to update document' },
       { status: 500 }
     );
   }

@@ -128,7 +128,7 @@ export async function GET(
         file_size: r.fileSize,
         creation: r.createdAt,
         uploaded_by: r.uploadedByName || r.uploadedBy,
-        document_type: r.documentType || 'Engineering',
+        document_type: r.documentType || (role === 'deliverable' ? 'Design' : 'Specification'),
         document_role: role,
       });
     });

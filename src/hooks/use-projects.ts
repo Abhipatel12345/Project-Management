@@ -23,6 +23,15 @@ export function useProject(name: string) {
     queryKey: PROJECT_KEYS.detail(name),
     queryFn: () => projectService.getProjectByName(name),
     enabled: !!name,
+    staleTime: 1000 * 30, // 30 seconds
+    retry: (failureCount: number, error: any) => {
+      // Do not retry on 404 (Not Found) to avoid repeated requests for missing or deleted projects
+      const status = error?.status || error?.response?.status;
+      if (status === 404) {
+        return false;
+      }
+      return failureCount < 2;
+    },
   });
 }
 
@@ -55,8 +64,11 @@ export function useDeleteProject() {
 
   return useMutation({
     mutationFn: (name: string) => projectService.deleteProject(name),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: PROJECT_KEYS.all });
+    onSuccess: (_data: unknown, deletedName: string) => {
+      // Immediately remove the deleted project query from the cache so it is NEVER refetched
+      queryClient.removeQueries({ queryKey: PROJECT_KEYS.detail(deletedName), exact: true });
+      // Invalidate project lists so directory and project pickers refresh
+      queryClient.invalidateQueries({ queryKey: PROJECT_KEYS.lists() });
     },
   });
 }

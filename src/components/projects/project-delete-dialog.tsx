@@ -10,6 +10,67 @@ interface ProjectDeleteDialogProps {
   onConfirm: () => Promise<void>;
   projectName?: string;
   isLoading?: boolean;
+  errorMessage?: string | null;
+}
+
+/**
+ * Extracts and formats dynamic linked DocType and record ID from ERPNext error response
+ * Produces: "Cannot delete: Project is linked with <DocType> <RecordId>."
+ */
+export function extractProjectDeleteErrorMessage(err: any): string {
+  let raw = '';
+  if (typeof err === 'string') {
+    raw = err;
+  } else if (err) {
+    raw =
+      err?.erpMessage?.message ||
+      err?.erpMessage?.cleanMessage ||
+      err?.message ||
+      '';
+
+    if (!raw && err?.response?.data?._server_messages) {
+      try {
+        const parsed =
+          typeof err.response.data._server_messages === 'string'
+            ? JSON.parse(err.response.data._server_messages)
+            : err.response.data._server_messages;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const item =
+            typeof parsed[0] === 'string' ? JSON.parse(parsed[0]) : parsed[0];
+          raw = item?.message || '';
+        }
+      } catch {
+        // ignore parse error
+      }
+    }
+  }
+
+  // Strip HTML tags and decode basic entities
+  const clean = raw
+    .replace(/<[^>]*>?/gm, ' ')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+  // Match 'is linked with <DocType> <RecordId>'
+  const match = clean.match(/is linked with\s+(.+?)(?:\.|\s*$)/i);
+  if (match) {
+    const linkedPart = match[1].trim().replace(/\.+$/, '');
+    return `Cannot delete: Project is linked with ${linkedPart}.`;
+  }
+
+  if (clean.toLowerCase().startsWith('cannot delete:')) {
+    return clean.endsWith('.') ? clean : `${clean}.`;
+  }
+
+  if (clean) {
+    const formatted = clean.endsWith('.') ? clean : `${clean}.`;
+    return `Cannot delete: ${formatted}`;
+  }
+
+  return 'Cannot delete: Project is linked to another record.';
 }
 
 export function ProjectDeleteDialog({
@@ -18,8 +79,12 @@ export function ProjectDeleteDialog({
   onConfirm,
   projectName = 'this project',
   isLoading = false,
+  errorMessage = null,
 }: ProjectDeleteDialogProps) {
   if (!isOpen) return null;
+
+  const displayProjectName = projectName ? projectName.trim() : 'this project';
+  const cleanErrorText = errorMessage ? errorMessage.replace(/^🔴\s*/, '') : '';
 
   return (
     <AnimatePresence>
@@ -37,10 +102,22 @@ export function ProjectDeleteDialog({
             <div className="space-y-1">
               <h3 className="text-base font-black text-slate-900">Delete Project Charter?</h3>
               <p className="text-xs text-slate-500 leading-relaxed font-medium">
-                Are you sure you want to delete <span className="font-bold text-slate-900">"{projectName}"</span>? This action will permanently remove the record from ERPNext and cannot be undone.
+                Are you sure you want to delete <span className="font-bold text-slate-900">"{displayProjectName}"</span>? This action will permanently remove the record from ERPNext and cannot be undone.
               </p>
             </div>
           </div>
+
+          {errorMessage && (
+            <div
+              id="project-delete-error"
+              className="flex items-start gap-2 p-3 rounded-xl bg-rose-50 border border-rose-200 text-rose-600 text-xs font-semibold"
+            >
+              <span className="text-rose-600 select-none shrink-0" aria-hidden="true">
+                🔴
+              </span>
+              <span className="break-words leading-relaxed">{cleanErrorText}</span>
+            </div>
+          )}
 
           <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100">
             <button

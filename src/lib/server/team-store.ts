@@ -3,6 +3,7 @@ import path from 'path';
 import { ProjectTeamMember, TeamMemberFormData } from '@/types/team.types';
 import { PDMUserSession } from '@/types/auth.types';
 import { saveAuditRecord } from './audit-store';
+import { updateErpDoc, fetchErpResource } from './erp-client';
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const TEAMS_FILE = path.join(DATA_DIR, 'project-teams.json');
@@ -10,6 +11,44 @@ const TEAMS_FILE = path.join(DATA_DIR, 'project-teams.json');
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
     fs.mkdirSync(DATA_DIR, { recursive: true });
+  }
+}
+
+async function syncTeamToERPNext(projectId: string, members: ProjectTeamMember[]) {
+  try {
+    const validUsers = await fetchErpResource<{ name: string; email: string }>('User', {
+      fields: ['name', 'email'],
+      limit: 1000,
+    });
+    const validUserSet = new Set(
+      validUsers.flatMap((u) => [u.name.toLowerCase(), (u.email || '').toLowerCase()])
+    );
+
+    const updatedUsers = members
+      .filter((m) => validUserSet.has((m.user_email || '').toLowerCase()))
+      .map((m) => {
+        const matched = validUsers.find(
+          (u) =>
+            u.name.toLowerCase() === (m.user_email || '').toLowerCase() ||
+            (u.email || '').toLowerCase() === (m.user_email || '').toLowerCase()
+        );
+        return {
+          user: matched?.name || m.user_email,
+          email: m.user_email,
+          full_name: m.employee_name,
+          custom_role: m.role || '',
+          custom_department: m.department || '',
+          custom_function: m.function_name || '',
+          custom_is_board_member: m.is_board_member ? 1 : 0,
+          welcome_email_sent: 1,
+        };
+      });
+
+    if (updatedUsers.length > 0) {
+      await updateErpDoc('Project', projectId, { users: updatedUsers });
+    }
+  } catch (err: any) {
+    console.warn(`[TeamStore] Failed to sync team to ERPNext for ${projectId}:`, err.message);
   }
 }
 
@@ -66,6 +105,11 @@ export function addProjectTeamMember(
   allTeams[projectId] = [newMember, ...currentMembers];
   saveAllProjectTeams(allTeams);
 
+  // Sync to ERPNext
+  syncTeamToERPNext(projectId, allTeams[projectId]).catch((err) => {
+    console.warn('[TeamStore] Async ERP sync error:', err);
+  });
+
   if (session) {
     saveAuditRecord({
       project_id: projectId,
@@ -105,6 +149,11 @@ export function updateProjectTeamMember(
   allTeams[projectId] = currentMembers;
   saveAllProjectTeams(allTeams);
 
+  // Sync to ERPNext
+  syncTeamToERPNext(projectId, allTeams[projectId]).catch((err) => {
+    console.warn('[TeamStore] Async ERP sync error:', err);
+  });
+
   if (session) {
     saveAuditRecord({
       project_id: projectId,
@@ -131,6 +180,11 @@ export function removeProjectTeamMember(
 
   allTeams[projectId] = currentMembers.filter((m) => m.id !== memberId);
   saveAllProjectTeams(allTeams);
+
+  // Sync to ERPNext
+  syncTeamToERPNext(projectId, allTeams[projectId]).catch((err) => {
+    console.warn('[TeamStore] Async ERP sync error:', err);
+  });
 
   if (session && member) {
     saveAuditRecord({

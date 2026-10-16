@@ -13,6 +13,7 @@ export interface RiskItem {
   risk_resolution_plan?: string;
   owner?: string;
   target_completion_date?: string;
+  target_date?: string;
   actual_completion_date?: string;
 }
 

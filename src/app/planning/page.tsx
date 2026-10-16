@@ -20,15 +20,17 @@ import { ProjectBaseline } from '@/types/baseline.types';
 import { TaskFormValues } from '@/lib/validations/task.schema';
 import { GanttHeaderSummary } from '@/components/planning/gantt-header-summary';
 import { GanttChartView, GanttViewMode } from '@/components/planning/gantt-chart-view';
+import { DevelopmentTimePlanView } from '@/components/planning/development-time-plan-view';
 import { BaselineManagementModal } from '@/components/planning/baselines/baseline-management-modal';
 import { CreateBaselineDialog } from '@/components/planning/baselines/create-baseline-dialog';
 import { BaselineComparisonTable } from '@/components/planning/baselines/baseline-comparison-table';
 import { TaskFormDialog } from '@/components/tasks/task-form-dialog';
 import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
 import { TaskSkipDialog } from '@/components/tasks/task-skip-dialog';
+import { useProjectDependencies } from '@/hooks/use-task-dependencies';
 import { Task } from '@/types/task.types';
 import { Project } from '@/types/project.types';
-import { Loader2 } from 'lucide-react';
+import { Loader2, CalendarDays, Layers, Sparkles, Flame } from 'lucide-react';
 
 import { useSearchParams } from 'next/navigation';
 
@@ -36,6 +38,11 @@ export default function PlanningPage() {
   const { showToast } = useToast();
   const searchParams = useSearchParams();
   const initialProjectParam = searchParams ? searchParams.get('project') : null;
+  const initialViewParam = searchParams ? searchParams.get('view') : null;
+
+  const [activePlanningView, setActivePlanningView] = useState<
+    'gantt' | 'time-plan' | 'timeline' | 'milestones' | 'critical-path'
+  >(initialViewParam === 'time-plan' ? 'time-plan' : 'gantt');
 
   const { data: projectsData, isLoading: isLoadingProjects } = useProjects({ page: 1, pageSize: 500 });
   const projects: Project[] = projectsData?.projects || [];
@@ -64,6 +71,7 @@ export default function PlanningPage() {
   const { data: teamMembers = [] } = useProjectTeam(selectedProjectId);
   const { data: gateListData } = useGates({ project: selectedProjectId, pageSize: 100 });
   const gates = gateListData?.gates || [];
+  const { data: projectDependencies = [] } = useProjectDependencies(selectedProjectId);
 
   // Fetch project-isolated baselines
   const { data: baselines = [], refetch: refetchBaselines } = useProjectBaselines(selectedProjectId);
@@ -440,7 +448,78 @@ export default function PlanningPage() {
         activeBaselineName={activeBaseline?.baseline_name}
       />
 
-      {/* Main Gantt Timeline View */}
+      {/* View Switcher Tabs */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActivePlanningView('gantt')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activePlanningView === 'gantt'
+              ? 'bg-white text-sky-800 shadow-xs border border-slate-200/80 ring-1 ring-black/5'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <CalendarDays className="h-4 w-4 text-sky-600" />
+          <span>Detailed Gantt</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePlanningView('time-plan')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+            activePlanningView === 'time-plan'
+              ? 'bg-white text-[#007791] shadow-xs border border-sky-200 ring-2 ring-[#00A3C4]/30'
+              : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <span className="w-1.5 h-3.5 bg-[#00A3C4] rounded-full shrink-0" />
+          <span className="italic">Development Time Plan &amp; Customer Milestones</span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-sky-100 text-sky-800 font-extrabold uppercase">
+            Executive
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePlanningView('timeline')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activePlanningView === 'timeline'
+              ? 'bg-white text-sky-800 shadow-xs border border-slate-200/80 ring-1 ring-black/5'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <Layers className="h-4 w-4 text-indigo-600" />
+          <span>Development Timeline</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePlanningView('milestones')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activePlanningView === 'milestones'
+              ? 'bg-white text-sky-800 shadow-xs border border-slate-200/80 ring-1 ring-black/5'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <span>Milestone View</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePlanningView('critical-path')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activePlanningView === 'critical-path'
+              ? 'bg-white text-rose-800 shadow-xs border border-rose-200 ring-1 ring-rose-400/20'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <Flame className="h-4 w-4 text-rose-500" />
+          <span>Critical Path</span>
+        </button>
+      </div>
+
+      {/* Main Timeline View */}
       {isLoadingTasks ? (
         <div className="p-16 text-center bg-white rounded-3xl border border-slate-200 shadow-xs space-y-3">
           <Loader2 className="h-8 w-8 animate-spin text-sky-600 mx-auto" />
@@ -448,6 +527,17 @@ export default function PlanningPage() {
             Fetching project tasks from ERPNext...
           </p>
         </div>
+      ) : activePlanningView === 'time-plan' ? (
+        <DevelopmentTimePlanView
+          projectId={selectedProjectId}
+          projectName={selectedProject?.project_name || selectedProjectId}
+          project={selectedProject}
+          tasks={tasks}
+          dependencies={projectDependencies}
+          gates={gates}
+          onViewTask={(t: Task) => setViewingTask(t)}
+          onEditTask={(t: Task) => setEditingTask(t)}
+        />
       ) : (
         <GanttChartView
           tasks={tasks}
@@ -464,9 +554,9 @@ export default function PlanningPage() {
           onDeleteTask={handleDeleteTask}
           onRetimeTask={handleRetimeTask}
           onImportTasks={handleImportTasks}
-          viewMode={viewMode}
+          viewMode={activePlanningView === 'timeline' ? 'month' : viewMode}
           setViewMode={setViewMode}
-          showCriticalPathOnly={showCriticalPathOnly}
+          showCriticalPathOnly={activePlanningView === 'critical-path' ? true : showCriticalPathOnly}
           setShowCriticalPathOnly={setShowCriticalPathOnly}
           baselines={baselines}
           selectedBaselineId={selectedBaselineId}

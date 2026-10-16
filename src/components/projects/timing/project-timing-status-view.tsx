@@ -15,6 +15,9 @@ import {
 } from '@/config/timing-benchmark.config';
 import { timingStatusService } from '@/services/timing-status.service';
 import { useAuth } from '@/providers/auth-context';
+import { useRouter, usePathname } from 'next/navigation';
+import { useToast } from '@/providers/toast-context';
+import { TimingChartDeleteDialog } from '@/components/projects/timing/timing-chart-delete-dialog';
 import {
   Calendar,
   Clock,
@@ -36,6 +39,7 @@ import {
   Check,
   Loader2,
   Sparkles,
+  Trash2,
 } from 'lucide-react';
 
 interface ProjectTimingStatusViewProps {
@@ -62,11 +66,18 @@ export function ProjectTimingStatusView({
         assignedPm.includes(userEmail) ||
         (userFullName && assignedPm.includes(userFullName))));
 
+  // Navigation & Toast Notifications
+  const router = useRouter();
+  const pathname = usePathname();
+  const { showToast, showErpMessage } = useToast();
+
   // Local state
   const [chart, setChart] = useState<ProjectStatusTimingChart | null>(null);
   const [isLoading, setIsLoading] = useState<boolean>(true);
   const [isSyncing, setIsSyncing] = useState<boolean>(false);
   const [isSaving, setIsSaving] = useState<boolean>(false);
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = useState<boolean>(false);
+  const [isDeleting, setIsDeleting] = useState<boolean>(false);
   const [saveSuccess, setSaveSuccess] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
@@ -76,6 +87,48 @@ export function ProjectTimingStatusView({
   >({});
   const [overallComments, setOverallComments] = useState<string>('');
   const [isDirty, setIsDirty] = useState<boolean>(false);
+
+  // Delete Project Timing Status Chart
+  const handleDeleteConfirm = async () => {
+    if (!isAssignedPm || !chart) return;
+    try {
+      setIsDeleting(true);
+      setErrorMessage(null);
+      const chartId = chart.name;
+      await timingStatusService.deleteTimingStatus(project.name, chartId);
+
+      setIsDeleteDialogOpen(false);
+      setChart(null);
+      setIsDirty(false);
+      showToast('Project Timing Status Chart deleted successfully.', 'success');
+
+      if (pathname && pathname.includes('/projects/timing-status')) {
+        router.push('/projects/timing-status');
+      } else {
+        router.push(`/projects/${project.name}?tab=overview`);
+      }
+
+      if (onRefreshProject) {
+        onRefreshProject();
+      }
+    } catch (err: any) {
+      console.error('Failed to delete Project Timing Status Chart:', err);
+      setIsDeleteDialogOpen(false);
+
+      const erpMsg =
+        err?.erpMessage?.message ||
+        err?.erpMessage?.cleanMessage ||
+        err?.resData?._error_message ||
+        err?.response?.data?._error_message ||
+        err?.response?.data?.message ||
+        err?.message ||
+        'Failed to delete Project Timing Status Chart.';
+
+      showErpMessage(erpMsg, err?.erpMessage?.title || 'Message', err?.erpMessage?.indicator || 'red');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   // Fetch / Sync timing status
   const loadTimingStatus = useCallback(
@@ -304,6 +357,19 @@ export function ProjectTimingStatusView({
               <Download className="h-3.5 w-3.5 text-emerald-600" />
               <span>Export to Excel</span>
             </button>
+
+            {isAssignedPm && (
+              <button
+                type="button"
+                onClick={() => setIsDeleteDialogOpen(true)}
+                disabled={isLoading || isDeleting || !chart}
+                className="flex items-center gap-1.5 px-3.5 py-2 text-xs font-bold rounded-xl border border-rose-200 bg-rose-50/60 text-rose-700 hover:bg-rose-100 hover:text-rose-800 transition shadow-2xs disabled:opacity-50 cursor-pointer"
+                title="Delete Project Timing Status Chart"
+              >
+                <Trash2 className="h-3.5 w-3.5 text-rose-600" />
+                <span>Delete</span>
+              </button>
+            )}
 
             {isAssignedPm && (
               <button
@@ -748,6 +814,14 @@ export function ProjectTimingStatusView({
           </div>
         )}
       </div>
+
+      {/* Delete Confirmation Dialog */}
+      <TimingChartDeleteDialog
+        isOpen={isDeleteDialogOpen}
+        onClose={() => setIsDeleteDialogOpen(false)}
+        onConfirm={handleDeleteConfirm}
+        isLoading={isDeleting}
+      />
     </div>
   );
 }

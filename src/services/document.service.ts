@@ -588,9 +588,9 @@ export const documentService = {
     const docs = getLocalDocuments();
     const newDoc: DocumentItem = {
       name: doc.name || `DOC-2026-${String(docs.length + 1).padStart(5, '0')}`,
-      title: doc.title || doc.file_name || 'Untitled Engineering Document',
+      title: doc.title || doc.file_name || 'Untitled Document',
       project: doc.project || 'PROJ-0001',
-      document_type: doc.document_type || 'Engineering',
+      document_type: doc.document_type || 'Other',
       version: doc.version || 'v1.0',
       uploaded_by: doc.uploaded_by || 'Administrator',
       upload_date: new Date().toISOString().split('T')[0],
@@ -612,6 +612,27 @@ export const documentService = {
   },
 
   async updateDocument(name: string, data: Partial<DocumentItem>): Promise<DocumentItem> {
+    try {
+      const targetUrl = data.project && data.project !== 'ALL' && data.project !== 'Global Vault'
+        ? `/api/projects/${encodeURIComponent(data.project)}/documents`
+        : `/api/documents`;
+      const res = await api.put<any>(targetUrl, { name, ...data });
+      if (res?.document) {
+        const docs = getLocalDocuments();
+        const docIdx = docs.findIndex((d) => d.name === name);
+        if (docIdx !== -1) {
+          docs[docIdx] = { ...docs[docIdx], ...res.document };
+          saveLocalDocuments(docs);
+        }
+        return res.document;
+      }
+      if (res?.name) {
+        return res;
+      }
+    } catch (err) {
+      console.warn('[documentService] Server update failed, falling back to local update:', err);
+    }
+
     const docs = getLocalDocuments();
     const doc = docs.find((d) => d.name === name);
     if (!doc) throw new Error('Document not found');

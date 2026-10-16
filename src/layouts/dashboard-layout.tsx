@@ -311,7 +311,12 @@ export function DashboardLayout({ children }: DashboardLayoutProps) {
                 animate={{ opacity: 1, y: 0 }}
                 exit={{ opacity: 0, y: -6 }}
                 transition={{ duration: 0.15 }}
-                className="max-w-7xl mx-auto space-y-6"
+                className={cn(
+                  'mx-auto space-y-6',
+                  pathname.startsWith('/planning') || pathname.startsWith('/projects')
+                    ? 'max-w-[1800px] w-full'
+                    : 'max-w-7xl'
+                )}
               >
                 {children}
               </motion.div>

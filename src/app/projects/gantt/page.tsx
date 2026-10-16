@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useProjects, useProject } from '@/hooks/use-projects';
@@ -21,19 +21,27 @@ export default function ProjectGanttPage() {
   const projectParam = searchParams.get('project');
 
   const { data, isLoading } = useProjects({ page: 1, pageSize: 200 });
-  const projects = data?.projects || [];
+  const projects = useMemo(() => data?.projects || [], [data?.projects]);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projectParam);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Sync selected project with URL query param
+  // Sync selected project with URL query param & handle deleted/stale project
   useEffect(() => {
-    if (projectParam) {
+    if (!isLoading && projects.length > 0) {
+      if (projectParam && projects.some((p: Project) => p.name === projectParam)) {
+        setSelectedProjectId(projectParam);
+      } else {
+        const fallback = projects[0].name;
+        setSelectedProjectId(fallback);
+        if (projectParam) {
+          router.replace(`/projects/gantt?project=${encodeURIComponent(fallback)}`);
+        }
+      }
+    } else if (projectParam) {
       setSelectedProjectId(projectParam);
-    } else if (projects.length > 0 && !selectedProjectId) {
-      setSelectedProjectId(projects[0].name);
     }
-  }, [projectParam, projects, selectedProjectId]);
+  }, [projectParam, projects, isLoading, router]);
 
   const { data: selectedProject } = useProject(selectedProjectId || '');
 

@@ -1,5 +1,8 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { evaluateProjectFLM } from '@/lib/server/flawless-launch-store';
+import {
+  evaluateProjectFLM,
+  evaluateProjectFLMAsync,
+} from '@/lib/server/flawless-launch-store';
 
 export const dynamic = 'force-dynamic';
 
@@ -17,7 +20,7 @@ export async function GET(
     const projectName = searchParams.get('projectName') || undefined;
     const currentGate = (searchParams.get('currentGate') as any) || undefined;
 
-    const data = evaluateProjectFLM(id, projectName, currentGate);
+    const data = await evaluateProjectFLMAsync(id, projectName, currentGate);
     return NextResponse.json(data);
   } catch (error: any) {
     return NextResponse.json(

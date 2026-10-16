@@ -142,6 +142,13 @@ export function DocumentTableView({
           <option value="Process">Process</option>
           <option value="Customer">Customer</option>
           <option value="Other">Other</option>
+          {Array.from(new Set(documents.map((d) => d.document_type).filter(Boolean)))
+            .filter((t) => !['Engineering', 'Design', 'Specification', 'Quality', 'Testing', 'APQP', 'Process', 'Customer', 'Other'].includes(t as string))
+            .map((customType) => (
+              <option key={String(customType)} value={String(customType)}>
+                {String(customType)}
+              </option>
+            ))}
         </select>
 
         {/* Status Filter */}
@@ -212,9 +219,9 @@ export function DocumentTableView({
                       <div className="space-y-0.5">
                         <span className="inline-flex items-center gap-1 text-slate-700 text-[11px] font-semibold">
                           <Tag className="h-3 w-3 text-slate-400" />
-                          {doc.document_type}
+                          {doc.document_type || '—'}
                         </span>
-                        <div className="text-[10px] font-mono text-slate-400 font-bold">{doc.version}</div>
+                        <div className="text-[10px] font-mono text-slate-400 font-bold">{doc.version || 'v1.0'}</div>
                       </div>
                     </td>
 

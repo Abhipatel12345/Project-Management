@@ -30,6 +30,16 @@ const getApiSecret = (): string => {
 function sanitizeErpResponse(resJson: any, status: number) {
   if (status < 400) return resJson;
   const jsonStr = JSON.stringify(resJson || '').toLowerCase();
+
+  // Preserve ERPNext relational integrity / link existence validation errors completely
+  if (
+    jsonStr.includes('linkexistserror') ||
+    jsonStr.includes('cannot delete or cancel') ||
+    jsonStr.includes('is linked with')
+  ) {
+    return resJson;
+  }
+
   const isAuthOrWhitelisting =
     status === 401 ||
     jsonStr.includes('reportview.get') ||

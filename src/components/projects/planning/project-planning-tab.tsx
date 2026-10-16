@@ -1,7 +1,10 @@
 import React, { useState } from 'react';
+import { useSearchParams } from 'next/navigation';
 import { useAuth } from '@/providers/auth-context';
 import { useTasks, useUpdateTask, useCreateTask, useDeleteTask } from '@/hooks/use-tasks';
 import { useGates } from '@/hooks/use-gates';
+import { useProjectDependencies } from '@/hooks/use-task-dependencies';
+import { useProject } from '@/hooks/use-projects';
 import {
   useProjectBaselines,
   useCreateBaseline,
@@ -16,6 +19,7 @@ import baselineService from '@/services/baseline.service';
 import { ProjectBaseline } from '@/types/baseline.types';
 import { TaskFormValues } from '@/lib/validations/task.schema';
 import { GanttChartView, GanttViewMode } from '@/components/planning/gantt-chart-view';
+import { DevelopmentTimePlanView } from '@/components/planning/development-time-plan-view';
 import { BaselineManagementModal } from '@/components/planning/baselines/baseline-management-modal';
 import { CreateBaselineDialog } from '@/components/planning/baselines/create-baseline-dialog';
 import { BaselineComparisonTable } from '@/components/planning/baselines/baseline-comparison-table';
@@ -25,16 +29,35 @@ import { TaskDetailModal } from '@/components/tasks/task-detail-modal';
 import { TaskSkipDialog } from '@/components/tasks/task-skip-dialog';
 import { Task } from '@/types/task.types';
 import { Gate } from '@/types/gate.types';
-import { Loader2, Plus, CalendarDays, BookmarkPlus, SlidersHorizontal, RefreshCw } from 'lucide-react';
+import {
+  Loader2,
+  Plus,
+  CalendarDays,
+  BookmarkPlus,
+  SlidersHorizontal,
+  RefreshCw,
+  Layers,
+  Sparkles,
+  Flame,
+} from 'lucide-react';
 
 interface ProjectPlanningTabProps {
   projectId: string;
   projectName: string;
 }
 
+export type PlanningViewType = 'gantt' | 'time-plan' | 'timeline' | 'milestones' | 'critical-path';
+
 export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTabProps) {
   const { showToast } = useToast();
   const { user } = useAuth();
+  const searchParams = useSearchParams();
+  const initialViewParam = searchParams ? searchParams.get('view') : null;
+
+  const [activePlanningView, setActivePlanningView] = useState<PlanningViewType>(
+    initialViewParam === 'time-plan' ? 'time-plan' : 'gantt'
+  );
+
   const canManagePlanning = user?.role === 'admin' || user?.role === 'projectmanager';
 
   // Fetch project-isolated tasks
@@ -51,9 +74,11 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
   const tasks: Task[] = taskListData?.tasks || [];
   const { data: teamMembers = [] } = useProjectTeam(projectId);
 
-  // Fetch project-isolated gates
+  // Fetch project-isolated gates & dependencies & project details
   const { data: gateListData } = useGates({ project: projectId, pageSize: 100 });
   const gates: Gate[] = gateListData?.gates || [];
+  const { data: projectDependencies = [] } = useProjectDependencies(projectId);
+  const { data: project } = useProject(projectId);
 
   // Fetch project-isolated baselines
   const { data: baselines = [], refetch: refetchBaselines } = useProjectBaselines(projectId);
@@ -410,11 +435,82 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
         </div>
       </div>
 
-      {/* Main Gantt View */}
+      {/* View Switcher: Detailed Gantt, Development Time Plan & Customer Milestones, Development Timeline, Milestone View, Critical Path */}
+      <div className="flex flex-wrap items-center gap-2 p-1.5 bg-slate-100 rounded-2xl border border-slate-200">
+        <button
+          type="button"
+          onClick={() => setActivePlanningView('gantt')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activePlanningView === 'gantt'
+              ? 'bg-white text-sky-800 shadow-xs border border-slate-200/80 ring-1 ring-black/5'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <CalendarDays className="h-4 w-4 text-sky-600" />
+          <span>Detailed Gantt</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePlanningView('time-plan')}
+          className={`flex items-center gap-2 px-4 py-2 rounded-xl text-xs font-black transition cursor-pointer ${
+            activePlanningView === 'time-plan'
+              ? 'bg-white text-[#007791] shadow-xs border border-sky-200 ring-2 ring-[#00A3C4]/30'
+              : 'text-slate-700 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <span className="w-1.5 h-3.5 bg-[#00A3C4] rounded-full shrink-0" />
+          <span className="italic">Development Time Plan &amp; Customer Milestones</span>
+          <span className="px-1.5 py-0.5 rounded text-[10px] bg-sky-100 text-sky-800 font-extrabold uppercase">
+            Executive
+          </span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePlanningView('timeline')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activePlanningView === 'timeline'
+              ? 'bg-white text-sky-800 shadow-xs border border-slate-200/80 ring-1 ring-black/5'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <Layers className="h-4 w-4 text-indigo-600" />
+          <span>Development Timeline</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePlanningView('milestones')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activePlanningView === 'milestones'
+              ? 'bg-white text-sky-800 shadow-xs border border-slate-200/80 ring-1 ring-black/5'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <Sparkles className="h-4 w-4 text-amber-500" />
+          <span>Milestone View</span>
+        </button>
+
+        <button
+          type="button"
+          onClick={() => setActivePlanningView('critical-path')}
+          className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-bold transition cursor-pointer ${
+            activePlanningView === 'critical-path'
+              ? 'bg-white text-rose-800 shadow-xs border border-rose-200 ring-1 ring-rose-400/20'
+              : 'text-slate-600 hover:text-slate-900 hover:bg-slate-200/60'
+          }`}
+        >
+          <Flame className="h-4 w-4 text-rose-500" />
+          <span>Critical Path</span>
+        </button>
+      </div>
+
+      {/* Main Gantt or Development Time Plan View */}
       {isLoadingTasks ? (
         <div className="p-16 text-center bg-white rounded-2xl border border-slate-200">
           <Loader2 className="h-7 w-7 animate-spin text-sky-600 mx-auto mb-2" />
-          <p className="text-xs font-bold text-slate-600">Loading Gantt schedule for {projectId} from ERPNext...</p>
+          <p className="text-xs font-bold text-slate-600">Loading schedule for {projectId} from ERPNext...</p>
         </div>
       ) : isErrorTasks ? (
         <div className="p-6 rounded-2xl bg-white border border-rose-200 text-center space-y-2">
@@ -426,6 +522,17 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
             Retry
           </button>
         </div>
+      ) : activePlanningView === 'time-plan' ? (
+        <DevelopmentTimePlanView
+          projectId={projectId}
+          projectName={projectName}
+          project={project}
+          tasks={tasks}
+          dependencies={projectDependencies}
+          gates={gates}
+          onViewTask={(t) => setViewingTask(t)}
+          onEditTask={(t) => setEditingTask(t)}
+        />
       ) : (
         <div className="space-y-6">
           <GanttChartView
@@ -442,9 +549,9 @@ export function ProjectPlanningTab({ projectId, projectName }: ProjectPlanningTa
             onDeleteTask={handleDeleteTask}
             onRetimeTask={handleRetimeTask}
             onImportTasks={handleImportTasks}
-            viewMode={viewMode}
+            viewMode={activePlanningView === 'timeline' ? 'month' : viewMode}
             setViewMode={setViewMode}
-            showCriticalPathOnly={showCriticalPathOnly}
+            showCriticalPathOnly={activePlanningView === 'critical-path' ? true : showCriticalPathOnly}
             setShowCriticalPathOnly={setShowCriticalPathOnly}
             baselines={baselines}
             selectedBaselineId={selectedBaselineId}

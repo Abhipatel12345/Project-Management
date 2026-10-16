@@ -73,7 +73,14 @@ export const teamService = {
             roleName = 'Warehouse Officer';
           }
 
-          const isBoard = (idx === 0 || normEmail.includes('reviewer') || normEmail.includes('admin')) && !normEmail.includes('sarah') && !normEmail.includes('teammember');
+          if (u.custom_department) dept = u.custom_department;
+          if (u.custom_function) func = u.custom_function;
+          if (u.custom_role) roleName = u.custom_role;
+
+          let isBoard = (idx === 0 || normEmail.includes('reviewer') || normEmail.includes('admin')) && !normEmail.includes('sarah') && !normEmail.includes('teammember');
+          if (u.custom_is_board_member !== undefined && u.custom_is_board_member !== null) {
+            isBoard = Boolean(u.custom_is_board_member);
+          }
 
           return {
             id: u.name || `TM-${projectId}-${idx + 1}`,
@@ -135,6 +142,10 @@ export const teamService = {
         user: m.user_email,
         email: m.user_email,
         full_name: m.employee_name,
+        custom_role: m.role || '',
+        custom_department: m.department || '',
+        custom_function: m.function_name || '',
+        custom_is_board_member: m.is_board_member ? 1 : 0,
         welcome_email_sent: 1,
       }));
 
@@ -190,6 +201,10 @@ export const teamService = {
         user: m.user_email,
         email: m.user_email,
         full_name: m.employee_name,
+        custom_role: m.role || '',
+        custom_department: m.department || '',
+        custom_function: m.function_name || '',
+        custom_is_board_member: m.is_board_member ? 1 : 0,
         welcome_email_sent: 1,
       }));
 
@@ -237,6 +252,10 @@ export const teamService = {
         user: m.user_email,
         email: m.user_email,
         full_name: m.employee_name,
+        custom_role: m.role || '',
+        custom_department: m.department || '',
+        custom_function: m.function_name || '',
+        custom_is_board_member: m.is_board_member ? 1 : 0,
         welcome_email_sent: 1,
       }));
 

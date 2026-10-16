@@ -24,12 +24,15 @@ export type FindingStatus = 'Open' | 'In Progress' | 'Resolved' | 'Closed';
 
 export interface ReviewFinding {
   id: string;
+  finding_id?: string;
   description: string;
+  finding_description?: string;
   severity: FindingSeverity;
   assigned_to: string;
   due_date?: string;
   status: FindingStatus;
   comments?: string;
+  resolution_notes?: string;
   created_at?: string;
 }
 
@@ -37,8 +40,11 @@ export interface DesignReview {
   name: string; // Review ID e.g. DR-2026-001
   title: string;
   project?: string;
+  project_name?: string;
   review_type: DesignReviewType | string;
   review_date?: string;
+  planned_date?: string;
+  actual_date?: string;
   reviewer: string; // Review owner / lead
   participants?: string[];
   status: DesignReviewStatus;

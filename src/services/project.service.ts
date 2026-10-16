@@ -269,7 +269,10 @@ export const projectService = {
       );
       return normalizeProject(response.data);
     } catch (error: any) {
-      console.error(`[ERPNext API Error] Failed to fetch Project ${name}:`, error);
+      const status = error?.status || error?.response?.status;
+      if (status !== 404) {
+        console.error(`[ERPNext API Error] Failed to fetch Project ${name}:`, error);
+      }
       throw error;
     }
   },
@@ -312,7 +315,13 @@ export const projectService = {
     try {
       await api.delete(`/api/resource/Project/${encodeURIComponent(name)}`);
     } catch (error: any) {
-      console.error(`[ERPNext API Error] Failed to delete Project ${name}:`, error);
+      const status = error?.status || error?.response?.status;
+      const isLinkedError =
+        error?.erpMessage?.cleanMessage?.toLowerCase().includes('is linked with') ||
+        error?.message?.toLowerCase().includes('is linked with');
+      if (!isLinkedError && status !== 417) {
+        console.error(`[ERPNext API Error] Failed to delete Project ${name}:`, error);
+      }
       throw error;
     }
   },

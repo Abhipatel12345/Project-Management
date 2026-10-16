@@ -3,6 +3,7 @@ import {
   loadAllDesignReviews,
   saveOrUpdateDesignReview,
   hydrateReviewDocuments,
+  fetchDesignReviewsFromERPNext,
 } from '@/lib/server/design-review-store';
 import { getSessionFromRequest } from '@/lib/server/session';
 import { PDMUserSession } from '@/types/auth.types';
@@ -27,7 +28,7 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '20', 10);
 
-    let reviews = loadAllDesignReviews().map(hydrateReviewDocuments);
+    let reviews = (await fetchDesignReviewsFromERPNext(project || undefined)).map(hydrateReviewDocuments);
 
     if (project && project !== 'ALL') {
       const pNorm = project.toLowerCase().trim();

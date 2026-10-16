@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PDMUserSession } from '@/types/auth.types';
 import { accessControlService } from '@/services/access-control.service';
-import { getDocumentsByProject, saveDocument } from '@/lib/server/document-store';
+import { getDocumentsByProject, saveDocument, updateDocumentItem } from '@/lib/server/document-store';
 
 import { getSessionFromRequest } from '@/lib/server/session';
 
@@ -108,6 +108,56 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
   } catch (error: any) {
     return NextResponse.json(
       { _error_message: error.message || 'Failed to upload project document' },
+      { status: 500 }
+    );
+  }
+}
+
+/**
+ * PUT /api/projects/:projectId/documents
+ * Update metadata (e.g. document_type, title, version, status) of an existing project document.
+ */
+export async function PUT(req: NextRequest, props: { params: Promise<{ id: string }> }) {
+  try {
+    const { id } = await props.params;
+    const projectId = decodeURIComponent(id || '');
+
+    const session = getSessionFromRequest(req);
+    if (!session) {
+      return NextResponse.json(
+        { _error_message: '401 Unauthorized: Session required.' },
+        { status: 401 }
+      );
+    }
+
+    const access = accessControlService.canAccessProject(session, projectId);
+    if (!access.allowed) {
+      return NextResponse.json(
+        { _error_message: `403 Forbidden: ${access.reason || 'Unauthorized to update documents for this project.'}` },
+        { status: 403 }
+      );
+    }
+
+    const body = await req.json();
+    if (!body.name) {
+      return NextResponse.json(
+        { _error_message: 'Document name/ID is required for update.' },
+        { status: 400 }
+      );
+    }
+
+    const updated = await updateDocumentItem(body.name, {
+      ...body,
+      project: projectId,
+    });
+
+    return NextResponse.json({
+      success: true,
+      document: updated,
+    });
+  } catch (error: any) {
+    return NextResponse.json(
+      { _error_message: error.message || 'Failed to update project document' },
       { status: 500 }
     );
   }

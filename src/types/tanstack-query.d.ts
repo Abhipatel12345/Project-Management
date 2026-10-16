@@ -19,12 +19,14 @@ declare module '@tanstack/react-query' {
   export function useQueryClient(): {
     clear: () => void;
     invalidateQueries: (filters?: any) => Promise<void>;
+    removeQueries: (filters?: any) => void;
   };
 
   export class QueryClient {
     constructor(config?: any);
     clear(): void;
     invalidateQueries(filters?: any): Promise<void>;
+    removeQueries(filters?: any): void;
   }
 
   export function QueryClientProvider(props: { client: any; children: any }): React.ReactElement;

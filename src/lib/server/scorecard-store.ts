@@ -4,6 +4,12 @@ import { ProjectScorecard, ScorecardRow } from '@/types/scorecard.types';
 import { saveAuditRecord } from './audit-store';
 import { PDMUserSession } from '@/types/auth.types';
 import * as xlsx from 'xlsx';
+import {
+  fetchErpResource,
+  getErpDoc,
+  createErpDoc,
+  updateErpDoc,
+} from './erp-client';
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const SCORECARD_FILE = path.join(DATA_DIR, 'imperative_scorecards.json');
@@ -130,6 +136,167 @@ export function getProjectScorecard(projectId: string, projectName?: string): Pr
   return initialScorecard;
 }
 
+export async function syncScorecardToERPNext(
+  projectId: string,
+  scorecard: ProjectScorecard
+): Promise<void> {
+  if (!projectId || projectId.startsWith('PROJ-TEST')) return;
+  try {
+    const existing = await fetchErpResource<{ name: string }>('Imperative Scorecard', {
+      filters: [['project', '=', projectId]],
+      fields: ['name'],
+      limit: 1,
+    });
+
+    const metrics = (scorecard.rows || []).map((row) => ({
+      category: row.category,
+      metric_name: row.line_item,
+      unit: row.unit || '',
+      target_value: parseFloat(row.ar_target?.replace(/[^0-9.-]/g, '') || '0') || 0,
+      actual_value: parseFloat(row.pl_current?.replace(/[^0-9.-]/g, '') || '0') || 0,
+      status: row.is_mandatory ? 'Red' : 'Green',
+      weight: 1,
+      comments: JSON.stringify({
+        id: row.id,
+        prb: row.prb || '',
+        ar_target: row.ar_target || '',
+        pl_current: row.pl_current || '',
+        pl_ro: row.pl_ro || '',
+        vc_current: row.vc_current || '',
+        vc_ro: row.vc_ro || '',
+        tko_current: row.tko_current || '',
+        tko_ro: row.tko_ro || '',
+        vl_current: row.vl_current || '',
+        vl_ro: row.vl_ro || '',
+        cpa_current: row.cpa_current || '',
+        cpa_ro: row.cpa_ro || '',
+        ct_current: row.ct_current || '',
+        ct_ro: row.ct_ro || '',
+        is_mandatory: Boolean(row.is_mandatory),
+      }),
+    }));
+
+    const payload = {
+      project: projectId,
+      project_name: scorecard.project_name || projectId,
+      scorecard_version: scorecard.version || 'v1.0',
+      status: 'Published',
+      evaluated_at: new Date().toISOString().replace('T', ' ').replace('Z', '').split('.')[0],
+      evaluated_by: scorecard.last_imported_by || 'PMO',
+      overall_score: 0,
+      metrics,
+    };
+
+    if (existing.length > 0) {
+      await updateErpDoc('Imperative Scorecard', existing[0].name, payload);
+    } else {
+      await createErpDoc('Imperative Scorecard', payload);
+    }
+  } catch (err: any) {
+    console.warn(`[Scorecard Store] Failed to sync scorecard for ${projectId} to ERPNext:`, err.message);
+  }
+}
+
+export async function fetchScorecardFromERPNext(projectId: string): Promise<ProjectScorecard | null> {
+  try {
+    const list = await fetchErpResource<{ name: string }>('Imperative Scorecard', {
+      filters: [['project', '=', projectId]],
+      fields: ['name'],
+      limit: 1,
+    });
+    if (!list || list.length === 0) return null;
+
+    const doc = await getErpDoc<any>('Imperative Scorecard', list[0].name);
+    if (!doc) return null;
+
+    let rows: ScorecardRow[] = [];
+    if (Array.isArray(doc.metrics) && doc.metrics.length > 0) {
+      rows = doc.metrics.map((m: any) => {
+        let parsedComments: Partial<ScorecardRow> = {};
+        if (m.comments && typeof m.comments === 'string' && m.comments.startsWith('{')) {
+          try {
+            parsedComments = JSON.parse(m.comments);
+          } catch {
+            // ignore
+          }
+        }
+
+        return {
+          id: parsedComments.id || m.metric_name?.toLowerCase().replace(/\s+/g, '_') || 'row',
+          category: (m.category as any) || 'Financial Statistics',
+          line_item: m.metric_name || '',
+          unit: m.unit || '',
+          prb: parsedComments.prb || '',
+          ar_target: parsedComments.ar_target || (m.target_value ? String(m.target_value) : ''),
+          pl_current: parsedComments.pl_current || (m.actual_value ? String(m.actual_value) : ''),
+          pl_ro: parsedComments.pl_ro || '',
+          vc_current: parsedComments.vc_current || '',
+          vc_ro: parsedComments.vc_ro || '',
+          tko_current: parsedComments.tko_current || '',
+          tko_ro: parsedComments.tko_ro || '',
+          vl_current: parsedComments.vl_current || '',
+          vl_ro: parsedComments.vl_ro || '',
+          cpa_current: parsedComments.cpa_current || '',
+          cpa_ro: parsedComments.cpa_ro || '',
+          ct_current: parsedComments.ct_current || '',
+          ct_ro: parsedComments.ct_ro || '',
+          is_mandatory: parsedComments.is_mandatory || false,
+        };
+      });
+    }
+
+    if (rows.length === 0) {
+      return null;
+    }
+
+    const oiRow = rows.find((r) => r.id === 'oi_pct');
+    const oeeRow = rows.find((r) => r.id === 'oee_pct');
+    const otdRow = rows.find((r) => r.id === 'otd_pct');
+    const sopRow = rows.find((r) => r.id === 'sop_date');
+
+    const result: ProjectScorecard = {
+      project_id: projectId,
+      project_name: doc.project_name || projectId,
+      version: doc.scorecard_version || 'v1.0',
+      sop_date: sopRow?.pl_current || sopRow?.ar_target || '2026-11-15',
+      oi_percentage_target: oiRow?.ar_target || '15.0%',
+      oi_percentage_current: oiRow?.pl_current || '15.6%',
+      oee_target: oeeRow?.ar_target || '85.0%',
+      oee_current: oeeRow?.pl_current || '87.4%',
+      otd_target: otdRow?.ar_target || '98.0%',
+      otd_current: otdRow?.pl_current || '98.5%',
+      rows,
+    };
+
+    // Cache to disk
+    try {
+      ensureDataFile();
+      const raw = fs.readFileSync(SCORECARD_FILE, 'utf-8');
+      const store = JSON.parse(raw);
+      store[projectId] = result;
+      fs.writeFileSync(SCORECARD_FILE, JSON.stringify(store, null, 2), 'utf-8');
+    } catch {
+      // ignore
+    }
+
+    return result;
+  } catch (err: any) {
+    console.warn(`[Scorecard Store] Failed to fetch scorecard from ERPNext for ${projectId}:`, err.message);
+    return null;
+  }
+}
+
+export async function getProjectScorecardAsync(
+  projectId: string,
+  projectName?: string
+): Promise<ProjectScorecard> {
+  const erpData = await fetchScorecardFromERPNext(projectId);
+  if (erpData) {
+    return erpData;
+  }
+  return getProjectScorecard(projectId, projectName);
+}
+
 export function saveProjectScorecard(
   projectId: string,
   scorecard: ProjectScorecard,
@@ -160,6 +327,11 @@ export function saveProjectScorecard(
 
     store[projectId] = updated;
     fs.writeFileSync(SCORECARD_FILE, JSON.stringify(store, null, 2), 'utf-8');
+
+    // Asynchronously synchronize to ERPNext
+    syncScorecardToERPNext(projectId, updated).catch((err) => {
+      console.warn(`[Scorecard Store] Async ERP sync error:`, err);
+    });
 
     if (session) {
       saveAuditRecord({

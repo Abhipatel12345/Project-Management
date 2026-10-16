@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { loadAllGates, saveOrUpdateGate } from '@/lib/server/gate-store';
+import { loadAllGates, saveOrUpdateGate, fetchGatesFromERPNext } from '@/lib/server/gate-store';
 import { getSessionFromRequest } from '@/lib/server/session';
 import { PDMUserSession } from '@/types/auth.types';
 
@@ -23,7 +23,7 @@ export async function GET(req: NextRequest) {
     const page = parseInt(searchParams.get('page') || '1', 10);
     const pageSize = parseInt(searchParams.get('pageSize') || '100', 10);
 
-    const allGates = loadAllGates();
+    const allGates = await fetchGatesFromERPNext(project !== 'ALL' ? project : undefined);
 
     // 1. Project-Scoped Gates for accurate Dashboard counts
     const projectScopedGates = project !== 'ALL'

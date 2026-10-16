@@ -10,8 +10,21 @@ import {
   TimingStatusUpdatePayload,
 } from '@/types/timing-status.types';
 import { TIMING_STATUS_CONFIG } from '@/config/timing-benchmark.config';
+import { api } from '@/services/api';
 
 class TimingStatusService {
+  /**
+   * Delete timing status chart for a project in ERPNext
+   */
+  async deleteTimingStatus(
+    projectId: string,
+    chartId?: string
+  ): Promise<{ message: string; chart_id: string }> {
+    const url = chartId
+      ? `/api/projects/${encodeURIComponent(projectId)}/timing-status?chart_id=${encodeURIComponent(chartId)}`
+      : `/api/projects/${encodeURIComponent(projectId)}/timing-status`;
+    return await api.delete<{ message: string; chart_id: string }>(url);
+  }
   /**
    * Fetch timing status chart for a project
    */

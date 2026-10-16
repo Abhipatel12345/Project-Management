@@ -28,7 +28,7 @@ const headers = {
   'Content-Type': 'application/json',
 };
 
-// Generates a valid minimal PDF that passes pypdf validation
+
 function createValidPdf(text: string): Buffer {
   return Buffer.from(
     `%PDF-1.4

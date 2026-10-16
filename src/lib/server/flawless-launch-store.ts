@@ -3,6 +3,12 @@ import path from 'path';
 import { ProjectFLMData, GateFLMEvaluation, FLMMetricItem, FLMIndicator } from '@/types/flawless-launch.types';
 import { loadAllGates } from './gate-store';
 import { getProjectScorecard } from './scorecard-store';
+import {
+  fetchErpResource,
+  getErpDoc,
+  createErpDoc,
+  updateErpDoc,
+} from './erp-client';
 
 const DATA_FILE = path.join(process.cwd(), '.data', 'flawless_launches.json');
 
@@ -206,6 +212,160 @@ export function evaluateProjectFLM(
     // ignore
   }
 
+  // Asynchronously synchronize to ERPNext
+  syncFlawlessLaunchToERPNext(projectId, result).catch((err) => {
+    console.warn(`[Flawless Launch Store] Async ERP sync error:`, err);
+  });
+
+  return result;
+}
+
+export async function syncFlawlessLaunchToERPNext(
+  projectId: string,
+  flmData: ProjectFLMData
+): Promise<void> {
+  if (!projectId || projectId.startsWith('PROJ-TEST')) return;
+  try {
+    const existing = await fetchErpResource<{ name: string }>('Flawless Launch', {
+      filters: [['project', '=', projectId]],
+      fields: ['name'],
+      limit: 1,
+    });
+
+    const metrics: any[] = [];
+    if (Array.isArray(flmData.gates)) {
+      for (const gate of flmData.gates) {
+        for (const m of gate.metrics) {
+          metrics.push({
+            gate: gate.gate_code,
+            metric_key: m.id,
+            metric_name: m.name,
+            target_score: 100,
+            actual_score: m.indicator === 'GREEN' ? 100 : 0,
+            status: m.indicator === 'GREEN' ? 'Met' : 'Off Track',
+            comments: JSON.stringify({
+              indicator: m.indicator,
+              source: m.source,
+              description: m.description,
+              target_date: m.target_date,
+              current_date: m.current_date,
+              target_value: m.target_value,
+              current_value: m.current_value,
+              is_mandatory: Boolean(m.is_mandatory),
+            }),
+          });
+        }
+      }
+    }
+
+    const payload = {
+      project: projectId,
+      project_name: flmData.project_name || projectId,
+      current_gate: flmData.current_gate || 'PL',
+      overall_readiness: Math.round(((flmData.overall_green_count || 0) / (flmData.overall_total_metrics || 1)) * 100),
+      metrics,
+    };
+
+    if (existing.length > 0) {
+      await updateErpDoc('Flawless Launch', existing[0].name, payload);
+    } else {
+      await createErpDoc('Flawless Launch', payload);
+    }
+  } catch (err: any) {
+    console.warn(`[Flawless Launch Store] Failed to sync FLM for ${projectId} to ERPNext:`, err.message);
+  }
+}
+
+export async function fetchFlawlessLaunchFromERPNext(projectId: string): Promise<ProjectFLMData | null> {
+  try {
+    const list = await fetchErpResource<{ name: string }>('Flawless Launch', {
+      filters: [['project', '=', projectId]],
+      fields: ['name'],
+      limit: 1,
+    });
+    if (!list || list.length === 0) return null;
+
+    const doc = await getErpDoc<any>('Flawless Launch', list[0].name);
+    if (!doc || !Array.isArray(doc.metrics) || doc.metrics.length === 0) return null;
+
+    // Group metrics by gate
+    const gateMap: Record<string, FLMMetricItem[]> = {};
+    for (const m of doc.metrics) {
+      const gCode = m.gate || 'PL';
+      if (!gateMap[gCode]) gateMap[gCode] = [];
+
+      let parsed: any = {};
+      if (m.comments && typeof m.comments === 'string' && m.comments.startsWith('{')) {
+        try {
+          parsed = JSON.parse(m.comments);
+        } catch {
+          // ignore
+        }
+      }
+
+      gateMap[gCode].push({
+        id: m.metric_key || `${gCode}-${m.metric_name}`,
+        name: m.metric_name || 'Metric',
+        target_date: parsed.target_date,
+        current_date: parsed.current_date,
+        target_value: parsed.target_value,
+        current_value: parsed.current_value,
+        indicator: parsed.indicator || (m.status === 'Met' ? 'GREEN' : 'RED'),
+        source: parsed.source || 'Imperative Scorecard',
+        description: parsed.description || '',
+        is_mandatory: parsed.is_mandatory,
+      });
+    }
+
+    const currentGate = (doc.current_gate as any) || 'PL';
+    const gatesEvaluations: GateFLMEvaluation[] = GATES_LIST.map((gate) => {
+      const isCurrent = gate === currentGate;
+      const metrics = gateMap[gate] || [];
+      const greenCount = metrics.filter((m) => m.indicator === 'GREEN').length;
+      const oiMetric = metrics.find((m) => m.name.includes('OI'));
+      const oiIsGreen = oiMetric ? oiMetric.indicator === 'GREEN' : true;
+      const finalStatus: FLMIndicator = oiIsGreen && greenCount >= 4 ? 'GREEN' : 'RED';
+
+      return {
+        gate_code: gate,
+        gate_name: GATE_NAMES[gate] || gate,
+        is_current: isCurrent,
+        metrics,
+        green_count: greenCount,
+        total_metrics: metrics.length,
+        oi_is_green: oiIsGreen,
+        final_flm_status: finalStatus,
+      };
+    });
+
+    const currentGateEval = gatesEvaluations.find((g) => g.gate_code === currentGate) || gatesEvaluations[0];
+
+    const result: ProjectFLMData = {
+      project_id: projectId,
+      project_name: doc.project_name || projectId,
+      current_gate: currentGate,
+      overall_flm_status: currentGateEval.final_flm_status,
+      overall_green_count: currentGateEval.green_count,
+      overall_total_metrics: currentGateEval.total_metrics,
+      oi_is_green: currentGateEval.oi_is_green,
+      gates: gatesEvaluations,
+      last_evaluated: doc.modified || new Date().toISOString(),
+    };
+
+    return result;
+  } catch (err: any) {
+    console.warn(`[Flawless Launch Store] Failed to fetch FLM from ERPNext for ${projectId}:`, err.message);
+    return null;
+  }
+}
+
+export async function evaluateProjectFLMAsync(
+  projectId: string,
+  projectName?: string,
+  currentGateCode?: 'PL' | 'VC' | 'TKO' | 'VL' | 'CPA' | 'CT'
+): Promise<ProjectFLMData> {
+  const result = evaluateProjectFLM(projectId, projectName, currentGateCode);
+  await syncFlawlessLaunchToERPNext(projectId, result);
   return result;
 }
 

@@ -112,6 +112,72 @@ const getInitialSeedReviews = (): DesignReview[] => {
   });
 };
 
+import {
+  createErpDoc,
+  updateErpDoc,
+  deleteErpDoc,
+  fetchErpResource,
+  getErpDoc,
+} from './erp-client';
+
+export async function fetchDesignReviewsFromERPNext(projectId?: string): Promise<DesignReview[]> {
+  try {
+    const filters: any[] = [];
+    if (projectId && projectId !== 'ALL') {
+      filters.push(['project', '=', projectId]);
+    }
+    const list = await fetchErpResource<any>('Design Review', { filters, limit: 1000 });
+    if (!list || list.length === 0) return loadAllDesignReviews();
+
+    const fullReviews: DesignReview[] = [];
+    for (const item of list) {
+      try {
+        const doc = await getErpDoc<any>('Design Review', item.name);
+        fullReviews.push({
+          name: doc.name,
+          title: doc.title,
+          project: doc.project,
+          project_name: doc.project_name || '',
+          review_type: doc.review_type || 'Concept Review',
+          review_date: doc.actual_date || doc.planned_date || (doc.creation || '').split(' ')[0],
+          reviewer: doc.lead_reviewer || 'Lead Engineer',
+          participants: ['Administrator'],
+          status: doc.status || 'Planned',
+          approval_status: doc.approval_status || 'Pending',
+          description: doc.description || '',
+          notes: doc.notes || '',
+          documents: [],
+          findings: (doc.findings || []).map((f: any, idx: number) => ({
+            id: f.name || `F-${idx + 1}`,
+            finding_id: f.name || `F-${idx + 1}`,
+            description: f.finding_description || '',
+            severity: f.severity || 'Medium',
+            category: 'General',
+            status: f.status || 'Open',
+            assigned_to: f.assigned_to || '',
+            due_date: f.due_date || '',
+            resolution_notes: f.resolution_notes || '',
+          })),
+          creation: doc.creation,
+          modified: doc.modified,
+          owner: doc.owner || 'Administrator',
+        });
+      } catch (err: any) {
+        console.warn(`[DesignReviewStore] Failed to hydrate review ${item.name}:`, err.message);
+      }
+    }
+
+    if (fullReviews.length > 0) {
+      inMemoryReviews = fullReviews;
+      saveAllDesignReviews(fullReviews);
+      return fullReviews;
+    }
+  } catch (err: any) {
+    console.warn('[DesignReviewStore] fetchDesignReviewsFromERPNext failed, using local cache:', err.message);
+  }
+  return loadAllDesignReviews();
+}
+
 export function loadAllDesignReviews(): DesignReview[] {
   if (inMemoryReviews && inMemoryReviews.length > 0) {
     return inMemoryReviews;
@@ -310,6 +376,42 @@ export async function saveOrUpdateDesignReview(
 
   saveAllDesignReviews(reviews);
 
+  // Authoritative ERPNext Sync: persist to Design Review and Design Review Finding Item
+  const erpPayload = {
+    title: review.title,
+    project: review.project,
+    project_name: review.project_name || '',
+    review_type: review.review_type || 'Concept Review',
+    phase: (review as any).phase || '',
+    planned_date: review.review_date || null,
+    actual_date: review.review_date || null,
+    status: review.status || 'Planned',
+    approval_status: review.approval_status || 'Pending',
+    lead_reviewer: review.reviewer || 'Lead Engineer',
+    description: review.description || '',
+    notes: review.notes || '',
+    findings: (review.findings || []).map((f) => ({
+      finding_description: f.description || f.finding_id || 'Finding',
+      severity: f.severity || 'Medium',
+      status: f.status || 'Open',
+      assigned_to: f.assigned_to || '',
+      due_date: f.due_date || null,
+      resolution_notes: f.resolution_notes || '',
+    })),
+  };
+
+  fetchErpResource<any>('Design Review', { filters: [['project', '=', review.project], ['title', '=', review.title]], limit: 1 })
+    .then((existing) => {
+      if (existing && existing.length > 0) {
+        return updateErpDoc('Design Review', existing[0].name, erpPayload);
+      } else {
+        return createErpDoc('Design Review', erpPayload);
+      }
+    })
+    .catch((err) => {
+      console.warn('[DesignReviewStore] Failed to sync Design Review to ERPNext:', err.message);
+    });
+
   // Log Audit Action
   saveAuditRecord({
     project_id: review.project || 'GLOBAL',
@@ -331,6 +433,9 @@ export function deleteDesignReview(name: string): boolean {
   const filtered = reviews.filter((r) => r.name !== name);
   if (filtered.length !== initialLength) {
     saveAllDesignReviews(filtered);
+    deleteErpDoc('Design Review', name).catch((err) => {
+      console.warn('[DesignReviewStore] Failed to delete Design Review in ERPNext:', err.message);
+    });
     return true;
   }
   return false;

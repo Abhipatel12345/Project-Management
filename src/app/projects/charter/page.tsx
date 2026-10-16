@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import Link from 'next/link';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { useProjects, useProject } from '@/hooks/use-projects';
@@ -27,17 +27,22 @@ export default function ProjectCharterPage() {
   const projectParam = searchParams.get('project');
 
   const { data, isLoading } = useProjects({ page: 1, pageSize: 200 });
-  const projects = data?.projects || [];
+  const projects = useMemo(() => data?.projects || [], [data?.projects]);
 
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(projectParam);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Sync selected project with URL query param
+  // Sync selected project with URL query param & handle deleted/stale project
   useEffect(() => {
     if (projectParam) {
-      setSelectedProjectId(projectParam);
+      if (!isLoading && projects.length > 0 && !projects.some((p: Project) => p.name === projectParam)) {
+        setSelectedProjectId(null);
+        router.replace('/projects/charter');
+      } else {
+        setSelectedProjectId(projectParam);
+      }
     }
-  }, [projectParam]);
+  }, [projectParam, projects, isLoading, router]);
 
   // Fetch full details of selected project
   const { data: selectedProject, refetch: refetchProject } = useProject(selectedProjectId || '');

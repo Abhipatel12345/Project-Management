@@ -14,7 +14,7 @@ import { ProjectStatusBadge } from '@/components/projects/project-status-badge';
 import { ProjectPriorityBadge } from '@/components/projects/project-priority-badge';
 import { ProjectTableSkeleton } from '@/components/projects/project-table-skeleton';
 import { ProjectFormDialog } from '@/components/projects/project-form-dialog';
-import { ProjectDeleteDialog } from '@/components/projects/project-delete-dialog';
+import { ProjectDeleteDialog, extractProjectDeleteErrorMessage } from '@/components/projects/project-delete-dialog';
 import { ProjectCreationChoiceDialog } from '@/components/projects/project-creation-choice-dialog';
 import { ProjectImportWizardDialog } from '@/components/projects/import/project-import-wizard-dialog';
 import { BackButton } from '@/components/shared/back-button';
@@ -37,11 +37,13 @@ import {
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useAuth } from '@/providers/auth-context';
+import { useToast } from '@/providers/toast-context';
 import { accessControlService } from '@/services/access-control.service';
 
 export default function ProjectsPage() {
   const router = useRouter();
   const { user } = useAuth();
+  const { showErpMessage } = useToast();
   const canCreate = accessControlService.canCreateProject(user).allowed;
 
   // Search & Filter State
@@ -58,6 +60,7 @@ export default function ProjectsPage() {
   const [isImportWizardOpen, setIsImportWizardOpen] = useState(false);
   const [editingProject, setEditingProject] = useState<Project | null>(null);
   const [deletingProject, setDeletingProject] = useState<Project | null>(null);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const [actionSuccess, setActionSuccess] = useState<string | null>(null);
 
@@ -136,14 +139,20 @@ export default function ProjectsPage() {
   // Submit Delete Project
   const handleDeleteConfirm = async () => {
     if (!deletingProject) return;
+    const projectToDelete = deletingProject;
+    setDeleteError(null);
     try {
       setActionError(null);
-      await deleteProjectMutation.mutateAsync(deletingProject.name);
-      setActionSuccess(`Project "${deletingProject.project_name}" deleted.`);
+      setActionSuccess(null);
+      await deleteProjectMutation.mutateAsync(projectToDelete.name);
+      setActionSuccess(`Project "${projectToDelete.project_name?.trim() || projectToDelete.name}" deleted.`);
       setTimeout(() => setActionSuccess(null), 4000);
       setDeletingProject(null);
+      setDeleteError(null);
     } catch (err: any) {
-      setActionError(err.message || 'Failed to delete project.');
+      setActionSuccess(null); // Ensure NO false success message when deletion fails
+      const formattedError = extractProjectDeleteErrorMessage(err);
+      setDeleteError(formattedError);
     }
   };
 
@@ -455,7 +464,10 @@ export default function ProjectsPage() {
                             <Edit2 className="h-4 w-4" />
                           </button>
                           <button
-                            onClick={() => setDeletingProject(project)}
+                            onClick={() => {
+                              setDeleteError(null);
+                              setDeletingProject(project);
+                            }}
                             className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 transition"
                             title="Delete Project"
                           >
@@ -522,10 +534,14 @@ export default function ProjectsPage() {
 
       <ProjectDeleteDialog
         isOpen={!!deletingProject}
-        onClose={() => setDeletingProject(null)}
+        onClose={() => {
+          setDeletingProject(null);
+          setDeleteError(null);
+        }}
         onConfirm={handleDeleteConfirm}
         projectName={deletingProject?.project_name || deletingProject?.name || ''}
         isLoading={deleteProjectMutation.isPending}
+        errorMessage={deleteError}
       />
     </div>
   );

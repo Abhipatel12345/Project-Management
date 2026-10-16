@@ -2,6 +2,12 @@ import fs from 'fs';
 import path from 'path';
 import { ProjectRiskAssessment, RiskArea, RiskItem, RiskRating } from '@/types/risk.types';
 import { loadAllGates } from './gate-store';
+import {
+  createErpDoc,
+  updateErpDoc,
+  fetchErpResource,
+  getErpDoc,
+} from './erp-client';
 
 const DATA_FILE = path.join(process.cwd(), '.data', 'risk_assessments.json');
 
@@ -13,6 +19,76 @@ function ensureDataFile() {
   if (!fs.existsSync(DATA_FILE)) {
     fs.writeFileSync(DATA_FILE, JSON.stringify({}, null, 2), 'utf-8');
   }
+}
+
+export async function fetchRiskAssessmentFromERPNext(
+  projectId: string,
+  projectName?: string,
+  currentPhase?: string
+): Promise<ProjectRiskAssessment> {
+  try {
+    const list = await fetchErpResource<any>('Risk Assesment', {
+      filters: [['project', '=', projectId]],
+      limit: 1,
+    });
+
+    if (list && list.length > 0) {
+      const doc = await getErpDoc<any>('Risk Assesment', list[0].name);
+      const defaultAreas = getDefaultRiskAreas();
+
+      // Hydrate items from doc.risk_items
+      if (Array.isArray(doc.risk_items) && doc.risk_items.length > 0) {
+        for (const rItem of doc.risk_items) {
+          const areaMatch = defaultAreas.find((a) => {
+            const an = a.name.toUpperCase();
+            const ran = (rItem.risk_area || '').toUpperCase();
+            return an === ran || (ran.includes('DESIGN') && an.includes('DESIGN'));
+          });
+          if (areaMatch) {
+            const itemMatch = areaMatch.items.find(
+              (i) => i.question.toLowerCase().trim() === (rItem.risk_item || '').toLowerCase().trim()
+            );
+            if (itemMatch) {
+              itemMatch.selected_value = rItem.response || itemMatch.selected_value;
+              itemMatch.rating = (rItem.risk_rating === 'H' ? 'H' : rItem.risk_rating === 'L' ? 'L' : 'OK') as RiskRating;
+              itemMatch.risk_resolution_plan = rItem.risk_resolution_plan || '';
+              itemMatch.target_date = rItem.target_completion_date || undefined;
+            }
+          }
+        }
+      }
+
+      const { highRiskCount, overallRisk, escalation } = calculateRiskMetrics(defaultAreas);
+      const assessment: ProjectRiskAssessment = {
+        project_id: projectId,
+        project_number: projectId,
+        project_name: doc.project_name || projectName || projectId,
+        current_pdp_phase: doc.pdp_phase || currentPhase || 'PL',
+        quote_phase: 'Quote',
+        overall_risk_assessment: (doc.number_of_items_rated_as_high > 0 ? 'H' : overallRisk) as RiskRating,
+        high_risk_count: doc.number_of_items_rated_as_high || highRiskCount,
+        escalation_recommendation: doc.escalation_recommendation === 'Y' ? 'Y' : escalation,
+        areas: defaultAreas,
+        last_updated: doc.modified || new Date().toISOString(),
+        updated_by: doc.owner || 'Administrator',
+      };
+
+      // Update local cache
+      try {
+        ensureDataFile();
+        const raw = fs.readFileSync(DATA_FILE, 'utf-8');
+        const store = JSON.parse(raw);
+        store[projectId] = assessment;
+        fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf-8');
+      } catch {}
+
+      return assessment;
+    }
+  } catch (err: any) {
+    console.warn('[RiskStore] fetchRiskAssessmentFromERPNext failed, using local cache:', err.message);
+  }
+
+  return getProjectRiskAssessment(projectId, projectName, currentPhase);
 }
 
 export function getDefaultRiskAreas(): RiskArea[] {
@@ -465,6 +541,53 @@ export function saveProjectRiskAssessment(
 
   store[projectId] = merged;
   fs.writeFileSync(DATA_FILE, JSON.stringify(store, null, 2), 'utf-8');
+
+  // Authoritative ERPNext Sync: persist to Risk Assesment and PDM Risk Assessment Item
+  const risk_items: any[] = [];
+  for (const area of areas) {
+    let erpArea = 'PROJECT MANAGEMENT';
+    const an = area.name.toUpperCase();
+    if (an.includes('DESIGN') && an.includes('PROCESS')) erpArea = 'PROCESS/SYSTEM DESIGN';
+    else if (an.includes('DESIGN')) erpArea = 'PRODUCT/SYSTEM DESIGN';
+    else if (an.includes('TEST') || an.includes('VALIDATION')) erpArea = 'TEST/VALIDATION';
+    else if (an.includes('SOURCING') || an.includes('PURCHASING')) erpArea = 'SOURCING';
+    else if (an.includes('MANUFACTURING') || an.includes('OPERATIONS')) erpArea = 'MANUFACTURING';
+
+    for (const item of area.items) {
+      risk_items.push({
+        risk_area: erpArea,
+        category: item.category || '',
+        risk_item: item.question,
+        response: item.selected_value || '',
+        risk_rating: item.rating === 'H' ? 'H' : item.rating === 'L' ? 'L' : 'OK',
+        risk_description: item.risk_resolution_plan || '',
+        risk_resolution_plan: item.risk_resolution_plan || '',
+        target_completion_date: item.target_date || null,
+      });
+    }
+  }
+
+  const erpPayload = {
+    project: projectId,
+    project_name: merged.project_name || '',
+    pdp_phase: 'PL',
+    number_of_items_rated_as_high: highRiskCount,
+    escalation_recommendation: escalation === 'Y' ? 'Y' : 'N',
+    risk_items,
+  };
+
+  fetchErpResource<any>('Risk Assesment', { filters: [['project', '=', projectId]], limit: 1 })
+    .then((existing) => {
+      if (existing && existing.length > 0) {
+        return updateErpDoc('Risk Assesment', existing[0].name, erpPayload);
+      } else {
+        return createErpDoc('Risk Assesment', erpPayload);
+      }
+    })
+    .catch((err) => {
+      console.warn('[RiskStore] Failed to sync Risk Assessment to ERPNext:', err.message);
+    });
+
   return merged;
 }
 

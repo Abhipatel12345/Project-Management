@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import {
   getBaselinesByProject,
   saveBaseline,
+  fetchBaselinesFromERPNext,
 } from '@/lib/server/baseline-store';
 import { ProjectBaseline } from '@/types/baseline.types';
 
@@ -15,7 +16,7 @@ export async function GET(
       return NextResponse.json({ error: 'Project ID is required' }, { status: 400 });
     }
 
-    const baselines = getBaselinesByProject(projectId);
+    const baselines = await fetchBaselinesFromERPNext(projectId);
     return NextResponse.json({
       baselines,
       totalCount: baselines.length,

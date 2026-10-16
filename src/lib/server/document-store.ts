@@ -8,6 +8,7 @@ import {
   getMimeType,
   RetrievedFileResult,
 } from './file-storage';
+import { createErpDoc, updateErpDoc, deleteErpDoc, fetchErpResource } from './erp-client';
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const FILE_PATH = path.join(DATA_DIR, 'documents.json');
@@ -110,10 +111,10 @@ export const writeDocumentsFile = (docs: DocumentItem[]): void => {
 };
 
 /**
- * Fetch ERPNext File records and Project.custom_upload_document for a project
+ * Fetch ERPNext PDM Document and File records for a project
  */
 export const syncErpNextProjectDocuments = async (projectId: string): Promise<DocumentItem[]> => {
-  if (!projectId || projectId === 'ALL' || projectId === 'Global Vault' || projectId === 'Global_Vault') {
+  if (!projectId || projectId === 'Global Vault' || projectId === 'Global_Vault') {
     return [];
   }
   try {
@@ -124,71 +125,133 @@ export const syncErpNextProjectDocuments = async (projectId: string): Promise<Do
 
     const erpDocs: DocumentItem[] = [];
 
-    // 1. Fetch File records attached to Project
-    const fileFilters = JSON.stringify([
-      ['attached_to_doctype', '=', 'Project'],
-      ['attached_to_name', '=', projectId],
-    ]);
-    const fileFields = JSON.stringify([
-      'name',
-      'file_name',
-      'file_url',
-      'file_size',
-      'creation',
-      'owner',
-      'attached_to_field',
-    ]);
-    const fileUrl = `${erpUrl}/api/resource/File?filters=${encodeURIComponent(fileFilters)}&fields=${encodeURIComponent(fileFields)}&order_by=creation desc&limit_page_length=100`;
-    
-    const fileRes = await fetch(fileUrl, { headers });
-    if (fileRes.ok) {
-      const fileData = await fileRes.json();
-      const files: any[] = fileData.data || [];
+    // 1. Authoritative fetch from ERPNext 'PDM Document' DocType
+    try {
+      const pdmFilters: any[] = [];
+      if (projectId && projectId !== 'ALL') {
+        pdmFilters.push(['project', '=', projectId]);
+      }
+      const erpPdmRecords = await fetchErpResource<any>('PDM Document', {
+        filters: pdmFilters,
+        fields: [
+          'name',
+          'title',
+          'project',
+          'document_type',
+          'version',
+          'status',
+          'file_url',
+          'file_name',
+          'file_size',
+          'mime_type',
+          'uploaded_by',
+          'upload_date',
+          'description',
+          'notes',
+          'creation',
+          'owner',
+        ],
+        order_by: 'creation desc',
+        limit: 200,
+      });
 
-      for (const f of files) {
-        const fileName = f.file_name || (f.file_url ? path.basename(f.file_url) : 'document.pdf');
+      for (const p of erpPdmRecords) {
+        const fileName = p.file_name || (p.file_url ? path.basename(p.file_url) : `${p.title}.pdf`);
         erpDocs.push({
-          name: f.name,
-          title: fileName.replace(/\.[^/.]+$/, '').replace(/_/g, ' '),
-          project: projectId,
-          document_type: f.attached_to_field === 'custom_upload_document' ? 'Engineering' : 'Specification',
-          version: 'v1.0',
-          uploaded_by: f.owner || 'Administrator',
-          upload_date: f.creation ? f.creation.split(' ')[0] : new Date().toISOString().split('T')[0],
-          status: 'Approved',
-          review_status: 'Approved',
+          name: p.name,
+          title: p.title || fileName.replace(/\.[^/.]+$/, '').replace(/_/g, ' '),
+          project: p.project || projectId,
+          document_type: p.document_type || 'Other',
+          version: p.version || 'v1.0',
+          uploaded_by: p.uploaded_by || p.owner || 'Administrator',
+          upload_date: p.upload_date ? p.upload_date.split(' ')[0] : (p.creation ? p.creation.split(' ')[0] : new Date().toISOString().split('T')[0]),
+          status: (p.status as any) || 'Approved',
+          review_status: p.status === 'Under Review' ? 'In Review' : (p.status === 'Approved' ? 'Approved' : 'Pending Review'),
           file_name: fileName,
-          file_size: f.file_size || 1024,
-          mime_type: getMimeType(fileName),
-          file_url: f.file_url,
+          file_size: p.file_size || 1024,
+          mime_type: p.mime_type || getMimeType(fileName),
+          file_url: p.file_url || (p.project ? `/api/projects/${encodeURIComponent(p.project)}/documents/${encodeURIComponent(p.name)}/download` : undefined),
           storage_type: 'local',
+          description: p.description || '',
+          notes: p.notes || '',
         });
       }
+    } catch (pdmErr) {
+      console.warn(`[Document Store] Error fetching ERPNext PDM Document records for ${projectId}:`, pdmErr);
     }
 
-    // 2. Fetch Project record to check custom_upload_document
-    const projRes = await fetch(`${erpUrl}/api/resource/Project/${encodeURIComponent(projectId)}`, { headers });
-    if (projRes.ok) {
-      const projData = await projRes.json();
-      const customDocUrl = projData.data?.custom_upload_document;
-      if (customDocUrl && !erpDocs.some((d) => d.file_url === customDocUrl)) {
-        const fileName = path.basename(customDocUrl);
-        erpDocs.unshift({
-          name: `DOC-${projectId}-MAIN`,
-          title: `${projData.data?.project_name || projectId} Uploaded Document`,
-          project: projectId,
-          document_type: 'Engineering',
-          version: 'v1.0',
-          uploaded_by: projData.data?.owner || 'Administrator',
-          upload_date: projData.data?.creation ? projData.data.creation.split(' ')[0] : new Date().toISOString().split('T')[0],
-          status: 'Approved',
-          review_status: 'Approved',
-          file_name: fileName,
-          file_size: 2048,
-          mime_type: getMimeType(fileName),
-          file_url: customDocUrl,
-          storage_type: 'local',
-        });
+    // 2. Fetch File records attached to Project (only if not already mapped from PDM Document)
+    if (projectId && projectId !== 'ALL') {
+      const fileFilters = JSON.stringify([
+        ['attached_to_doctype', '=', 'Project'],
+        ['attached_to_name', '=', projectId],
+      ]);
+      const fileFields = JSON.stringify([
+        'name',
+        'file_name',
+        'file_url',
+        'file_size',
+        'creation',
+        'owner',
+        'attached_to_field',
+      ]);
+      const fileUrl = `${erpUrl}/api/resource/File?filters=${encodeURIComponent(fileFilters)}&fields=${encodeURIComponent(fileFields)}&order_by=creation desc&limit_page_length=100`;
+
+      const fileRes = await fetch(fileUrl, { headers });
+      if (fileRes.ok) {
+        const fileData = await fileRes.json();
+        const files: any[] = fileData.data || [];
+
+        for (const f of files) {
+          const fileName = f.file_name || (f.file_url ? path.basename(f.file_url) : 'document.pdf');
+          const alreadyInPdm = erpDocs.some(
+            (d) => d.file_url === f.file_url || (f.file_name && d.file_name === f.file_name)
+          );
+          if (!alreadyInPdm) {
+            erpDocs.push({
+              name: f.name,
+              title: fileName.replace(/\.[^/.]+$/, '').replace(/_/g, ' '),
+              project: projectId,
+              document_type: 'Other',
+              version: 'v1.0',
+              uploaded_by: f.owner || 'Administrator',
+              upload_date: f.creation ? f.creation.split(' ')[0] : new Date().toISOString().split('T')[0],
+              status: 'Approved',
+              review_status: 'Approved',
+              file_name: fileName,
+              file_size: f.file_size || 1024,
+              mime_type: getMimeType(fileName),
+              file_url: f.file_url,
+              storage_type: 'local',
+            });
+          }
+        }
+      }
+
+      // 3. Fetch Project record to check custom_upload_document
+      const projRes = await fetch(`${erpUrl}/api/resource/Project/${encodeURIComponent(projectId)}`, { headers });
+      if (projRes.ok) {
+        const projData = await projRes.json();
+        const customDocUrl = projData.data?.custom_upload_document;
+        if (customDocUrl && !erpDocs.some((d) => d.file_url === customDocUrl)) {
+          const fileName = path.basename(customDocUrl);
+          erpDocs.unshift({
+            name: `DOC-${projectId}-MAIN`,
+            title: `${projData.data?.project_name || projectId} Uploaded Document`,
+            project: projectId,
+            document_type: 'Other',
+            version: 'v1.0',
+            uploaded_by: projData.data?.owner || 'Administrator',
+            upload_date: projData.data?.creation ? projData.data.creation.split(' ')[0] : new Date().toISOString().split('T')[0],
+            status: 'Approved',
+            review_status: 'Approved',
+            file_name: fileName,
+            file_size: 2048,
+            mime_type: getMimeType(fileName),
+            file_url: customDocUrl,
+            storage_type: 'local',
+          });
+        }
       }
     }
 
@@ -206,21 +269,43 @@ export const getDocumentsByProject = async (
   const allDocs = readDocumentsFile();
   const normProject = (projectId || '').toLowerCase().trim();
 
-  // Fetch live ERPNext attachments for this project
+  // Fetch live ERPNext records (including PDM Document records) for this project
   const erpDocs = await syncErpNextProjectDocuments(projectId);
 
-  // Merge store documents and live ERPNext documents (deduping by file_name or file_url)
+  // Merge store documents and live ERPNext documents
   const combinedDocs = [...allDocs];
+  let hasChanges = false;
+
   for (const ed of erpDocs) {
-    const exists = combinedDocs.some(
+    const existingIdx = combinedDocs.findIndex(
       (d) =>
         d.name === ed.name ||
-        (d.project === ed.project && d.file_name === ed.file_name) ||
-        (ed.file_url && d.file_url === ed.file_url)
+        (d.project === ed.project && d.file_name && ed.file_name && d.file_name === ed.file_name) ||
+        (d.title && ed.title && d.title.trim().toLowerCase() === ed.title.trim().toLowerCase() && d.project === ed.project) ||
+        (ed.file_url && d.file_url && d.file_url === ed.file_url)
     );
-    if (!exists) {
-      combinedDocs.push(ed);
+
+    if (existingIdx !== -1) {
+      const existing = combinedDocs[existingIdx];
+      // Keep authoritative saved document_type
+      const finalDocType = (ed.document_type && ed.document_type !== 'Other')
+        ? ed.document_type
+        : (existing.document_type || ed.document_type || 'Other');
+
+      combinedDocs[existingIdx] = {
+        ...existing,
+        ...ed,
+        document_type: finalDocType,
+        name: existing.name || ed.name,
+      };
+    } else {
+      combinedDocs.unshift(ed);
+      hasChanges = true;
     }
+  }
+
+  if (hasChanges) {
+    writeDocumentsFile(combinedDocs);
   }
 
   let filtered = combinedDocs.filter((d) => {
@@ -354,11 +439,13 @@ export const saveDocument = async (doc: Partial<DocumentItem>): Promise<Document
     doc.file_url ||
     `/api/projects/${encodeURIComponent(projectId)}/documents/${encodeURIComponent(docId)}/download`;
 
+  const exactDocType = doc.document_type || 'Other';
+
   const newDoc: DocumentItem = {
     name: docId,
     title: doc.title || cleanFileName,
     project: projectId,
-    document_type: doc.document_type || 'Engineering',
+    document_type: exactDocType,
     version: doc.version || 'v1.0',
     uploaded_by: doc.uploaded_by || 'Administrator',
     upload_date: doc.upload_date || new Date().toISOString().split('T')[0],
@@ -387,7 +474,117 @@ export const saveDocument = async (doc: Partial<DocumentItem>): Promise<Document
   }
 
   writeDocumentsFile(allDocs);
+
+  // Authoritative ERPNext Sync: persist to PDM Document DocType
+  createErpDoc('PDM Document', {
+    title: newDoc.title,
+    project: (newDoc.project && newDoc.project !== 'Global Vault' && !newDoc.project.startsWith('GLOBAL')) ? newDoc.project : null,
+    document_type: exactDocType,
+    version: newDoc.version || 'v1.0',
+    status: newDoc.status || 'Approved',
+    file_url: newDoc.file_url || '',
+    file_name: newDoc.file_name || '',
+    file_size: newDoc.file_size || 0,
+    mime_type: newDoc.mime_type || '',
+    uploaded_by: newDoc.uploaded_by || 'Administrator',
+    upload_date: newDoc.upload_date ? newDoc.upload_date.replace('T', ' ').replace('Z', '').split('.')[0] : null,
+    description: newDoc.description || '',
+    notes: newDoc.notes || '',
+  }).catch((err) => console.warn('[DocumentStore] Failed to sync PDM Document to ERPNext:', err.message));
+
   return newDoc;
+};
+
+/**
+ * Update an existing document's metadata (e.g. document_type, title, version, status)
+ * Authoritatively persists changes to both local store and ERPNext PDM Document
+ */
+export const updateDocumentItem = async (
+  name: string,
+  data: Partial<DocumentItem>
+): Promise<DocumentItem> => {
+  const allDocs = readDocumentsFile();
+  const existingIdx = allDocs.findIndex(
+    (d) => d.name === name || (data.file_name && d.file_name === data.file_name) || (data.title && d.title === data.title)
+  );
+
+  if (existingIdx === -1) {
+    throw new Error(`Document ${name} not found`);
+  }
+
+  const existing = allDocs[existingIdx];
+  const updatedDocType = data.document_type !== undefined && data.document_type.trim() !== ''
+    ? data.document_type
+    : existing.document_type;
+
+  const updated: DocumentItem = {
+    ...existing,
+    title: data.title !== undefined ? data.title : existing.title,
+    document_type: updatedDocType,
+    version: data.version !== undefined ? data.version : existing.version,
+    status: data.status !== undefined ? data.status : existing.status,
+    review_status: data.review_status !== undefined ? data.review_status : existing.review_status,
+    description: data.description !== undefined ? data.description : existing.description,
+    notes: data.notes !== undefined ? data.notes : existing.notes,
+    project: data.project !== undefined ? data.project : existing.project,
+    file_name: data.file_name !== undefined ? data.file_name : existing.file_name,
+    uploaded_by: data.uploaded_by !== undefined ? data.uploaded_by : existing.uploaded_by,
+    upload_date: existing.upload_date, // preserve original upload date
+  };
+
+  allDocs[existingIdx] = updated;
+  writeDocumentsFile(allDocs);
+
+  // Authoritative ERPNext Sync: Update in PDM Document DocType
+  try {
+    let erpDocName: string | null = null;
+    const byTitle = await fetchErpResource<any>('PDM Document', {
+      filters: [['title', '=', existing.title]],
+      limit: 1,
+    });
+    if (byTitle.length > 0) {
+      erpDocName = byTitle[0].name;
+    } else {
+      const byName = await fetchErpResource<any>('PDM Document', {
+        filters: [['name', '=', name]],
+        limit: 1,
+      });
+      if (byName.length > 0) {
+        erpDocName = byName[0].name;
+      }
+    }
+
+    if (erpDocName) {
+      await updateErpDoc('PDM Document', erpDocName, {
+        title: updated.title,
+        document_type: updated.document_type,
+        version: updated.version,
+        status: updated.status,
+        description: updated.description,
+        notes: updated.notes,
+      });
+    } else {
+      await createErpDoc('PDM Document', {
+        title: updated.title,
+        project: (updated.project && updated.project !== 'Global Vault' && !updated.project.startsWith('GLOBAL')) ? updated.project : null,
+        document_type: updated.document_type,
+        version: updated.version || 'v1.0',
+        status: updated.status || 'Approved',
+        file_url: updated.file_url || '',
+        file_name: updated.file_name || '',
+        file_size: updated.file_size || 0,
+        mime_type: updated.mime_type || '',
+        uploaded_by: updated.uploaded_by || 'Administrator',
+        upload_date: updated.upload_date ? updated.upload_date.replace('T', ' ').replace('Z', '').split('.')[0] : null,
+        description: updated.description || '',
+        notes: updated.notes || '',
+      });
+    }
+  } catch (err: any) {
+    console.warn('[DocumentStore] Failed to sync update to ERPNext PDM Document:', err.message);
+  }
+
+  return updated;
 };
 
 /**
@@ -437,6 +634,17 @@ export const deleteDocument = async (name: string): Promise<boolean> => {
     writeDocumentsFile(filtered);
     if (doc) {
       await deleteDocumentFile(doc);
+    }
+    // Delete in ERPNext PDM Document
+    try {
+      const existingErpDocs = await fetchErpResource<any>('PDM Document', {
+        filters: doc ? [['title', '=', doc.title]] : [['name', '=', name]],
+        limit: 1,
+      });
+      const erpName = existingErpDocs.length > 0 ? existingErpDocs[0].name : name;
+      await deleteErpDoc('PDM Document', erpName);
+    } catch (err: any) {
+      console.warn('[DocumentStore] Failed to delete PDM Document in ERPNext:', err.message);
     }
     return true;
   }

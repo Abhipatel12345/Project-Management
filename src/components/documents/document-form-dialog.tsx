@@ -52,7 +52,7 @@ export function DocumentFormDialog({
     defaultValues: {
       title: '',
       project: defaultProjectId || '',
-      document_type: 'Engineering',
+      document_type: '',
       version: 'v1.0',
       uploaded_by: 'Administrator',
       status: 'Draft',
@@ -67,7 +67,7 @@ export function DocumentFormDialog({
       reset({
         title: initialData.title || '',
         project: initialData.project || defaultProjectId || '',
-        document_type: initialData.document_type || 'Engineering',
+        document_type: initialData.document_type || '',
         version: initialData.version || 'v1.0',
         uploaded_by: initialData.uploaded_by || 'Administrator',
         status: initialData.status || 'Approved',
@@ -82,7 +82,7 @@ export function DocumentFormDialog({
       reset({
         title: '',
         project: defaultProjectId || (projects.length > 0 ? projects[0].name : ''),
-        document_type: 'Engineering',
+        document_type: '',
         version: 'v1.0',
         uploaded_by: 'Administrator',
         status: 'Draft',
@@ -94,7 +94,7 @@ export function DocumentFormDialog({
       setFileDataUrl(null);
       setSelectedFile(null);
     }
-  }, [initialData, reset, isOpen, defaultProjectId, projects]);
+  }, [initialData, reset, isOpen, defaultProjectId]);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files.length > 0) {
@@ -191,21 +191,32 @@ export function DocumentFormDialog({
               </div>
 
               <div className="space-y-1.5">
-                <label className="block text-xs font-bold text-slate-700">Document Type</label>
+                <label className="block text-xs font-bold text-slate-700">
+                  Document Type <span className="text-rose-500">*</span>
+                </label>
                 <select
-                  {...register('document_type')}
+                  {...register('document_type', { required: 'Document type is required' })}
                   className="w-full px-3.5 py-2.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-bold focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer"
                 >
+                  <option value="" disabled>Select Document Type...</option>
                   <option value="Engineering">Engineering</option>
-                  <option value="Design">Design CAD</option>
+                  <option value="Design">Design</option>
                   <option value="Specification">Specification</option>
-                  <option value="Quality">Quality Control</option>
-                  <option value="Testing">Testing & DVP&R</option>
-                  <option value="APQP">APQP Gate File</option>
-                  <option value="Process">Process Instruction</option>
-                  <option value="Customer">Customer Spec</option>
+                  <option value="Quality">Quality</option>
+                  <option value="Testing">Testing</option>
+                  <option value="APQP">APQP</option>
+                  <option value="Process">Process</option>
+                  <option value="Customer">Customer</option>
                   <option value="Other">Other</option>
+                  {initialData?.document_type && ![
+                    'Engineering', 'Design', 'Specification', 'Quality', 'Testing', 'APQP', 'Process', 'Customer', 'Other'
+                  ].includes(initialData.document_type) && (
+                    <option value={initialData.document_type}>{initialData.document_type}</option>
+                  )}
                 </select>
+                {errors.document_type && (
+                  <p className="text-[11px] font-bold text-rose-500">{errors.document_type.message}</p>
+                )}
               </div>
             </div>
 

@@ -1,5 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { getProjectRiskAssessment, saveProjectRiskAssessment } from '@/lib/server/risk-assessment-store';
+import {
+  getProjectRiskAssessment,
+  saveProjectRiskAssessment,
+  fetchRiskAssessmentFromERPNext,
+} from '@/lib/server/risk-assessment-store';
 import { getSessionUser } from '@/lib/server/session';
 
 export const dynamic = 'force-dynamic';
@@ -18,7 +22,7 @@ export async function GET(
     const projectName = searchParams.get('projectName') || undefined;
     const currentPhase = searchParams.get('currentPhase') || undefined;
 
-    const assessment = getProjectRiskAssessment(id, projectName, currentPhase);
+    const assessment = await fetchRiskAssessmentFromERPNext(id, projectName, currentPhase);
     return NextResponse.json(assessment);
   } catch (error: any) {
     return NextResponse.json(

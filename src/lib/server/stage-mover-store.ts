@@ -9,6 +9,7 @@ import {
 import { loadAllGates, saveAllGates } from './gate-store';
 import { saveAuditRecord } from './audit-store';
 import { PDMUserSession } from '@/types/auth.types';
+import { createErpDoc, updateErpDoc, fetchErpResource, getErpDoc } from './erp-client';
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const HISTORY_FILE = path.join(DATA_DIR, 'stage_mover_history.json');
@@ -55,6 +56,11 @@ export function setProjectCurrentStage(projectId: string, stage: PDPStageCode) {
   } catch (err) {
     console.error('[Stage Mover] Failed to set project stage:', err);
   }
+
+  // Authoritative ERPNext Sync: update Project.custom_stage
+  updateErpDoc('Project', projectId, { custom_stage: stage }).catch((err) => {
+    console.warn(`[Stage Mover] Could not update custom_stage on ERPNext Project ${projectId}:`, err.message);
+  });
 }
 
 export function getProjectStageMoverStatus(
@@ -269,6 +275,20 @@ export function executeStageMovement(
     console.error('[Stage Mover] Failed to write movement history:', err);
   }
 
+  // Authoritative ERPNext Sync: insert to Stage Movement History DocType
+  createErpDoc('Stage Movement History', {
+    project: projectId,
+    project_name: status.project_name || '',
+    from_stage: fromStage,
+    to_stage: toStage,
+    moved_at: historyEntry.moved_at.replace('T', ' ').replace('Z', '').split('.')[0],
+    moved_by: session.fullName || session.username || 'System',
+    trigger_type: 'PD_APPROVAL',
+    pd_decision: status.platform_director_decision || 'Pass',
+    gate_name: status.current_gate?.gate_name || `${fromStage} Gate`,
+    comments: `Advanced to ${toStage} upon Gate Approval.`
+  }).catch((err) => console.warn('[Stage Mover] ERPNext Stage Movement History sync error:', err.message));
+
   // 4. Audit Log
   saveAuditRecord({
     project_id: projectId,
@@ -325,6 +345,19 @@ export function executePMOOverride(
   } catch (err) {
     console.error('[Stage Mover] Failed to write PMO override history:', err);
   }
+
+  // Authoritative ERPNext Sync: insert to Stage Movement History DocType
+  createErpDoc('Stage Movement History', {
+    project: projectId,
+    project_name: '',
+    from_stage: currentStage,
+    to_stage: targetStage,
+    moved_at: historyEntry.moved_at.replace('T', ' ').replace('Z', '').split('.')[0],
+    moved_by: session.fullName || session.username || 'PMO Admin',
+    trigger_type: isRollback ? 'PMO_ROLLBACK' : 'PMO_OVERRIDE',
+    reason: reason,
+    comments: reason
+  }).catch((err) => console.warn('[Stage Mover] ERPNext PMO Override sync error:', err.message));
 
   saveAuditRecord({
     project_id: projectId,

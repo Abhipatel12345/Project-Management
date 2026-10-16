@@ -202,6 +202,7 @@ export function GanttChartView({
       }
     } else if (viewMode === 'month') {
       start.setMonth(start.getMonth() - 1);
+      start.setDate(1);
       for (let i = 0; i < 8; i++) {
         const d = new Date(start);
         d.setMonth(d.getMonth() + i);
@@ -215,6 +216,7 @@ export function GanttChartView({
     } else {
       // Quarter
       start.setMonth(Math.floor(start.getMonth() / 3) * 3 - 3);
+      start.setDate(1);
       for (let i = 0; i < 6; i++) {
         const d = new Date(start);
         d.setMonth(d.getMonth() + i * 3);
@@ -231,22 +233,44 @@ export function GanttChartView({
     return cols;
   }, [currentBaseDate, viewMode]);
 
+  // Compute precise timeline range covering from first column start to last column end
+  const timelineRange = useMemo(() => {
+    if (timelineColumns.length === 0) return { startTime: 0, endTime: 0, totalDuration: 1 };
+    const N = timelineColumns.length;
+    const first = timelineColumns[0].date;
+    const last = timelineColumns[N - 1].date;
+
+    const startTime = first.getTime();
+    let endTime = last.getTime();
+
+    if (viewMode === 'day') {
+      endTime = last.getTime() + 86400000;
+    } else if (viewMode === 'week') {
+      endTime = last.getTime() + 7 * 86400000;
+    } else if (viewMode === 'month') {
+      endTime = new Date(last.getFullYear(), last.getMonth() + 1, 1).getTime();
+    } else {
+      endTime = new Date(last.getFullYear(), last.getMonth() + 3, 1).getTime();
+    }
+
+    const totalDuration = Math.max(endTime - startTime, 86400000);
+    return { startTime, endTime, totalDuration };
+  }, [timelineColumns, viewMode]);
+
   // Compute Task Bar position %
   const getTaskBarSpan = (startStr?: string, endStr?: string) => {
     if (timelineColumns.length === 0) return { left: '0%', width: '100%' };
-
-    const firstColDate = timelineColumns[0].date.getTime();
-    const lastColDate = timelineColumns[timelineColumns.length - 1].date.getTime();
-    const totalTimeSpan = Math.max(lastColDate - firstColDate, 86400000);
+    const { startTime, endTime, totalDuration } = timelineRange;
 
     const startDate = parseDate(startStr).getTime();
-    const endDate = parseDate(endStr).getTime();
+    const rawEndDate = parseDate(endStr).getTime();
+    const endDate = Math.max(rawEndDate + 86400000, startDate + 86400000);
 
-    const clampedStart = Math.max(startDate, firstColDate);
-    const clampedEnd = Math.min(Math.max(endDate, clampedStart + 86400000), lastColDate + 86400000);
+    const clampedStart = Math.max(startDate, startTime);
+    const clampedEnd = Math.min(Math.max(endDate, clampedStart + 86400000), endTime);
 
-    const leftPct = Math.max(0, Math.min(100, ((clampedStart - firstColDate) / totalTimeSpan) * 100));
-    const widthPct = Math.max(4, Math.min(100 - leftPct, ((clampedEnd - clampedStart) / totalTimeSpan) * 100));
+    const leftPct = Math.max(0, Math.min(99, ((clampedStart - startTime) / totalDuration) * 100));
+    const widthPct = Math.max(2, Math.min(100 - leftPct, ((clampedEnd - clampedStart) / totalDuration) * 100));
 
     return {
       left: `${leftPct}%`,
@@ -254,36 +278,41 @@ export function GanttChartView({
     };
   };
 
+  // Compute Milestone position % centered in the day/period
+  const getMilestonePosition = (dateStr?: string) => {
+    if (timelineColumns.length === 0) return { left: '0%' };
+    const { startTime, endTime, totalDuration } = timelineRange;
+    const mDate = parseDate(dateStr).getTime() + 43200000;
+    const clampedDate = Math.max(startTime, Math.min(endTime, mDate));
+    const leftPct = Math.max(0, Math.min(98, ((clampedDate - startTime) / totalDuration) * 100));
+    return {
+      left: `${leftPct}%`,
+    };
+  };
+
   // Compute Today Line left position %
   const todayLineLeftPct = useMemo(() => {
     if (timelineColumns.length === 0) return null;
-    const firstColDate = timelineColumns[0].date.getTime();
-    const lastColDate = timelineColumns[timelineColumns.length - 1].date.getTime();
-    const totalSpan = lastColDate - firstColDate;
-    if (totalSpan <= 0) return null;
-
+    const { startTime, endTime, totalDuration } = timelineRange;
     const todayMs = new Date().getTime();
-    if (todayMs < firstColDate || todayMs > lastColDate + 86400000) return null;
+    if (todayMs < startTime || todayMs > endTime) return null;
 
-    const pct = ((todayMs - firstColDate) / totalSpan) * 100;
+    const pct = ((todayMs - startTime) / totalDuration) * 100;
     return Math.max(0, Math.min(100, pct));
-  }, [timelineColumns]);
+  }, [timelineColumns, timelineRange]);
 
   // Compute PDP Gate milestone markers positions
   const gateMarkers = useMemo(() => {
     if (timelineColumns.length === 0 || gates.length === 0) return [];
-    const firstColDate = timelineColumns[0].date.getTime();
-    const lastColDate = timelineColumns[timelineColumns.length - 1].date.getTime();
-    const totalSpan = lastColDate - firstColDate;
-    if (totalSpan <= 0) return [];
+    const { startTime, endTime, totalDuration } = timelineRange;
 
     return gates
       .map((g) => {
         const dStr = g.target_date || g.planned_date || g.actual_date;
         if (!dStr) return null;
-        const gTime = parseDate(dStr).getTime();
-        if (gTime < firstColDate || gTime > lastColDate + 86400000) return null;
-        const leftPct = ((gTime - firstColDate) / totalSpan) * 100;
+        const gTime = parseDate(dStr).getTime() + 43200000;
+        if (gTime < startTime || gTime > endTime) return null;
+        const leftPct = ((gTime - startTime) / totalDuration) * 100;
         return {
           gateName: g.gate_name || g.name,
           date: dStr,
@@ -291,7 +320,7 @@ export function GanttChartView({
         };
       })
       .filter(Boolean) as { gateName: string; date: string; leftPct: number }[];
-  }, [timelineColumns, gates]);
+  }, [timelineColumns, gates, timelineRange]);
 
   // Filter Tasks with Strict Project Isolation & Distinct Types
   const filteredTasks = useMemo(() => {
@@ -533,11 +562,12 @@ export function GanttChartView({
   return (
     <div className="space-y-4 font-sans">
       {/* Top Action Bar & Summary Controls */}
-      <div className="p-4 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3">
+      <div className="p-4 sm:p-5 rounded-2xl bg-white border border-slate-200 shadow-xs space-y-3.5">
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
-          {/* Left: View Mode Controls & Critical Path Toggle */}
+          {/* Left: View Mode Controls, Date Navigation, and Primary Toggles */}
           <div className="flex flex-wrap items-center gap-2">
-            <div className="flex items-center bg-slate-100 p-1 rounded-xl border border-slate-200">
+            {/* Zoom Mode & Date Navigation Segmented Pill */}
+            <div className="flex items-center gap-1 bg-slate-100 p-1 rounded-xl border border-slate-200">
               <button
                 onClick={() => setViewMode('day')}
                 className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
@@ -569,6 +599,29 @@ export function GanttChartView({
                 }`}
               >
                 Quarter
+              </button>
+
+              <div className="h-4 w-px bg-slate-300 mx-1" />
+
+              <button
+                onClick={handlePrev}
+                className="p-1.5 rounded-lg hover:bg-white text-slate-600 transition cursor-pointer"
+                title="Previous period"
+              >
+                <ChevronLeft className="h-3.5 w-3.5" />
+              </button>
+              <button
+                onClick={handleToday}
+                className="px-2.5 py-1 rounded-lg bg-white text-slate-800 text-xs font-bold shadow-2xs hover:bg-slate-50 transition cursor-pointer"
+              >
+                Today
+              </button>
+              <button
+                onClick={handleNext}
+                className="p-1.5 rounded-lg hover:bg-white text-slate-600 transition cursor-pointer"
+                title="Next period"
+              >
+                <ChevronRight className="h-3.5 w-3.5" />
               </button>
             </div>
 
@@ -614,7 +667,7 @@ export function GanttChartView({
             {/* Expand / Collapse All */}
             <button
               onClick={collapsedPhases.size > 0 ? expandAllPhases : collapseAllPhases}
-              className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition cursor-pointer"
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 text-xs font-bold transition cursor-pointer shadow-2xs"
             >
               <Layers className="h-3.5 w-3.5 text-slate-500" />
               <span>{collapsedPhases.size > 0 ? 'Expand All' : 'Collapse All'}</span>
@@ -651,7 +704,7 @@ export function GanttChartView({
             {/* Manage Baselines */}
             <button
               onClick={onOpenManageBaselines}
-              className="flex items-center gap-1 px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-100 text-amber-900 font-bold text-xs transition cursor-pointer"
+              className="flex items-center gap-1 px-3 py-2 rounded-xl border border-amber-200 bg-amber-50/60 hover:bg-amber-100 text-amber-900 font-bold text-xs transition cursor-pointer shadow-2xs"
             >
               <BookmarkPlus className="h-3.5 w-3.5 text-amber-700" />
               <span>Baselines</span>
@@ -686,7 +739,7 @@ export function GanttChartView({
             {onImportTasks && (
               <button
                 onClick={() => setIsImportOpen(true)}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer"
+                className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer shadow-2xs"
                 title="Import MS Project XML or Excel"
               >
                 <Upload className="h-3.5 w-3.5 text-slate-600" />
@@ -698,7 +751,7 @@ export function GanttChartView({
             <div className="relative">
               <button
                 onClick={() => setIsExportMenuOpen(!isExportMenuOpen)}
-                className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer"
+                className="flex items-center gap-1 px-3 py-2 rounded-xl border border-slate-200 bg-white hover:bg-slate-50 text-slate-700 font-bold text-xs transition cursor-pointer shadow-2xs"
               >
                 <Download className="h-3.5 w-3.5 text-slate-600" />
                 <span>Export</span>
@@ -743,69 +796,47 @@ export function GanttChartView({
                 </div>
               )}
             </div>
-
-            {/* Timeline Date Navigation */}
-            <div className="flex items-center gap-1">
-              <button
-                onClick={handlePrev}
-                className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
-              >
-                <ChevronLeft className="h-4 w-4" />
-              </button>
-              <button
-                onClick={handleToday}
-                className="px-3 py-1.5 rounded-xl border border-slate-200 bg-white text-slate-800 text-xs font-bold hover:bg-slate-50 transition cursor-pointer shadow-2xs"
-              >
-                Today
-              </button>
-              <button
-                onClick={handleNext}
-                className="p-2 rounded-xl border border-slate-200 bg-slate-50 hover:bg-slate-100 text-slate-700 transition cursor-pointer"
-              >
-                <ChevronRight className="h-4 w-4" />
-              </button>
-            </div>
           </div>
         </div>
 
         {/* Legend Banner when Baseline is Active */}
         {(activeBaseline || isCompareMode) && (
-          <div className="p-2.5 rounded-xl bg-amber-50 border border-amber-200 flex flex-wrap items-center justify-between text-xs text-amber-900 gap-2 font-medium">
-            <div className="flex items-center gap-3">
-              <span className="font-bold flex items-center gap-1">
-                <Bookmark className="h-3.5 w-3.5 text-amber-600" />
+          <div className="p-3 rounded-xl bg-amber-50/90 border border-amber-200 flex flex-wrap items-center justify-between text-xs text-amber-900 gap-2 font-medium">
+            <div className="flex flex-wrap items-center gap-3">
+              <span className="font-bold flex items-center gap-1.5">
+                <Bookmark className="h-4 w-4 text-amber-600" />
                 Active Baseline Reference:{' '}
                 <strong className="font-black text-amber-950">
                   {activeBaseline?.baseline_name || 'Baseline 1'}
                 </strong>
               </span>
-              <span className="hidden sm:inline">•</span>
-              <div className="flex items-center gap-2 text-[11px]">
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-2.5 w-4 rounded-sm bg-sky-500 border border-sky-600 inline-block" /> Live Schedule
+              <span className="hidden sm:inline text-amber-300">•</span>
+              <div className="flex items-center gap-3 text-[11px]">
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-4 rounded-xs bg-sky-500 border border-sky-600 inline-block shadow-2xs" /> Live Schedule
                 </span>
-                <span className="inline-flex items-center gap-1">
-                  <span className="h-2.5 w-4 rounded-sm bg-amber-400 border border-amber-500 border-dashed inline-block" />{' '}
+                <span className="inline-flex items-center gap-1.5">
+                  <span className="h-2.5 w-4 rounded-xs bg-amber-300 border border-amber-500 border-dashed inline-block shadow-2xs" />{' '}
                   Baseline Snapshot
                 </span>
               </div>
             </div>
-            <span className="text-[11px] text-amber-700 font-mono">
+            <span className="text-[11px] text-amber-800 font-mono font-medium">
               Captured: {activeBaseline?.snapshot_date || 'Active'}
             </span>
           </div>
         )}
 
-        {/* Multi-Filter Bar */}
-        <div className="grid grid-cols-2 sm:grid-cols-4 lg:grid-cols-8 gap-2 border-t border-slate-100 pt-3 text-xs">
+        {/* Multi-Filter Bar with Responsive Wrapping */}
+        <div className="flex flex-wrap items-center gap-2 border-t border-slate-100 pt-3 text-xs">
           {/* Search */}
-          <div className="relative col-span-2 sm:col-span-2 lg:col-span-1">
+          <div className="relative min-w-[180px] max-w-xs flex-1">
             <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-slate-400" />
             <input
               type="text"
               value={searchQuery}
               onChange={(e) => setSearchQuery(e.target.value)}
-              placeholder="Search..."
+              placeholder="Search task or ID..."
               className="w-full pl-8 pr-2 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-800 text-xs font-medium focus:outline-none focus:ring-1 focus:ring-sky-500"
             />
           </div>
@@ -814,7 +845,7 @@ export function GanttChartView({
           <select
             value={typeFilter}
             onChange={(e) => setTypeFilter(e.target.value as any)}
-            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer shrink-0"
           >
             <option value="ALL">Type: All</option>
             <option value="TASKS">Normal Tasks</option>
@@ -826,7 +857,7 @@ export function GanttChartView({
           <select
             value={gateFilter}
             onChange={(e) => setGateFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer truncate"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer shrink-0"
           >
             <option value="ALL">Gate: All</option>
             <option value="1. PL">1. PL</option>
@@ -841,7 +872,7 @@ export function GanttChartView({
           <select
             value={functionFilter}
             onChange={(e) => setFunctionFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer shrink-0 max-w-[150px] truncate"
           >
             <option value="ALL">Function: All</option>
             {BOARD_FUNCTIONS.map((f) => (
@@ -853,7 +884,7 @@ export function GanttChartView({
           <select
             value={roleFilter}
             onChange={(e) => setRoleFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer truncate"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer shrink-0 max-w-[140px] truncate"
           >
             <option value="ALL">Role: All</option>
             {PDT_ROLES.map((r) => (
@@ -865,7 +896,7 @@ export function GanttChartView({
           <select
             value={ownerFilter}
             onChange={(e) => setOwnerFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer truncate"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer shrink-0 max-w-[150px] truncate"
           >
             <option value="ALL">Owner: All</option>
             {teamMembers.map((m) => (
@@ -879,7 +910,7 @@ export function GanttChartView({
           <select
             value={phaseFilter}
             onChange={(e) => setPhaseFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer truncate"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer shrink-0 max-w-[150px] truncate"
           >
             <option value="ALL">Phase: All</option>
             <option value="Phase 1: Concept & Planning">Phase 1</option>
@@ -893,7 +924,7 @@ export function GanttChartView({
           <select
             value={statusFilter}
             onChange={(e) => setStatusFilter(e.target.value)}
-            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer"
+            className="px-2.5 py-1.5 rounded-xl bg-slate-50 border border-slate-200 text-slate-700 font-bold cursor-pointer shrink-0"
           >
             <option value="ALL">Status: All</option>
             <option value="Open">Open</option>
@@ -907,7 +938,7 @@ export function GanttChartView({
           {hasActiveFilters && (
             <button
               onClick={clearAllFilters}
-              className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl bg-slate-200/80 hover:bg-slate-300 text-slate-800 font-bold transition cursor-pointer"
+              className="flex items-center justify-center gap-1 px-3 py-1.5 rounded-xl bg-slate-200/80 hover:bg-slate-300 text-slate-800 font-bold transition cursor-pointer shrink-0"
             >
               <RotateCcw className="h-3 w-3" />
               <span>Clear</span>
@@ -918,20 +949,30 @@ export function GanttChartView({
 
       {/* Main Gantt Split Container (WBS Table on Left + Timeline Canvas on Right) */}
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs">
-        <div className="grid grid-cols-1 lg:grid-cols-12 divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
-          {/* Left Table Panel (6 cols for complete Inteva fields) */}
-          <div className="lg:col-span-6 overflow-x-auto">
-            <table className="w-full text-left border-collapse text-xs">
+        <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+          {/* Left Table Panel: Fixed, comfortable width that fits all 8 columns without horizontal clipping on desktop */}
+          <div className="w-full lg:w-[580px] xl:w-[620px] shrink-0 overflow-x-auto bg-white z-10 custom-scrollbar">
+            <table className="w-full text-left border-collapse text-xs table-fixed">
+              <colgroup>
+                <col className="w-14" />
+                <col className="w-[190px] xl:w-[220px]" />
+                <col className="w-[95px]" />
+                <col className="w-[70px]" />
+                <col className="w-[85px]" />
+                <col className="w-[50px]" />
+                <col className="w-[42px]" />
+                <col className="w-[74px]" />
+              </colgroup>
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider">
-                  <th className="py-3 px-3 w-16">WBS</th>
-                  <th className="py-3 px-3">Task Name & ID</th>
-                  <th className="py-3 px-2">Owner / Team</th>
-                  <th className="py-3 px-2 text-center">Fn / Role</th>
-                  <th className="py-3 px-2 text-center">Status</th>
-                  <th className="py-3 px-2 text-center">Prog</th>
-                  <th className="py-3 px-2 text-center">RYG</th>
-                  <th className="py-3 px-3 text-right">Actions</th>
+                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider h-[44px]">
+                  <th className="py-2.5 px-3">WBS</th>
+                  <th className="py-2.5 px-2.5">Task Name & ID</th>
+                  <th className="py-2.5 px-2">Owner / Team</th>
+                  <th className="py-2.5 px-2 text-center">Fn / Role</th>
+                  <th className="py-2.5 px-2 text-center">Status</th>
+                  <th className="py-2.5 px-2 text-center">Prog</th>
+                  <th className="py-2.5 px-2 text-center">RYG</th>
+                  <th className="py-2.5 px-3 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
@@ -948,10 +989,10 @@ export function GanttChartView({
 
                     return (
                       <React.Fragment key={phaseName}>
-                        {/* WBS Phase Header Row */}
+                        {/* WBS Phase Header Row - Fixed Height 40px */}
                         <tr
                           onClick={() => togglePhaseCollapse(phaseName)}
-                          className="bg-slate-100/70 hover:bg-slate-100 cursor-pointer transition select-none"
+                          className="bg-slate-100/80 hover:bg-slate-100 cursor-pointer transition select-none h-[40px]"
                         >
                           <td colSpan={8} className="py-2 px-3">
                             <div className="flex items-center justify-between">
@@ -972,7 +1013,7 @@ export function GanttChartView({
                           </td>
                         </tr>
 
-                        {/* Individual Task / Milestone Rows */}
+                        {/* Individual Task / Milestone Rows - Fixed Height 52px */}
                         {!isCollapsed &&
                           phaseTasks.map((t, idx) => {
                             const isCritical = scheduleCalc.criticalPathTaskIds.has(t.name);
@@ -991,7 +1032,7 @@ export function GanttChartView({
                             return (
                               <tr
                                 key={t.name}
-                                className={`hover:bg-slate-50/80 transition h-14 ${
+                                className={`hover:bg-slate-50/80 transition h-[52px] ${
                                   isSkipped
                                     ? 'bg-purple-50/30'
                                     : isCustomerMilestone
@@ -1004,13 +1045,13 @@ export function GanttChartView({
                                 }`}
                               >
                                 {/* WBS */}
-                                <td className="py-2 px-3 font-mono text-[11px] text-slate-500">
+                                <td className="py-2 px-3 font-mono text-[11px] text-slate-500 truncate">
                                   {t.wbs || `${idx + 1}`}
                                 </td>
 
                                 {/* Task Name & ID */}
-                                <td className="py-2 px-3 max-w-[210px]">
-                                  <div className="flex items-center gap-1.5">
+                                <td className="py-2 px-2.5 truncate" title={t.subject}>
+                                  <div className="flex items-center gap-1.5 min-w-0">
                                     {isCritical && (
                                       <span title="Critical Path (Calculated from dependencies)">
                                         <Flame className="h-3.5 w-3.5 text-rose-500 shrink-0" />
@@ -1031,16 +1072,16 @@ export function GanttChartView({
                                         ◆
                                       </span>
                                     ) : null}
-                                    <div className="min-w-0">
+                                    <div className="min-w-0 flex-1">
                                       <div
-                                        className={`font-bold truncate text-[11px] flex items-center gap-1 ${
+                                        className={`font-bold truncate text-[11px] ${
                                           isSkipped ? 'line-through text-purple-900' : 'text-slate-900'
                                         }`}
                                         title={t.subject}
                                       >
-                                        <span className="truncate">{t.subject}</span>
+                                        {t.subject}
                                       </div>
-                                      <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1 flex-wrap">
+                                      <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1 truncate">
                                         <span>{t.name}</span>
                                         {isCustomerMilestone && (
                                           <span className="px-1 py-0.2 rounded bg-purple-100 text-purple-800 text-[8px] font-black border border-purple-200">
@@ -1071,18 +1112,24 @@ export function GanttChartView({
                                 </td>
 
                                 {/* Owner / Assignee */}
-                                <td className="py-2 px-2 max-w-[100px] truncate text-[11px] font-semibold text-slate-800">
+                                <td
+                                  className="py-2 px-2 truncate text-[11px] font-semibold text-slate-800"
+                                  title={t.assigned_employee_name || t.assigned_to || (isMilestone ? 'Project Event' : 'Unassigned')}
+                                >
                                   {t.assigned_employee_name || t.assigned_to || (isMilestone ? 'Project Event' : 'Unassigned')}
                                 </td>
 
                                 {/* Function & Role */}
-                                <td className="py-2 px-2 text-center">
-                                  <div className="flex flex-col items-center">
-                                    <span className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 text-[9px] font-bold">
+                                <td className="py-2 px-1 text-center">
+                                  <div className="flex flex-col items-center justify-center leading-tight">
+                                    <span
+                                      className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 text-[9px] font-bold truncate max-w-[65px]"
+                                      title={t.function_name || t.custom_function || '-'}
+                                    >
                                       {t.function_name || t.custom_function || '-'}
                                     </span>
                                     {(t.gate || t.linked_gate) && (
-                                      <span className="text-[9px] font-mono text-purple-700 font-bold">
+                                      <span className="text-[9px] font-mono text-purple-700 font-bold truncate max-w-[65px]">
                                         {t.linked_gate || t.gate}
                                       </span>
                                     )}
@@ -1090,14 +1137,14 @@ export function GanttChartView({
                                 </td>
 
                                 {/* Status & Delay State */}
-                                <td className="py-2 px-2 text-center">
-                                  <div className="flex flex-col items-center gap-0.5">
+                                <td className="py-2 px-1 text-center">
+                                  <div className="flex flex-col items-center justify-center gap-0.5 leading-tight">
                                     <TaskStatusBadge status={t.status} />
                                     {isMilestone && milestoneSchedState && (
                                       <>
                                         {milestoneSchedState.isDelayed && (
-                                          <span className="px-1 py-0.2 rounded bg-rose-100 text-rose-700 text-[8px] font-black border border-rose-200">
-                                            +{milestoneSchedState.delayDays}d Delay
+                                          <span className="px-1 py-0.2 rounded bg-rose-100 text-rose-700 text-[8px] font-black truncate max-w-[75px]">
+                                            +{milestoneSchedState.delayDays}d
                                           </span>
                                         )}
                                         {milestoneSchedState.isOnTime && t.status === 'Completed' && (
@@ -1111,7 +1158,7 @@ export function GanttChartView({
                                 </td>
 
                                 {/* Progress */}
-                                <td className="py-2 px-2 text-center">
+                                <td className="py-2 px-1 text-center">
                                   {isMilestone ? (
                                     <span className="font-mono text-[10px] font-bold text-slate-400">
                                       {t.status === 'Completed' ? '100%' : '0%'}
@@ -1122,7 +1169,7 @@ export function GanttChartView({
                                 </td>
 
                                 {/* RYG Indicator */}
-                                <td className="py-2 px-2 text-center">
+                                <td className="py-2 px-1 text-center">
                                   <span
                                     className={`inline-block h-2.5 w-2.5 rounded-full ring-2 ${
                                       ryg === 'Red'
@@ -1136,7 +1183,7 @@ export function GanttChartView({
                                 </td>
 
                                 {/* Actions */}
-                                <td className="py-2 px-3 text-right">
+                                <td className="py-2 px-2 text-right">
                                   <div className="flex items-center justify-end gap-1">
                                     {/* Skip Task */}
                                     {onSkipTask && !isSkipped && t.status !== 'Completed' && !isMilestone && (
@@ -1217,245 +1264,249 @@ export function GanttChartView({
             </table>
           </div>
 
-          {/* Right Timeline Canvas (6 cols) */}
-          <div className="lg:col-span-6 overflow-x-auto relative bg-slate-50/40 select-none">
-            {/* Date Header Columns */}
-            <div className="grid grid-flow-col auto-cols-fr border-b border-slate-200 bg-slate-50 text-center h-10 divide-x divide-slate-200/80 sticky top-0 z-20">
-              {timelineColumns.map((col, idx) => (
+          {/* Right Timeline Canvas */}
+          <div className="flex-1 min-w-0 overflow-x-auto relative bg-slate-50/40 select-none custom-scrollbar">
+            <div className="min-w-[720px] xl:min-w-[840px] relative">
+              {/* Date Header Columns - Fixed Height 44px matching table header */}
+              <div className="grid grid-flow-col auto-cols-fr border-b border-slate-200 bg-slate-50 text-center h-[44px] divide-x divide-slate-200/80 sticky top-0 z-20">
+                {timelineColumns.map((col, idx) => (
+                  <div
+                    key={idx}
+                    className={`flex flex-col items-center justify-center px-1 ${
+                      col.isToday ? 'bg-rose-50/80' : ''
+                    }`}
+                  >
+                    <span className={`text-[9px] font-bold uppercase ${col.isToday ? 'text-rose-600 font-extrabold' : 'text-slate-500'}`}>
+                      {col.label}
+                    </span>
+                    <span className={`text-[11px] font-black tracking-tight ${col.isToday ? 'text-rose-900 font-black' : 'text-slate-800'}`}>
+                      {col.subLabel}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* Today Line Indicator (Vertical Red Dashed Line) */}
+              {todayLineLeftPct !== null && (
+                <div
+                  className="absolute top-[44px] bottom-0 z-20 pointer-events-none border-l-2 border-rose-500 border-dashed"
+                  style={{ left: `${todayLineLeftPct}%` }}
+                  title="Today"
+                >
+                  <span className="absolute -top-3 -left-3 px-1 rounded bg-rose-500 text-white text-[8px] font-bold shadow-xs">
+                    Today
+                  </span>
+                </div>
+              )}
+
+              {/* PDP Gate Markers */}
+              {gateMarkers.map((gm, idx) => (
                 <div
                   key={idx}
-                  className={`flex flex-col items-center justify-center px-1 ${
-                    col.isToday ? 'bg-rose-50/60' : ''
-                  }`}
+                  className="absolute top-[44px] bottom-0 z-10 pointer-events-none border-l border-emerald-500"
+                  style={{ left: `${gm.leftPct}%` }}
                 >
-                  <span className={`text-[9px] font-bold uppercase ${col.isToday ? 'text-rose-600' : 'text-slate-400'}`}>
-                    {col.label}
-                  </span>
-                  <span className={`text-[10px] font-black ${col.isToday ? 'text-rose-900 font-extrabold' : 'text-slate-800'}`}>
-                    {col.subLabel}
+                  <span className="absolute top-1 -left-2 px-1.5 py-0.2 rounded bg-emerald-600 text-white text-[8px] font-black shadow-xs whitespace-nowrap">
+                    {gm.gateName}
                   </span>
                 </div>
               ))}
-            </div>
 
-            {/* Today Line Indicator (Vertical Red Dashed Line) */}
-            {todayLineLeftPct !== null && (
-              <div
-                className="absolute top-10 bottom-0 z-20 pointer-events-none border-l-2 border-rose-500 border-dashed"
-                style={{ left: `${todayLineLeftPct}%` }}
-                title="Today"
-              >
-                <span className="absolute -top-3 -left-3 px-1 rounded bg-rose-500 text-white text-[8px] font-bold">
-                  Today
-                </span>
-              </div>
-            )}
+              {/* Timeline Rows matching Table Rows exactly */}
+              <div className="divide-y divide-slate-100">
+                {groupedTasksByPhase.map(([phaseName, phaseTasks]) => {
+                  const isCollapsed = collapsedPhases.has(phaseName);
 
-            {/* PDP Gate Markers */}
-            {gateMarkers.map((gm, idx) => (
-              <div
-                key={idx}
-                className="absolute top-10 bottom-0 z-10 pointer-events-none border-l border-emerald-500"
-                style={{ left: `${gm.leftPct}%` }}
-              >
-                <span className="absolute top-1 -left-2 px-1.5 py-0.2 rounded bg-emerald-600 text-white text-[8px] font-black shadow-xs whitespace-nowrap">
-                  {gm.gateName}
-                </span>
-              </div>
-            ))}
+                  return (
+                    <React.Fragment key={phaseName}>
+                      {/* Phase Spacer Row - Fixed Height 40px */}
+                      <div className="h-[40px] bg-slate-100/40 border-b border-slate-200/60" />
 
-            {/* Timeline Rows matching Table Rows */}
-            <div className="divide-y divide-slate-100">
-              {groupedTasksByPhase.map(([phaseName, phaseTasks]) => {
-                const isCollapsed = collapsedPhases.has(phaseName);
+                      {!isCollapsed &&
+                        phaseTasks.map((t) => {
+                          const barSpan = getTaskBarSpan(t.exp_start_date, t.exp_end_date);
+                          const isCritical = scheduleCalc.criticalPathTaskIds.has(t.name);
+                          const isSkipped = t.status === 'Skipped';
+                          const isMilestone = Boolean(t.is_milestone);
+                          const isCustomerMilestone =
+                            isMilestone &&
+                            (Boolean(t.is_customer_milestone) ||
+                              t.milestone_type === 'Customer Milestone' ||
+                              t.custom_is_customer_milestone === 1);
+                          const milestoneSchedState = isMilestone ? getMilestoneScheduleState(t) : null;
+                          const ryg = scheduleCalc.rygStatus.get(t.name) || 'Green';
 
-                return (
-                  <React.Fragment key={phaseName}>
-                    {/* Phase Spacer Row */}
-                    <div className="h-[37px] bg-slate-100/30 border-b border-slate-200/50" />
+                          const taskPreds = projectDependencies.filter((d: TaskRelationship) => d.successor_id === t.name);
+                          const isBlocked = taskPreds.some((d: TaskRelationship) => {
+                            const p = tasks.find((pt: Task) => pt.name === d.predecessor_id);
+                            return (
+                              d.dependency_type === 'FS' &&
+                              p &&
+                              p.status !== 'Completed' &&
+                              p.status !== 'Skipped'
+                            );
+                          });
+                          const hasDeps =
+                            taskPreds.length > 0 ||
+                            projectDependencies.some((d: TaskRelationship) => d.predecessor_id === t.name);
 
-                    {!isCollapsed &&
-                      phaseTasks.map((t) => {
-                        const barSpan = getTaskBarSpan(t.exp_start_date, t.exp_end_date);
-                        const isCritical = scheduleCalc.criticalPathTaskIds.has(t.name);
-                        const isSkipped = t.status === 'Skipped';
-                        const isMilestone = Boolean(t.is_milestone);
-                        const isCustomerMilestone =
-                          isMilestone &&
-                          (Boolean(t.is_customer_milestone) ||
-                            t.milestone_type === 'Customer Milestone' ||
-                            t.custom_is_customer_milestone === 1);
-                        const milestoneSchedState = isMilestone ? getMilestoneScheduleState(t) : null;
-                        const ryg = scheduleCalc.rygStatus.get(t.name) || 'Green';
+                          const msPos = isMilestone ? getMilestonePosition(t.planned_date || t.exp_start_date) : null;
 
-                        const taskPreds = projectDependencies.filter((d: TaskRelationship) => d.successor_id === t.name);
-                        const isBlocked = taskPreds.some((d: TaskRelationship) => {
-                          const p = tasks.find((pt: Task) => pt.name === d.predecessor_id);
+                          // Baseline Reference Bar positioning
+                          const btSnapshot = activeBaseline?.tasks.find((bt) => bt.task_id === t.name);
+                          const baselineBarSpan = btSnapshot
+                            ? getTaskBarSpan(btSnapshot.planned_start_date, btSnapshot.planned_end_date)
+                            : null;
+
                           return (
-                            d.dependency_type === 'FS' &&
-                            p &&
-                            p.status !== 'Completed' &&
-                            p.status !== 'Skipped'
-                          );
-                        });
-                        const hasDeps =
-                          taskPreds.length > 0 ||
-                          projectDependencies.some((d: TaskRelationship) => d.predecessor_id === t.name);
-
-                        // Baseline Reference Bar positioning
-                        const btSnapshot = activeBaseline?.tasks.find((bt) => bt.task_id === t.name);
-                        const baselineBarSpan = btSnapshot
-                          ? getTaskBarSpan(btSnapshot.planned_start_date, btSnapshot.planned_end_date)
-                          : null;
-
-                        return (
-                          <div
-                            key={t.name}
-                            className="relative h-14 flex flex-col justify-center px-2 py-1 space-y-1"
-                          >
-                            {/* Background Date Grid Lines */}
-                            <div className="absolute inset-0 grid grid-flow-col auto-cols-fr divide-x divide-slate-200/40 pointer-events-none">
-                              {timelineColumns.map((_, i) => (
-                                <div key={i} className="h-full" />
-                              ))}
-                            </div>
-
-                            {/* Milestone Marker (Diamond ◆) vs Task Bar */}
-                            {isMilestone ? (
-                              <div
-                                className="relative flex items-center z-10 cursor-pointer group"
-                                style={{ left: barSpan.left }}
-                                onClick={() => {
-                                  if (onCreateCustomMilestone) {
-                                    setEditingMilestone(t);
-                                    setIsCreateMilestoneOpen(true);
-                                  } else {
-                                    onEditTask(t);
-                                  }
-                                }}
-                                title={`Milestone: ${t.subject}\nType: ${t.milestone_type || 'Milestone'}\nPlanned: ${t.planned_date || t.exp_start_date || 'N/A'}\nActual: ${t.actual_date || t.act_end_date || 'N/A'}\nStatus: ${t.status}${milestoneSchedState?.isDelayed ? ` (Delayed by ${milestoneSchedState.delayDays}d)` : ''}`}
-                              >
-                                {isCustomerMilestone ? (
-                                  /* Customer Milestone: Purple/Indigo Diamond with Star */
-                                  <div className="relative flex items-center">
-                                    <div className="h-6 w-6 rotate-45 bg-gradient-to-br from-purple-600 to-indigo-700 border-2 border-white ring-2 ring-purple-500 shadow-md flex items-center justify-center transition-transform group-hover:scale-110">
-                                      <Star className="h-3 w-3 text-amber-300 fill-amber-300 -rotate-45" />
-                                    </div>
-                                    <div className="ml-2 flex items-center gap-1.5 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-md border border-purple-200 shadow-2xs">
-                                      <span className="text-[10px] font-black text-purple-900 truncate max-w-[130px]">
-                                        {t.subject}
-                                      </span>
-                                      {milestoneSchedState?.isDelayed ? (
-                                        <span className="px-1 py-0.2 rounded bg-rose-100 text-rose-700 text-[8px] font-black">
-                                          +{milestoneSchedState.delayDays}d Delay
-                                        </span>
-                                      ) : t.status === 'Completed' ? (
-                                        <span className="px-1 py-0.2 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">
-                                          Done
-                                        </span>
-                                      ) : null}
-                                    </div>
-                                  </div>
-                                ) : (
-                                  /* Standard Milestone: Amber Diamond */
-                                  <div className="relative flex items-center">
-                                    <div className="h-5 w-5 rotate-45 bg-amber-500 border-2 border-white ring-2 ring-amber-400 shadow-md flex items-center justify-center transition-transform group-hover:scale-110">
-                                      <div className="h-1.5 w-1.5 bg-white rounded-full" />
-                                    </div>
-                                    <div className="ml-2 flex items-center gap-1 bg-white/90 backdrop-blur-xs px-1.5 py-0.5 rounded-md border border-amber-200 shadow-2xs">
-                                      <span className="text-[10px] font-black text-amber-950 truncate max-w-[120px]">
-                                        {t.subject}
-                                      </span>
-                                      {t.milestone_type && t.milestone_type !== 'Internal Milestone' && (
-                                        <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-800 text-[8px] font-bold">
-                                          {t.milestone_type}
-                                        </span>
-                                      )}
-                                      {milestoneSchedState?.isDelayed && (
-                                        <span className="px-1 py-0.2 rounded bg-rose-100 text-rose-700 text-[8px] font-black">
-                                          +{milestoneSchedState.delayDays}d
-                                        </span>
-                                      )}
-                                    </div>
-                                  </div>
-                                )}
+                            <div
+                              key={t.name}
+                              className="relative h-[52px] flex flex-col justify-center px-2"
+                            >
+                              {/* Background Date Grid Lines */}
+                              <div className="absolute inset-0 grid grid-flow-col auto-cols-fr divide-x divide-slate-200/40 pointer-events-none">
+                                {timelineColumns.map((_, i) => (
+                                  <div key={i} className="h-full" />
+                                ))}
                               </div>
-                            ) : (
-                              /* Standard Task Bar with Drag Handles */
-                              <motion.div
-                                initial={{ scaleX: 0.9, opacity: 0 }}
-                                animate={{ scaleX: 1, opacity: 1 }}
-                                className={`relative h-6 rounded-xl border flex items-center justify-between px-2 text-[10px] font-extrabold shadow-2xs transition-all z-10 ${
-                                  isSkipped
-                                    ? 'bg-purple-50 border-purple-300 text-purple-900 line-through opacity-70'
-                                    : isCritical
-                                    ? 'bg-rose-50 border-rose-300 text-rose-900 ring-2 ring-rose-500/20'
-                                    : t.status === 'Completed'
-                                    ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
-                                    : ryg === 'Red'
-                                    ? 'bg-rose-50 border-rose-200 text-rose-900'
-                                    : ryg === 'Yellow'
-                                    ? 'bg-amber-50 border-amber-300 text-amber-900'
-                                    : 'bg-sky-50 border-sky-300 text-sky-900'
-                                }`}
-                                style={{
-                                  left: barSpan.left,
-                                  width: barSpan.width,
-                                }}
-                                onClick={() => onEditTask(t)}
-                              >
-                                {/* Inner Progress Fill */}
+
+                              {/* Milestone Marker (Diamond ◆) vs Task Bar */}
+                              {isMilestone ? (
                                 <div
-                                  className={`absolute left-0 top-0 bottom-0 rounded-xl transition-all duration-300 opacity-30 ${
-                                    isCritical
-                                      ? 'bg-rose-500'
-                                      : t.status === 'Completed'
-                                      ? 'bg-emerald-500'
-                                      : ryg === 'Red'
-                                      ? 'bg-rose-500'
-                                      : 'bg-sky-500'
-                                  }`}
-                                  style={{ width: `${Math.min(t.progress || 0, 100)}%` }}
-                                />
-
-                                {/* Label & Progress */}
-                                <span
-                                  className="truncate max-w-[120px] z-10 font-bold flex items-center gap-1"
-                                  title={t.subject}
+                                  className="relative flex items-center z-10 cursor-pointer group"
+                                  style={{ left: msPos?.left || barSpan.left }}
+                                  onClick={() => {
+                                    if (onCreateCustomMilestone) {
+                                      setEditingMilestone(t);
+                                      setIsCreateMilestoneOpen(true);
+                                    } else {
+                                      onEditTask(t);
+                                    }
+                                  }}
+                                  title={`Milestone: ${t.subject}\nType: ${t.milestone_type || 'Milestone'}\nPlanned: ${t.planned_date || t.exp_start_date || 'N/A'}\nActual: ${t.actual_date || t.act_end_date || 'N/A'}\nStatus: ${t.status}${milestoneSchedState?.isDelayed ? ` (Delayed by ${milestoneSchedState.delayDays}d)` : ''}`}
                                 >
-                                  {isBlocked && (
-                                    <span title="Blocked by predecessor deliverable">
-                                      <Lock className="h-3 w-3 text-amber-600 shrink-0" />
-                                    </span>
+                                  {isCustomerMilestone ? (
+                                    /* Customer Milestone: Purple/Indigo Diamond with Star */
+                                    <div className="relative flex items-center">
+                                      <div className="h-6 w-6 rotate-45 bg-gradient-to-br from-purple-600 to-indigo-700 border-2 border-white ring-2 ring-purple-500 shadow-md flex items-center justify-center transition-transform group-hover:scale-110">
+                                        <Star className="h-3 w-3 text-amber-300 fill-amber-300 -rotate-45" />
+                                      </div>
+                                      <div className="ml-2 flex items-center gap-1.5 bg-white/95 backdrop-blur-xs px-2 py-0.5 rounded-md border border-purple-200 shadow-2xs">
+                                        <span className="text-[10px] font-black text-purple-900 truncate max-w-[130px]">
+                                          {t.subject}
+                                        </span>
+                                        {milestoneSchedState?.isDelayed ? (
+                                          <span className="px-1 py-0.2 rounded bg-rose-100 text-rose-700 text-[8px] font-black">
+                                            +{milestoneSchedState.delayDays}d Delay
+                                          </span>
+                                        ) : t.status === 'Completed' ? (
+                                          <span className="px-1 py-0.2 rounded bg-emerald-100 text-emerald-700 text-[8px] font-black">
+                                            Done
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    </div>
+                                  ) : (
+                                    /* Standard Milestone: Amber Diamond */
+                                    <div className="relative flex items-center">
+                                      <div className="h-5 w-5 rotate-45 bg-amber-500 border-2 border-white ring-2 ring-amber-400 shadow-md flex items-center justify-center transition-transform group-hover:scale-110">
+                                        <div className="h-1.5 w-1.5 bg-white rounded-full" />
+                                      </div>
+                                      <div className="ml-2 flex items-center gap-1 bg-white/90 backdrop-blur-xs px-1.5 py-0.5 rounded-md border border-amber-200 shadow-2xs">
+                                        <span className="text-[10px] font-black text-amber-950 truncate max-w-[120px]">
+                                          {t.subject}
+                                        </span>
+                                        {t.milestone_type && t.milestone_type !== 'Internal Milestone' && (
+                                          <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-800 text-[8px] font-bold">
+                                            {t.milestone_type}
+                                          </span>
+                                        )}
+                                        {milestoneSchedState?.isDelayed && (
+                                          <span className="px-1 py-0.2 rounded bg-rose-100 text-rose-700 text-[8px] font-black">
+                                            +{milestoneSchedState.delayDays}d
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
                                   )}
-                                  {hasDeps && !isBlocked && (
-                                    <span title="Linked to task dependencies">
-                                      <GitFork className="h-2.5 w-2.5 text-sky-600 shrink-0" />
-                                    </span>
-                                  )}
-                                  <span className="truncate">{t.subject}</span>
-                                </span>
-                                <span className="font-mono z-10 shrink-0 font-black">{t.progress || 0}%</span>
-                              </motion.div>
-                            )}
+                                </div>
+                              ) : (
+                                /* Standard Task Bar with Drag Handles */
+                                <motion.div
+                                  initial={{ scaleX: 0.9, opacity: 0 }}
+                                  animate={{ scaleX: 1, opacity: 1 }}
+                                  className={`relative h-6 rounded-xl border flex items-center justify-between px-2 text-[10px] font-extrabold shadow-2xs transition-all z-10 ${
+                                    isSkipped
+                                      ? 'bg-purple-50 border-purple-300 text-purple-900 line-through opacity-70'
+                                      : isCritical
+                                      ? 'bg-rose-50 border-rose-300 text-rose-900 ring-2 ring-rose-500/20'
+                                      : t.status === 'Completed'
+                                      ? 'bg-emerald-50 border-emerald-300 text-emerald-900'
+                                      : ryg === 'Red'
+                                      ? 'bg-rose-50 border-rose-200 text-rose-900'
+                                      : ryg === 'Yellow'
+                                      ? 'bg-amber-50 border-amber-300 text-amber-900'
+                                      : 'bg-sky-50 border-sky-300 text-sky-900'
+                                  }`}
+                                  style={{
+                                    left: barSpan.left,
+                                    width: barSpan.width,
+                                  }}
+                                  onClick={() => onEditTask(t)}
+                                >
+                                  {/* Inner Progress Fill */}
+                                  <div
+                                    className={`absolute left-0 top-0 bottom-0 rounded-xl transition-all duration-300 opacity-30 ${
+                                      isCritical
+                                        ? 'bg-rose-500'
+                                        : t.status === 'Completed'
+                                        ? 'bg-emerald-500'
+                                        : ryg === 'Red'
+                                        ? 'bg-rose-500'
+                                        : 'bg-sky-500'
+                                    }`}
+                                    style={{ width: `${Math.min(t.progress || 0, 100)}%` }}
+                                  />
 
-                            {/* Baseline Snapshot Reference Bar */}
-                            {baselineBarSpan && (
-                              <div
-                                className="relative h-2 rounded-md bg-amber-200/90 border border-amber-500 border-dashed z-0 opacity-80 transition-all"
-                                style={{
-                                  left: baselineBarSpan.left,
-                                  width: baselineBarSpan.width,
-                                }}
-                                title={`Baseline Snapshot: ${btSnapshot?.planned_start_date} to ${btSnapshot?.planned_end_date} (${btSnapshot?.duration}d)`}
-                              />
-                            )}
-                          </div>
-                        );
-                      })}
-                  </React.Fragment>
-                );
-              })}
+                                  {/* Label & Progress */}
+                                  <span
+                                    className="truncate flex-1 min-w-0 z-10 font-bold flex items-center gap-1"
+                                    title={t.subject}
+                                  >
+                                    {isBlocked && (
+                                      <span title="Blocked by predecessor deliverable">
+                                        <Lock className="h-3 w-3 text-amber-600 shrink-0" />
+                                      </span>
+                                    )}
+                                    {hasDeps && !isBlocked && (
+                                      <span title="Linked to task dependencies">
+                                        <GitFork className="h-2.5 w-2.5 text-sky-600 shrink-0" />
+                                      </span>
+                                    )}
+                                    <span className="truncate">{t.subject}</span>
+                                  </span>
+                                  <span className="font-mono z-10 shrink-0 font-black ml-1">{t.progress || 0}%</span>
+                                </motion.div>
+                              )}
+
+                              {/* Baseline Snapshot Reference Bar */}
+                              {baselineBarSpan && (
+                                <div
+                                  className="relative h-2 rounded-md bg-amber-200/90 border border-amber-500 border-dashed z-0 opacity-80 transition-all mt-1"
+                                  style={{
+                                    left: baselineBarSpan.left,
+                                    width: baselineBarSpan.width,
+                                  }}
+                                  title={`Baseline Snapshot: ${btSnapshot?.planned_start_date} to ${btSnapshot?.planned_end_date} (${btSnapshot?.duration}d)`}
+                                />
+                              )}
+                            </div>
+                          );
+                        })}
+                    </React.Fragment>
+                  );
+                })}
+              </div>
             </div>
           </div>
         </div>

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { getSessionFromRequest } from '@/lib/server/session';
 import {
   getProjectScorecard,
+  getProjectScorecardAsync,
   saveProjectScorecard,
 } from '@/lib/server/scorecard-store';
 
@@ -18,7 +19,7 @@ export async function GET(
   const projectId = decodeURIComponent(id || '');
 
   try {
-    const scorecard = getProjectScorecard(projectId);
+    const scorecard = await getProjectScorecardAsync(projectId);
     return NextResponse.json({ scorecard }, { status: 200 });
   } catch (err: any) {
     return NextResponse.json(

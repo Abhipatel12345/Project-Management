@@ -4,11 +4,17 @@ import { Gate, GateCriterion, GateDeliverable, GateReviewRecord } from '@/types/
 import { PDMUserSession } from '@/types/auth.types';
 import { isGateReviewer } from '@/utils/user-matcher';
 import { saveAuditRecord } from './audit-store';
+import { GATE_BOARD_TITLES, DEFAULT_BOARD_FUNCTION_MAPPING } from '@/config/gate-choices.config';
+import {
+  createErpDoc,
+  updateErpDoc,
+  deleteErpDoc,
+  fetchErpResource,
+  getErpDoc,
+} from './erp-client';
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const GATES_FILE = path.join(DATA_DIR, 'gates.json');
-
-import { GATE_BOARD_TITLES, DEFAULT_BOARD_FUNCTION_MAPPING } from '@/config/gate-choices.config';
 
 function ensureDataDir() {
   if (!fs.existsSync(DATA_DIR)) {
@@ -204,6 +210,213 @@ function getInitialGates(): Gate[] {
   });
 }
 
+export function mapErpGateToPdmGate(doc: any): Gate {
+  return {
+    name: doc.name,
+    gate_name: doc.gate_name || 'APQP Gate Review',
+    gate_type: doc.gate_type || '1. PL',
+    project: doc.project || '',
+    project_name: doc.project_name || '',
+    planned_date: doc.planned_date || '',
+    actual_date: doc.actual_date || undefined,
+    status: doc.status || 'Not Started',
+    gate_owner: doc.gate_owner || 'Program Director',
+    gate_owner_id: doc.gate_owner_id || '',
+    gate_reviewer: doc.gate_reviewer || 'Sarah Jenkins',
+    reviewer_user_id: doc.reviewer_user_id || '',
+    approval_status: doc.approval_status || 'Pending',
+    completion_percentage: Number(doc.completion_percentage) || 0,
+    readiness_percentage: Number(doc.readiness_percentage) || 0,
+    is_locked: Boolean(doc.gate_locked),
+    description: doc.description || '',
+    criteria: (doc.criteria || []).map((c: any, idx: number) => ({
+      id: c.criteria_id || c.name || `CRIT-${idx + 1}`,
+      name: c.name_label || c.name || 'Criterion',
+      description: c.description || '',
+      is_required: Boolean(c.is_required),
+      status: c.status || 'Pending',
+      function: c.function || '',
+      responsible_person: c.responsible_person || '',
+      responsible_user_id: c.responsible_user_id || '',
+      related_task: c.related_task || '',
+      related_task_id: c.related_task_id || undefined,
+      document_reference: c.document_reference || '',
+      linked_document_name: c.linked_document_name || '',
+      completion_percentage: Number(c.completion_percentage) || 0,
+      approved_by: c.approved_by || undefined,
+      approved_at: c.approved_at || undefined,
+    })),
+    deliverables: (doc.deliverables || []).map((d: any, idx: number) => ({
+      id: d.deliverable_id || d.name || `DEL-${idx + 1}`,
+      name: d.title || d.name || 'Deliverable',
+      title: d.title || d.name || 'Deliverable',
+      description: d.description || '',
+      status: d.status || 'Not Started',
+      approval_status: d.approval_status || d.status || 'Pending',
+      completion_percentage: Number(d.completion_percentage) || 0,
+      is_required: Boolean(d.is_required),
+      responsible_person: d.responsible_person || '',
+      responsible_user_id: d.responsible_user_id || '',
+      related_task: d.related_task || '',
+      related_task_id: d.related_task_id || undefined,
+      document_reference: d.document_reference || '',
+      linked_document_name: d.linked_document_name || '',
+      approved_by: d.approved_by || undefined,
+      approved_at: d.approved_at || undefined,
+    })),
+    board_reviews: (doc.board_reviews && doc.board_reviews.length > 0)
+      ? doc.board_reviews.map((b: any) => ({
+          board_title: b.board_title || 'Reviewer',
+          function: b.function || '',
+          name: b.reviewer_name || b.name || 'Unassigned',
+          delegation: b.delegation || 'Not Applicable',
+          gate_decision: b.gate_decision || 'Pending',
+          remarks: b.remarks || '',
+        }))
+      : getDefaultBoardReviews(),
+    reviews: [],
+    activity_log: [],
+  };
+}
+
+export async function fetchGatesFromERPNext(projectId?: string): Promise<Gate[]> {
+  try {
+    const filters: any[] = [];
+    if (projectId && projectId !== 'ALL') {
+      filters.push(['project', '=', projectId]);
+    }
+    const list = await fetchErpResource<any>('Gate', { filters, limit: 1000 });
+    if (!list || list.length === 0) return [];
+
+    const fullGates: Gate[] = [];
+    for (const item of list) {
+      try {
+        const doc = await getErpDoc<any>('Gate', item.name);
+        const mapped = mapErpGateToPdmGate(doc);
+        const {
+          completion,
+          readiness,
+          openRequired,
+          completedCriteria,
+          totalCriteria,
+          completedDeliverables,
+          totalDeliverables,
+        } = calculateGateReadiness(mapped);
+        mapped.completion_percentage = completion;
+        mapped.readiness_percentage = readiness;
+        mapped.completed_criteria_count = completedCriteria;
+        mapped.total_criteria_count = totalCriteria;
+        mapped.completed_deliverables_count = completedDeliverables;
+        mapped.total_deliverables_count = totalDeliverables;
+        mapped.blocking_items_count = openRequired;
+        fullGates.push(mapped);
+      } catch (err: any) {
+        console.warn(`[GateStore] Failed to hydrate gate ${item.name}:`, err.message);
+      }
+    }
+
+    if (fullGates.length > 0) {
+      // Keep local cache file updated
+      saveAllGates(fullGates);
+      return fullGates;
+    }
+  } catch (err: any) {
+    console.warn('[GateStore] fetchGatesFromERPNext failed, using local cache:', err.message);
+  }
+  return loadAllGates();
+}
+
+export async function syncGateToERPNext(gate: Gate): Promise<void> {
+  try {
+    const payload = {
+      gate_name: gate.gate_name,
+      gate_type: gate.gate_type,
+      project: gate.project,
+      project_name: gate.project_name || '',
+      status: gate.status || 'Not Started',
+      approval_status: gate.approval_status || 'Pending',
+      planned_date: gate.planned_date || null,
+      target_date: gate.target_date || null,
+      actual_date: gate.actual_date || null,
+      gate_owner: gate.gate_owner || '',
+      gate_owner_id: gate.gate_owner_id || '',
+      gate_reviewer: gate.gate_reviewer || '',
+      reviewer_user_id: gate.reviewer_user_id || '',
+      completion_percentage: Number(gate.completion_percentage) || 0,
+      readiness_percentage: Number(gate.readiness_percentage) || 0,
+      gate_locked: gate.is_locked ? 1 : 0,
+      description: gate.description || '',
+      criteria: (gate.criteria || []).map((c, i) => ({
+        criteria_id: c.id || `CRIT-${i + 1}`,
+        name_label: c.name || 'Criterion',
+        status: c.status || 'Pending',
+        is_required: c.is_required ? 1 : 0,
+        function: c.function || '',
+        responsible_person: c.responsible_person || '',
+        responsible_user_id: c.responsible_user_id || '',
+        related_task: c.related_task || '',
+        related_task_id: c.related_task_id || null,
+        document_reference: c.document_reference || '',
+        linked_document_name: c.linked_document_name || '',
+        completion_percentage: Number(c.completion_percentage) || 0,
+        approved_by: c.approved_by || '',
+        approved_at: c.approved_at || null,
+        description: c.description || '',
+      })),
+      deliverables: (gate.deliverables || []).map((d, i) => ({
+        deliverable_id: d.id || `DEL-${i + 1}`,
+        title: d.name || d.title || 'Deliverable',
+        status: d.status || 'Not Started',
+        completion_percentage: Number(d.completion_percentage) || 0,
+        is_required: d.is_required ? 1 : 0,
+        responsible_person: d.responsible_person || '',
+        responsible_user_id: d.responsible_user_id || '',
+        related_task: d.related_task || '',
+        related_task_id: d.related_task_id || null,
+        document_reference: d.document_reference || '',
+        linked_document_name: d.linked_document_name || '',
+        approved_by: d.approved_by || '',
+        approved_at: d.approved_at || null,
+        description: d.description || '',
+      })),
+      board_reviews: (gate.board_reviews || []).map((b) => ({
+        board_title: b.board_title || 'Reviewer',
+        function: b.function || '',
+        reviewer_name: b.name || 'Unassigned',
+        delegation: b.delegation || 'Not Applicable',
+        gate_decision: b.gate_decision || 'Pending',
+        remarks: b.remarks || '',
+      })),
+    };
+
+    let targetDocName: string | null = null;
+    try {
+      const existing = await getErpDoc('Gate', gate.name);
+      if (existing?.name) targetDocName = existing.name;
+    } catch {
+      const matches = await fetchErpResource('Gate', {
+        filters: [
+          ['project', '=', gate.project],
+          ['gate_type', '=', gate.gate_type],
+        ],
+        limit: 1,
+      });
+      if (matches.length > 0) targetDocName = matches[0].name;
+    }
+
+    if (targetDocName) {
+      await updateErpDoc('Gate', targetDocName, payload);
+    } else {
+      const created = await createErpDoc('Gate', payload);
+      if (created?.name) {
+        gate.name = created.name;
+      }
+    }
+  } catch (err: any) {
+    console.warn(`[GateStore] Failed to persist Gate ${gate.name} to ERPNext:`, err.message);
+  }
+}
+
 export function loadAllGates(): Gate[] {
   ensureDataDir();
   if (fs.existsSync(GATES_FILE)) {
@@ -240,6 +453,10 @@ export function deleteGateFromStore(name: string, session?: PDMUserSession): boo
 
   const deleted = gates.splice(index, 1)[0];
   saveAllGates(gates);
+
+  deleteErpDoc('Gate', deleted.name).catch((err) => {
+    console.warn(`[GateStore] Could not delete ${deleted.name} from ERPNext:`, err.message);
+  });
 
   if (session) {
     saveAuditRecord({
@@ -290,6 +507,7 @@ export function saveOrUpdateGate(gateData: Partial<Gate>): Gate {
 
     gates[existingIndex] = updated;
     saveAllGates(gates);
+    syncGateToERPNext(updated).catch((err) => console.warn('[GateStore] ERPNext sync error:', err.message));
     return updated;
   } else {
     // Check duplicate gate within the same project
@@ -355,6 +573,7 @@ export function saveOrUpdateGate(gateData: Partial<Gate>): Gate {
 
     gates.unshift(newGate);
     saveAllGates(gates);
+    syncGateToERPNext(newGate).catch((err) => console.warn('[GateStore] ERPNext sync error:', err.message));
     return newGate;
   }
 }

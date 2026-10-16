@@ -86,6 +86,14 @@ axiosClient.interceptors.request.use(
 const isRawFrappeSystemError = (msg: string): boolean => {
   if (!msg || typeof msg !== 'string') return false;
   const lower = msg.toLowerCase();
+  // Relational integrity / link existence errors are authoritative domain errors, not unhandled system crashes
+  if (
+    lower.includes('cannot delete or cancel') ||
+    lower.includes('is linked with') ||
+    lower.includes('linkexistserror')
+  ) {
+    return false;
+  }
   return (
     lower.includes('reportview.get') ||
     lower.includes('not whitelisted') ||
@@ -110,26 +118,22 @@ const isGenericMsg = (msg: string | null | undefined): boolean => {
  * Normalized application-level error extractor.
  * Converts raw Frappe / ERPNext responses into clean, user-friendly messages.
  * Never leaks raw traceback, whitelisting, or desk internal messages to the UI.
+ * Preserves complete original ERPNext validation and link constraint messages.
  */
 export const normalizeApiError = (resData: any, status?: number): string => {
-  // 1. Map HTTP status codes directly for authentication & authorization
-  if (status === 401) {
-    return 'Your ERPNext authentication session has expired. Please sign in again.';
-  }
-  if (status === 403) {
-    return 'You do not have permission to access this data.';
-  }
-  if (status === 404) {
-    return 'The requested resource was not found.';
-  }
-  if (status === 429) {
-    return 'Too many requests. Please try again in a few moments.';
-  }
-  if (status && status >= 500) {
-    return 'The ERPNext server is temporarily unavailable. Please try again later.';
-  }
-
   if (!resData) {
+    if (status === 401) {
+      return 'Your ERPNext authentication session has expired. Please sign in again.';
+    }
+    if (status === 403) {
+      return 'You do not have permission to access this data.';
+    }
+    if (status === 404) {
+      return 'The requested resource was not found.';
+    }
+    if (status && status >= 500) {
+      return 'The ERPNext server is temporarily unavailable. Please try again later.';
+    }
     return `An error occurred while connecting to the ERPNext server (${status || 'Unknown'})`;
   }
 
@@ -185,11 +189,42 @@ export const normalizeApiError = (resData: any, status?: number): string => {
   // Try exception string
   if (!candidateMessage && resData.exception && typeof resData.exception === 'string') {
     const excStr = resData.exception.replace(/<[^>]*>?/gm, '').trim();
-    if (excStr.includes(':')) {
+    if (excStr.includes('Cannot delete or cancel')) {
+      const idx = excStr.indexOf('Cannot delete or cancel');
+      candidateMessage = excStr.substring(idx).trim();
+    } else if (excStr.includes(':')) {
       candidateMessage = excStr.split(':').slice(1).join(':').trim();
     } else {
       candidateMessage = excStr;
     }
+  }
+
+  // Relational integrity / link existence errors are returned in full immediately
+  if (
+    candidateMessage &&
+    (candidateMessage.toLowerCase().includes('cannot delete or cancel') ||
+      candidateMessage.toLowerCase().includes('is linked with'))
+  ) {
+    return candidateMessage;
+  }
+
+  // 1. Map HTTP status codes directly for authentication & authorization
+  if (status === 401) {
+    return 'Your ERPNext authentication session has expired. Please sign in again.';
+  }
+  if (status === 403) {
+    return 'You do not have permission to access this data.';
+  }
+  if (status === 404) {
+    return candidateMessage || 'The requested resource was not found.';
+  }
+  if (status === 429) {
+    return 'Too many requests. Please try again in a few moments.';
+  }
+
+  // If status is 500+ and no domain validation message was found, return server error
+  if (status && status >= 500) {
+    return 'The ERPNext server is temporarily unavailable. Please try again later.';
   }
 
   // If candidate is a raw Frappe system/whitelisting error, sanitize to clean user message
@@ -215,14 +250,16 @@ axiosClient.interceptors.response.use(
     const status = error.response?.status;
     const resData = error.response?.data;
 
-    // Developer logging with raw diagnostic payload
-    console.warn('[ERPNext API Diagnostic Log]', {
-      status,
-      url: error.config?.url,
-      method: error.config?.method,
-      data: resData,
-      rawError: error.message,
-    });
+    // Developer logging with raw diagnostic payload (suppress routine 404s)
+    if (status !== 404) {
+      console.warn('[ERPNext API Diagnostic Log]', {
+        status,
+        url: error.config?.url,
+        method: error.config?.method,
+        data: resData,
+        rawError: error.message,
+      });
+    }
 
     let sanitizedMessage = 'An error occurred while connecting to the ERPNext server.';
 
@@ -236,6 +273,44 @@ axiosClient.interceptors.response.use(
         : sanitizedMessage;
     }
 
+    // Extract structured ERPNext server message (dialog title, html message, indicator dot)
+    let erpMessage: {
+      title: string;
+      message: string;
+      cleanMessage: string;
+      indicator?: 'red' | 'orange' | 'blue' | 'green';
+    } | undefined = undefined;
+
+    if (resData?._server_messages) {
+      try {
+        const parsed = typeof resData._server_messages === 'string'
+          ? JSON.parse(resData._server_messages)
+          : resData._server_messages;
+        if (Array.isArray(parsed) && parsed.length > 0) {
+          const item = typeof parsed[0] === 'string' ? JSON.parse(parsed[0]) : parsed[0];
+          if (item?.message) {
+            erpMessage = {
+              title: item.title || 'Message',
+              message: item.message,
+              cleanMessage: item.message.replace(/<[^>]*>?/gm, '').trim(),
+              indicator: item.indicator || 'red',
+            };
+          }
+        }
+      } catch {
+        // ignore JSON parse error
+      }
+    }
+
+    if (!erpMessage && (sanitizedMessage.includes('Cannot delete or cancel') || sanitizedMessage.includes('is linked with'))) {
+      erpMessage = {
+        title: 'Message',
+        message: sanitizedMessage,
+        cleanMessage: sanitizedMessage,
+        indicator: 'red',
+      };
+    }
+
     // Auto-redirect on 401 if in browser environment and on session auth check
     if (status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
       const requestUrl = error.config?.url || '';
@@ -247,7 +322,13 @@ axiosClient.interceptors.response.use(
       }
     }
 
-    return Promise.reject(new Error(sanitizedMessage));
+    const customErr = new Error(erpMessage?.cleanMessage || sanitizedMessage);
+    (customErr as any).response = error.response;
+    (customErr as any).status = status;
+    (customErr as any).resData = resData;
+    (customErr as any).erpMessage = erpMessage;
+
+    return Promise.reject(customErr);
   }
 );
 

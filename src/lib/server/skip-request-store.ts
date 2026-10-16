@@ -1,6 +1,7 @@
 import fs from 'fs';
 import path from 'path';
 import { TaskSkipRequest } from '@/types/skip-request.types';
+import { createErpDoc, updateErpDoc, fetchErpResource } from './erp-client';
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const FILE_PATH = path.join(DATA_DIR, 'skip-requests.json');
@@ -85,6 +86,20 @@ export const createSkipRequest = (
 
   all.unshift(newRequest);
   writeSkipRequestsFile(all);
+
+  // Authoritative ERPNext Sync: create Task Skip Request DocType
+  createErpDoc('Task Skip Request', {
+    task: input.task_id,
+    task_subject: input.task_subject || '',
+    project: input.project_id,
+    requested_by: input.requested_by,
+    requested_by_name: input.requested_by_name || input.requested_by,
+    requested_at: timestamp.replace('T', ' ').replace('Z', '').split('.')[0],
+    status: 'PENDING',
+    skip_reason: input.skip_reason.trim(),
+    additional_comment: input.additional_comment?.trim() || '',
+  }).catch((err) => console.warn('[SkipRequestStore] Failed to save skip request to ERPNext:', err.message));
+
   return newRequest;
 };
 
@@ -112,6 +127,26 @@ export const approveSkipRequest = (
   request.approved_at = timestamp;
 
   writeSkipRequestsFile(all);
+
+  // Authoritative ERPNext Sync: update Task Skip Request and Task DocTypes
+  fetchErpResource<any>('Task Skip Request', { filters: [['task', '=', request.task_id]], limit: 1 })
+    .then((docs) => {
+      if (docs && docs.length > 0) {
+        return updateErpDoc('Task Skip Request', docs[0].name, {
+          status: 'APPROVED',
+          reviewed_by: reviewedBy,
+          reviewed_by_name: reviewedByName || reviewedBy,
+          reviewed_at: timestamp.replace('T', ' ').replace('Z', '').split('.')[0],
+        });
+      }
+    })
+    .catch((err) => console.warn('[SkipRequestStore] Failed to update skip request in ERPNext:', err.message));
+
+  updateErpDoc('Task', request.task_id, {
+    custom_is_skipped: 1,
+    custom_skip_reason: request.skip_reason,
+  }).catch((err) => console.warn('[SkipRequestStore] Failed to update Task in ERPNext:', err.message));
+
   return request;
 };
 
@@ -144,5 +179,22 @@ export const rejectSkipRequest = (
   request.reviewed_at = timestamp;
 
   writeSkipRequestsFile(all);
+
+  // Authoritative ERPNext Sync: update Task Skip Request rejection in ERPNext
+  fetchErpResource<any>('Task Skip Request', { filters: [['task', '=', request.task_id]], limit: 1 })
+    .then((docs) => {
+      if (docs && docs.length > 0) {
+        return updateErpDoc('Task Skip Request', docs[0].name, {
+          status: 'REJECTED',
+          rejection_reason: rejectionReason.trim(),
+          reviewed_by: reviewedBy,
+          reviewed_by_name: reviewedByName || reviewedBy,
+          reviewed_at: timestamp.replace('T', ' ').replace('Z', '').split('.')[0],
+        });
+      }
+    })
+    .catch((err) => console.warn('[SkipRequestStore] Failed to reject skip request in ERPNext:', err.message));
+
   return request;
 };
+

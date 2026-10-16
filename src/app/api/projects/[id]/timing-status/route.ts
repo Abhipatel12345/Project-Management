@@ -349,3 +349,152 @@ export async function PUT(
     );
   }
 }
+
+/**
+ * DELETE: Delete Project Status Timing Chart in ERPNext
+ */
+export async function DELETE(
+  req: NextRequest,
+  props: { params: Promise<{ id?: string }> }
+) {
+  const { id: projectId } = await props.params;
+  if (!projectId) {
+    return NextResponse.json({ _error_message: 'Project ID is required' }, { status: 400 });
+  }
+
+  const session = getSessionFromRequest(req);
+  if (!session) {
+    return NextResponse.json({ _error_message: '401 Unauthorized: Session required' }, { status: 401 });
+  }
+
+  // RBAC Permission Check:
+  // Team members and guests have view-only access
+  const userRole = session.role?.toLowerCase() || '';
+  if (userRole === 'teammember' || userRole === 'guest') {
+    return NextResponse.json(
+      { _error_message: '403 Forbidden: Team members are not authorized to delete Project Status Timing Charts.' },
+      { status: 403 }
+    );
+  }
+
+  const isPmoAdmin = session.role === 'admin' || !!session.permissions?.manageProjects;
+
+  try {
+    // 1. Fetch Project Details to verify existence and check PM ownership if not PMO Admin
+    const projRes = await fetch(`${ERP_URL}/api/resource/Project/${encodeURIComponent(projectId)}`, {
+      headers: getHeaders(),
+      cache: 'no-store',
+    });
+    if (!projRes.ok) {
+      return NextResponse.json(
+        { _error_message: `Project "${projectId}" not found in ERPNext.` },
+        { status: projRes.status }
+      );
+    }
+    const project = (await projRes.json()).data;
+
+    // Field Governance: If PM role and not PMO admin, verify assigned PM
+    if (!isPmoAdmin) {
+      const userEmail = (session.email || '').toLowerCase().trim();
+      const userFullName = (session.fullName || '').toLowerCase().trim();
+      const assignedPm = (project.custom_project_manager || project.owner || '').toLowerCase().trim();
+      const isAssigned =
+        assignedPm &&
+        (assignedPm === userEmail ||
+          assignedPm.includes(userEmail) ||
+          (userFullName && assignedPm.includes(userFullName)));
+
+      if (!isAssigned) {
+        return NextResponse.json(
+          { _error_message: '403 Forbidden: Only the assigned Project Manager or PMO Admin can delete this timing chart.' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // 2. Find the existing chart in ERPNext
+    const searchParams = req.nextUrl.searchParams;
+    let resolvedChartId: string | undefined = searchParams.get('chart_id') || undefined;
+
+    if (!resolvedChartId) {
+      const chartListRes = await fetch(
+        `${ERP_URL}/api/resource/Project%20Status%20Timing%20Chart?filters=[["project","=","${encodeURIComponent(projectId)}"]]&limit_page_length=1`,
+        { headers: getHeaders(), cache: 'no-store' }
+      );
+      const chartList = chartListRes.ok ? (await chartListRes.json()).data || [] : [];
+      if (chartList.length === 0 || !chartList[0]?.name) {
+        return NextResponse.json(
+          { _error_message: `Project Status Timing Chart for project "${projectId}" not found.` },
+          { status: 404 }
+        );
+      }
+      resolvedChartId = chartList[0].name;
+    }
+
+    if (!resolvedChartId) {
+      return NextResponse.json(
+        { _error_message: `Project Status Timing Chart for project "${projectId}" not found.` },
+        { status: 404 }
+      );
+    }
+    const chartId: string = resolvedChartId;
+
+    // 3. Delete the Project Status Timing Chart record in ERPNext
+    // NOTE: This deletes only the Project Status Timing Chart record and never the associated Project
+    const delRes = await fetch(
+      `${ERP_URL}/api/resource/Project%20Status%20Timing%20Chart/${encodeURIComponent(chartId)}`,
+      {
+        method: 'DELETE',
+        headers: getHeaders(),
+      }
+    );
+
+    if (!delRes.ok) {
+      const resText = await delRes.text();
+      let resJson: any = null;
+      try {
+        resJson = JSON.parse(resText);
+      } catch {
+        // non-json response
+      }
+
+      console.warn('[Timing Status Delete ERPNext Error]', {
+        status: delRes.status,
+        body: resJson || resText,
+      });
+
+      // Preserve full original ERPNext error (including LinkExistsError / _server_messages)
+      if (resJson && typeof resJson === 'object') {
+        return NextResponse.json(resJson, { status: delRes.status });
+      }
+      return NextResponse.json(
+        { _error_message: resText || 'Failed to delete timing chart in ERPNext' },
+        { status: delRes.status }
+      );
+    }
+
+    // 4. Log Audit Record
+    saveAuditRecord({
+      project_id: projectId,
+      user_id: session.email || session.username || 'user',
+      user_name: session.fullName || 'User',
+      role: session.roleLabel || session.role || 'PM',
+      action: 'Timing Chart Deleted',
+      entity_type: 'Project Status Timing Chart',
+      entity_id: chartId,
+      description: `Deleted Project Status Timing Chart ${chartId} for project ${projectId}`,
+    });
+
+    return NextResponse.json(
+      { message: 'Project Status Timing Chart deleted successfully', chart_id: chartId },
+      { status: 200 }
+    );
+  } catch (error: any) {
+    console.error('[Timing Status DELETE Error]', error);
+    return NextResponse.json(
+      { _error_message: error.message || 'Failed to delete timing status chart' },
+      { status: 500 }
+    );
+  }
+}
+

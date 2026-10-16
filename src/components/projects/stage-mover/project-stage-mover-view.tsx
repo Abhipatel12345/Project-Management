@@ -78,8 +78,15 @@ export function ProjectStageMoverView({
     );
   }
 
-  const currentStage = status?.current_stage || 'PL';
+  const rawStage = (status?.current_stage || currentPhase || 'PL')
+    .toUpperCase()
+    .replace(/^GATE\s*\d*:\s*/i, '')
+    .trim();
+  const currentStage: PDPStageCode = PDP_STAGE_ORDER.includes(rawStage as any)
+    ? (rawStage as PDPStageCode)
+    : 'PL';
   const currentIdx = PDP_STAGE_ORDER.indexOf(currentStage);
+  const safeCurrentIdx = currentIdx >= 0 ? currentIdx : 0;
   const nextStage = status?.next_stage;
   const pdDecision = status?.platform_director_decision || 'Pending';
 
@@ -190,80 +197,110 @@ export function ProjectStageMoverView({
         )}
       </div>
 
-      {/* Lifecycle Stage Progress Bar */}
+      {/* Horizontal PDP Lifecycle Stepper */}
       <div className="p-6 bg-white rounded-2xl border border-slate-200 shadow-xs space-y-6">
-        <div className="flex items-center justify-between">
-          <h3 className="text-xs font-extrabold tracking-wider uppercase text-slate-500">
-            PDP Phase Pipeline Progression (PL → VC → TKO → VL → CPA → CT)
-          </h3>
-          <span className="text-xs font-bold px-2.5 py-0.5 rounded-full bg-indigo-100 text-indigo-800">
-            Active Phase: {currentStage}
-          </span>
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100">
+          <div>
+            <h3 className="text-xs font-extrabold tracking-wider uppercase text-slate-500">
+              PDP Lifecycle Stage Progression
+            </h3>
+            <p className="text-xs text-slate-400 mt-0.5">
+              Gate-governed stage progression (PL → VC → TKO → VL → CPA → CT)
+            </p>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-flex items-center gap-1.5 text-xs font-bold px-3 py-1 rounded-full bg-blue-50 text-blue-700 border border-blue-200/80 shadow-2xs">
+              <span className="w-2 h-2 rounded-full bg-blue-600 animate-pulse" />
+              Active Stage: {currentStage} — {STAGE_LABELS[currentStage]?.name}
+            </span>
+          </div>
         </div>
 
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {PDP_STAGE_ORDER.map((stg, idx) => {
-            const isCurrent = idx === currentIdx;
-            const isCompleted = idx < currentIdx;
-            const isUpcoming = idx > currentIdx;
+        <div className="overflow-x-auto pb-2 pt-2 scrollbar-thin">
+          <div className="min-w-[700px] w-full px-4">
+            <div className="flex items-start justify-between relative">
+              {PDP_STAGE_ORDER.map((stg, idx) => {
+                const isCurrent = idx === safeCurrentIdx;
+                const isCompleted = idx < safeCurrentIdx;
+                const isUpcoming = idx > safeCurrentIdx;
 
-            return (
-              <div
-                key={stg}
-                className={`relative p-4 rounded-xl border transition-all flex flex-col justify-between ${
-                  isCurrent
-                    ? 'border-indigo-500 bg-indigo-50/70 ring-2 ring-indigo-400/30'
-                    : isCompleted
-                    ? 'border-emerald-200 bg-emerald-50/50'
-                    : 'border-slate-200 bg-slate-50/60 opacity-75'
-                }`}
-              >
-                <div className="flex items-center justify-between mb-2">
-                  <span
-                    className={`text-xs font-black px-2 py-0.5 rounded-md ${
-                      isCurrent
-                        ? 'bg-indigo-600 text-white'
-                        : isCompleted
-                        ? 'bg-emerald-600 text-white'
-                        : 'bg-slate-200 text-slate-700'
-                    }`}
+                return (
+                  <div
+                    key={stg}
+                    className="flex-1 relative flex flex-col items-center group min-w-[110px]"
                   >
-                    {stg}
-                  </span>
-                  {isCompleted && (
-                    <CheckCircle2 className="h-4 w-4 text-emerald-600" />
-                  )}
-                  {isCurrent && (
-                    <div className="h-2 w-2 rounded-full bg-indigo-600 animate-ping" />
-                  )}
-                  {isUpcoming && (
-                    <Clock className="h-4 w-4 text-slate-400" />
-                  )}
-                </div>
+                    {/* Horizontal Connecting Line to Next Stage */}
+                    {idx < PDP_STAGE_ORDER.length - 1 && (
+                      <div
+                        className={`absolute top-4 left-1/2 w-full h-[3px] -translate-y-1/2 z-0 transition-colors duration-300 ${
+                          idx < safeCurrentIdx ? 'bg-emerald-500' : 'bg-slate-200'
+                        }`}
+                      />
+                    )}
 
-                <div className="space-y-0.5">
-                  <p className="text-xs font-bold text-slate-900 line-clamp-1">
-                    {STAGE_LABELS[stg].name}
-                  </p>
-                  <p className="text-[10px] text-slate-500 line-clamp-2">
-                    {STAGE_LABELS[stg].desc}
-                  </p>
-                </div>
+                    {/* Circular Marker */}
+                    {isCompleted && (
+                      <div
+                        className="w-8 h-8 rounded-full bg-emerald-600 text-white flex items-center justify-center ring-4 ring-emerald-50 shadow-xs relative z-10 transition-transform group-hover:scale-105 shrink-0"
+                        title={`${stg} — ${STAGE_LABELS[stg].name}: Completed`}
+                      >
+                        <Check className="h-4 w-4 stroke-[3]" />
+                      </div>
+                    )}
+                    {isCurrent && (
+                      <div
+                        className="w-8 h-8 rounded-full border-2 border-blue-600 bg-white flex items-center justify-center ring-4 ring-blue-100 shadow-xs relative z-10 transition-transform group-hover:scale-105 shrink-0"
+                        title={`${stg} — ${STAGE_LABELS[stg].name}: Current Active Stage`}
+                      >
+                        <div className="w-3.5 h-3.5 rounded-full bg-blue-600 shadow-xs" />
+                      </div>
+                    )}
+                    {isUpcoming && (
+                      <div
+                        className="w-8 h-8 rounded-full border-2 border-slate-300 bg-white flex items-center justify-center relative z-10 transition-transform shrink-0"
+                        title={`${stg} — ${STAGE_LABELS[stg].name}: Upcoming Stage`}
+                      >
+                        <div className="w-2.5 h-2.5 rounded-full bg-slate-300" />
+                      </div>
+                    )}
 
-                <div className="mt-3 pt-2 border-t border-slate-200/60 text-[10px] font-semibold">
-                  {isCurrent && (
-                    <span className="text-indigo-700 font-bold">● Active Stage</span>
-                  )}
-                  {isCompleted && (
-                    <span className="text-emerald-700">Completed & Locked</span>
-                  )}
-                  {isUpcoming && (
-                    <span className="text-slate-400">Upcoming Stage</span>
-                  )}
-                </div>
-              </div>
-            );
-          })}
+                    {/* Stage Label Below Marker */}
+                    <div className="mt-3 flex flex-col items-center text-center px-1 w-full max-w-[135px]">
+                      <span
+                        className={`text-xs font-bold leading-tight transition-colors ${
+                          isCurrent
+                            ? 'text-blue-700'
+                            : isCompleted
+                            ? 'text-emerald-800'
+                            : 'text-slate-500'
+                        }`}
+                      >
+                        {stg} — {STAGE_LABELS[stg].name}
+                      </span>
+                      <div className="mt-1.5">
+                        {isCurrent && (
+                          <span className="inline-flex items-center gap-1 text-[10px] font-bold text-blue-700 bg-blue-50 border border-blue-200/80 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            <span className="w-1.5 h-1.5 rounded-full bg-blue-600 animate-pulse" />
+                            Active Stage
+                          </span>
+                        )}
+                        {isCompleted && (
+                          <span className="inline-flex items-center text-[10px] font-semibold text-emerald-700 bg-emerald-50 px-2 py-0.5 rounded-full whitespace-nowrap">
+                            Completed
+                          </span>
+                        )}
+                        {isUpcoming && (
+                          <span className="inline-flex items-center text-[10px] font-medium text-slate-400 whitespace-nowrap">
+                            Upcoming
+                          </span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
         </div>
       </div>
 

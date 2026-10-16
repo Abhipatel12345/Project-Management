@@ -440,18 +440,16 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
           <div className="flex items-center gap-1 px-6 pt-3 bg-slate-50 border-b border-slate-200 overflow-x-auto text-xs font-bold text-slate-600">
             <button
               onClick={() => setActiveTab('overview')}
-              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'overview' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
-              }`}
+              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${activeTab === 'overview' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
+                }`}
             >
               Overview & Scope
             </button>
 
             <button
               onClick={() => setActiveTab('submissions')}
-              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'submissions' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
-              }`}
+              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${activeTab === 'submissions' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
+                }`}
             >
               <Send className="h-3.5 w-3.5 text-sky-600" />
               <span>Submissions & Files ({submissions.length})</span>
@@ -459,9 +457,8 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
 
             <button
               onClick={() => setActiveTab('issues')}
-              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1 ${
-                activeTab === 'issues' ? 'border-rose-600 text-rose-700 font-extrabold' : 'border-transparent hover:text-slate-900'
-              }`}
+              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1 ${activeTab === 'issues' ? 'border-rose-600 text-rose-700 font-extrabold' : 'border-transparent hover:text-slate-900'
+                }`}
             >
               <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
               <span>Task Issues ({taskIssues.length})</span>
@@ -469,9 +466,8 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
 
             <button
               onClick={() => setActiveTab('baseline')}
-              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1 ${
-                activeTab === 'baseline' ? 'border-amber-500 text-amber-900 font-extrabold' : 'border-transparent hover:text-slate-900'
-              }`}
+              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1 ${activeTab === 'baseline' ? 'border-amber-500 text-amber-900 font-extrabold' : 'border-transparent hover:text-slate-900'
+                }`}
             >
               <BookmarkPlus className="h-3.5 w-3.5 text-amber-500" />
               <span>Baseline Schedule & Variance</span>
@@ -479,9 +475,8 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
 
             <button
               onClick={() => setActiveTab('dependencies')}
-              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${
-                activeTab === 'dependencies' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
-              }`}
+              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer flex items-center gap-1.5 ${activeTab === 'dependencies' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
+                }`}
             >
               <GitFork className="h-3.5 w-3.5 text-sky-600" />
               <span>
@@ -491,36 +486,32 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
 
             <button
               onClick={() => setActiveTab('assignment')}
-              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer ${
-                activeTab === 'assignment' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
-              }`}
+              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer ${activeTab === 'assignment' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
+                }`}
             >
               Resource Assignment
             </button>
 
             <button
               onClick={() => setActiveTab('rasic')}
-              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer ${
-                activeTab === 'rasic' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
-              }`}
+              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer ${activeTab === 'rasic' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
+                }`}
             >
               RASIC Matrix
             </button>
 
             <button
               onClick={() => setActiveTab('comments')}
-              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer ${
-                activeTab === 'comments' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
-              }`}
+              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer ${activeTab === 'comments' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
+                }`}
             >
               Comments ({comments.length})
             </button>
 
             <button
               onClick={() => setActiveTab('attachments')}
-              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer ${
-                activeTab === 'attachments' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
-              }`}
+              className={`pb-2.5 px-3 border-b-2 transition cursor-pointer ${activeTab === 'attachments' ? 'border-sky-600 text-sky-700 font-extrabold' : 'border-transparent hover:text-slate-900'
+                }`}
             >
               Task Documents ({assignmentDocs.length + deliverableDocs.length})
             </button>
@@ -555,13 +546,12 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
                         Task Submission #{submissions[0].submission_number}
                       </span>
                       <span
-                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                          submissions[0].status === 'Approved'
+                        className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${submissions[0].status === 'Approved'
                             ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                             : submissions[0].status === 'Changes Requested'
-                            ? 'bg-rose-50 text-rose-800 border-rose-300'
-                            : 'bg-amber-50 text-amber-800 border-amber-300'
-                        }`}
+                              ? 'bg-rose-50 text-rose-800 border-rose-300'
+                              : 'bg-amber-50 text-amber-800 border-amber-300'
+                          }`}
                       >
                         {submissions[0].status === 'Submitted' ? 'Submitted / Pending PM Review' : submissions[0].status}
                       </span>
@@ -1039,11 +1029,10 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
                             </td>
                             <td className="p-3">
                               <span
-                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                                  iss.priority === 'Urgent/Critical' || iss.priority === 'High'
+                                className={`px-2 py-0.5 rounded text-[10px] font-bold ${iss.priority === 'Urgent/Critical' || iss.priority === 'High'
                                     ? 'bg-rose-50 text-rose-700 border border-rose-200'
                                     : 'bg-amber-50 text-amber-700 border border-amber-200'
-                                }`}
+                                  }`}
                               >
                                 {iss.priority}
                               </span>
@@ -1187,13 +1176,12 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
                               Submission #{sub.submission_number}
                             </span>
                             <span
-                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${
-                                sub.status === 'Approved'
+                              className={`px-2.5 py-0.5 rounded-full text-[10px] font-black uppercase tracking-wider border ${sub.status === 'Approved'
                                   ? 'bg-emerald-50 text-emerald-800 border-emerald-300'
                                   : sub.status === 'Changes Requested'
-                                  ? 'bg-rose-50 text-rose-800 border-rose-300'
-                                  : 'bg-amber-50 text-amber-800 border-amber-300'
-                              }`}
+                                    ? 'bg-rose-50 text-rose-800 border-rose-300'
+                                    : 'bg-amber-50 text-amber-800 border-amber-300'
+                                }`}
                             >
                               {sub.status === 'Submitted' ? 'Submitted / Pending PM Review' : sub.status}
                             </span>
@@ -1331,11 +1319,10 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
                       {dependencyInfo?.predecessors.map((pred: any) => (
                         <div
                           key={pred.dependency_id}
-                          className={`p-3 rounded-xl border flex items-center justify-between gap-3 shadow-2xs transition ${
-                            pred.is_blocking
+                          className={`p-3 rounded-xl border flex items-center justify-between gap-3 shadow-2xs transition ${pred.is_blocking
                               ? 'bg-amber-50/70 border-amber-300'
                               : 'bg-white border-slate-200 hover:bg-slate-50/70'
-                          }`}
+                            }`}
                         >
                           <div className="truncate flex-1">
                             <div className="flex items-center gap-2">
@@ -1515,18 +1502,16 @@ export function TaskDetailModal({ task, onClose, onEdit, activeBaseline, onRefre
                             <button
                               type="button"
                               onClick={() => setPendingUploadRole('assignment')}
-                              className={`px-2 py-0.5 rounded-md font-bold cursor-pointer transition ${
-                                pendingUploadRole === 'assignment' ? 'bg-sky-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                              }`}
+                              className={`px-2 py-0.5 rounded-md font-bold cursor-pointer transition ${pendingUploadRole === 'assignment' ? 'bg-sky-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                                }`}
                             >
                               Assign Doc
                             </button>
                             <button
                               type="button"
                               onClick={() => setPendingUploadRole('deliverable')}
-                              className={`px-2 py-0.5 rounded-md font-bold cursor-pointer transition ${
-                                pendingUploadRole === 'deliverable' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900'
-                              }`}
+                              className={`px-2 py-0.5 rounded-md font-bold cursor-pointer transition ${pendingUploadRole === 'deliverable' ? 'bg-emerald-600 text-white' : 'text-slate-600 hover:text-slate-900'
+                                }`}
                             >
                               Deliverable
                             </button>

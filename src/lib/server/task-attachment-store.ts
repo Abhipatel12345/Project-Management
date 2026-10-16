@@ -92,8 +92,8 @@ export async function saveTaskAttachment(params: {
     buffer,
     uploadedBy = 'system',
     uploadedByName = 'User',
-    documentType = 'Engineering',
     documentRole = 'assignment',
+    documentType = params.documentType || (params.documentRole === 'deliverable' ? 'Design' : 'Specification'),
     session,
   } = params;
 

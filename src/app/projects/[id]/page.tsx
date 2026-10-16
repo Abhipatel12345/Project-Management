@@ -9,7 +9,7 @@ import { useGates } from '@/hooks/use-gates';
 import { ProjectStatusBadge } from '@/components/projects/project-status-badge';
 import { ProjectPriorityBadge } from '@/components/projects/project-priority-badge';
 import { ProjectFormDialog } from '@/components/projects/project-form-dialog';
-import { ProjectDeleteDialog } from '@/components/projects/project-delete-dialog';
+import { ProjectDeleteDialog, extractProjectDeleteErrorMessage } from '@/components/projects/project-delete-dialog';
 import { ProjectTeamTab } from '@/components/projects/team/project-team-tab';
 import { ProjectTasksTab } from '@/components/projects/tasks/project-tasks-tab';
 import { ProjectIssuesTab } from '@/components/projects/issues/project-issues-tab';
@@ -28,6 +28,7 @@ import { ProjectScorecardView } from '@/components/projects/scorecard/project-sc
 import { ProjectStatusView } from '@/components/projects/status/project-status-view';
 import { AccessDenied } from '@/components/shared/access-denied';
 import { useAuth } from '@/providers/auth-context';
+import { useToast } from '@/providers/toast-context';
 import {
   Rocket,
   GitCommit,
@@ -67,11 +68,13 @@ export default function ProjectDetailPage() {
   const router = useRouter();
   const projectId = decodeURIComponent((params.id as string) || '');
   const { user, hasPermission } = useAuth();
+  const { showErpMessage } = useToast();
   const canManageTeam = hasPermission('manageTeamMembers');
   const canManageProjectSettings = hasPermission('manageProjectSettings');
 
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [isAddTeamModalOpen, setIsAddTeamModalOpen] = useState(false);
 
   const searchParams = useSearchParams();
@@ -286,11 +289,15 @@ export default function ProjectDetailPage() {
   };
 
   const handleDeleteConfirm = async () => {
+    setDeleteError(null);
     try {
       await deleteProjectMutation.mutateAsync(projectId);
-      router.push('/projects');
-    } catch (err) {
-      console.error('Failed to delete project:', err);
+      setIsDeleteOpen(false);
+      setDeleteError(null);
+      router.replace('/projects');
+    } catch (err: any) {
+      const formattedError = extractProjectDeleteErrorMessage(err);
+      setDeleteError(formattedError);
     }
   };
 
@@ -304,6 +311,7 @@ export default function ProjectDetailPage() {
   }
 
   if (isError || !project) {
+    const status = (error as any)?.status || (error as any)?.response?.status;
     let errMsg = error instanceof Error ? error.message : '';
     const lower = errMsg.toLowerCase();
     if (
@@ -316,6 +324,8 @@ export default function ProjectDetailPage() {
       errMsg = 'Your ERPNext authentication session has expired. Please sign in again.';
     } else if (lower.includes('permission') || lower.includes('not permitted')) {
       errMsg = 'You do not have permission to access this project.';
+    } else if (status === 404 || lower.includes('not found') || lower.includes('doesnotexisterror')) {
+      errMsg = errMsg || `Project "${projectId}" not found.`;
     } else if (lower.includes('traceback') || lower.includes('server error')) {
       errMsg = 'The ERPNext server is temporarily unavailable. Please try again later.';
     }
@@ -383,7 +393,10 @@ export default function ProjectDetailPage() {
 
           {canManageProjectSettings && (
             <button
-              onClick={() => setIsDeleteOpen(true)}
+              onClick={() => {
+                setDeleteError(null);
+                setIsDeleteOpen(true);
+              }}
               className="flex items-center gap-1.5 px-3.5 py-2.5 rounded-xl bg-white border border-slate-200 hover:bg-rose-50 text-rose-600 border-rose-200 text-xs font-bold transition shadow-2xs cursor-pointer"
             >
               <Trash2 className="h-3.5 w-3.5" />
@@ -1054,10 +1067,14 @@ export default function ProjectDetailPage() {
       {/* Delete Confirmation Modal */}
       <ProjectDeleteDialog
         isOpen={isDeleteOpen}
-        onClose={() => setIsDeleteOpen(false)}
+        onClose={() => {
+          setIsDeleteOpen(false);
+          setDeleteError(null);
+        }}
         onConfirm={handleDeleteConfirm}
         projectName={project.project_name || project.name}
         isLoading={deleteProjectMutation.isPending}
+        errorMessage={deleteError}
       />
     </div>
   );

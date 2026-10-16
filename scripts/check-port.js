@@ -1,13 +1,12 @@
 const net = require('net');
 
 const REQUIRED_PORT = 3000;
-const HOST = '127.0.0.1';
 
 /**
  * Check if the required development port is free before Next.js starts.
  * This prevents Next.js from silently falling back to ports 3001, 3002, 3003...
  */
-function verifyPortAvailable(port, host) {
+function verifyPortAvailable(port) {
   const tester = net.createServer();
 
   tester.once('error', (err) => {
@@ -30,7 +29,8 @@ function verifyPortAvailable(port, host) {
     });
   });
 
-  tester.listen(port, host);
+  // Match Next.js's default bind address so conflicts on all interfaces are caught.
+  tester.listen(port);
 }
 
-verifyPortAvailable(REQUIRED_PORT, HOST);
+verifyPortAvailable(REQUIRED_PORT);

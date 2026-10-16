@@ -4,6 +4,12 @@ import { TaskSubmission, TaskSubmissionAttachment } from '@/types/task.types';
 import { PDMUserSession } from '@/types/auth.types';
 import { saveDocument } from './document-store';
 import { saveAuditRecord } from './audit-store';
+import {
+  createErpDoc,
+  updateErpDoc,
+  fetchErpResource,
+  getErpDoc,
+} from './erp-client';
 
 const DATA_DIR = path.join(process.cwd(), '.data');
 const SUBMISSIONS_FILE = path.join(DATA_DIR, 'task_submissions.json');
@@ -184,6 +190,19 @@ export async function createTaskSubmission(
   all[taskId] = existingSubmissions;
   saveAllTaskSubmissions(all);
 
+  // Authoritative ERPNext Sync: create Task Submission DocType
+  createErpDoc('Task Submission', {
+    task: taskId,
+    project: projectId || 'PROJ-0126',
+    submitted_by: submitterId,
+    submitted_by_name: submitterName,
+    submitted_at: now.replace('T', ' ').replace('Z', '').split('.')[0],
+    status: 'Submitted',
+    file_url: (attachments && attachments[0]) ? attachments[0].file_url : '',
+    file_name: (attachments && attachments[0]) ? attachments[0].file_name : '',
+    notes: comment || '',
+  }).catch((err) => console.warn('[TaskSubmissionStore] Failed to save submission to ERPNext:', err.message));
+
   // 4. Log Audit Event
   try {
     saveAuditRecord({
@@ -232,6 +251,20 @@ export async function reviewTaskSubmission(
   submission.review_comment = comment || '';
 
   saveAllTaskSubmissions(all);
+
+  // Authoritative ERPNext Sync: update Task Submission
+  fetchErpResource<any>('Task Submission', { filters: [['task', '=', taskId]], limit: 1 })
+    .then((docs) => {
+      if (docs && docs.length > 0) {
+        return updateErpDoc('Task Submission', docs[0].name, {
+          status: submission.status,
+          reviewed_by: reviewerName,
+          reviewed_at: now.replace('T', ' ').replace('Z', '').split('.')[0],
+          feedback: comment || '',
+        });
+      }
+    })
+    .catch((err) => console.warn('[TaskSubmissionStore] Failed to update submission in ERPNext:', err.message));
 
   // Audit Log
   try {
