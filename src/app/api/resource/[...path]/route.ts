@@ -6,6 +6,7 @@ import {
   isProjectManagedByUser,
   getManagedProjectIdsForUser,
   getAccessibleProjectIdsForTeamMember,
+  getAccessibleProjectIdsForGateReviewer,
   fetchAllTasksFromERP,
 } from '@/lib/server/rbac-scoping';
 import { getTaskRasic, saveTaskRasic, loadAllTaskRasic } from '@/lib/server/rasic-store';
@@ -95,7 +96,13 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
     const recordId = path && path[1] ? path[1] : '';
 
     const session = getSessionFromRequest(req);
-    const userRole = session?.role || 'teammember';
+    if (!session) {
+      return NextResponse.json(
+        { _error_message: '401 Unauthorized: Authentication required to access ERPNext resources.' },
+        { status: 401 }
+      );
+    }
+    const userRole = session.role || 'teammember';
 
     // 1. IT Admin User Management Endpoint Protection
     if (docType === 'User' && (req.method === 'POST' || req.method === 'PUT' || req.method === 'DELETE')) {
@@ -1066,8 +1073,35 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
                 { status: 403 }
               );
             }
+          } else if (userRole === 'projectmanager') {
+            const managedIds = await getManagedProjectIdsForUser(session);
+            const isAuthorized =
+              managedIds.has(recordId) ||
+              (resJson.data.project_name && managedIds.has(resJson.data.project_name)) ||
+              isProjectManagedByUser(resJson.data, session);
+
+            if (!isAuthorized) {
+              return NextResponse.json(
+                { _error_message: `403 Forbidden: Access Denied. You are not assigned to manage Project "${recordId}".` },
+                { status: 403 }
+              );
+            }
+          } else if (userRole === 'gate_reviewer') {
+            const reviewerProjectIds = await getAccessibleProjectIdsForGateReviewer(session);
+            if (reviewerProjectIds.size > 0) {
+              const isAuthorized =
+                reviewerProjectIds.has(recordId) ||
+                (resJson.data.project_name && reviewerProjectIds.has(resJson.data.project_name));
+
+              if (!isAuthorized) {
+                return NextResponse.json(
+                  { _error_message: `403 Forbidden: Access Denied. You do not have gate review authority for Project "${recordId}".` },
+                  { status: 403 }
+                );
+              }
+            }
           }
-          // PM & Admin have universal project access
+          // IT Admin & PMO / Admin have universal administrative project access
         } else if (!recordId && Array.isArray(resJson.data)) {
           // Project List Collection Filtering
           if (userRole === 'teammember') {
@@ -1078,8 +1112,25 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
               isProjectManagedByUser(p, session)
             );
             return NextResponse.json({ data: filteredProjects }, { status: 200 });
+          } else if (userRole === 'projectmanager') {
+            const managedIds = await getManagedProjectIdsForUser(session);
+            const filteredProjects = resJson.data.filter((p: any) =>
+              managedIds.has(p.name) ||
+              (p.project_name && managedIds.has(p.project_name)) ||
+              isProjectManagedByUser(p, session)
+            );
+            return NextResponse.json({ data: filteredProjects }, { status: 200 });
+          } else if (userRole === 'gate_reviewer') {
+            const reviewerProjectIds = await getAccessibleProjectIdsForGateReviewer(session);
+            if (reviewerProjectIds.size > 0) {
+              const filteredProjects = resJson.data.filter((p: any) =>
+                reviewerProjectIds.has(p.name) ||
+                (p.project_name && reviewerProjectIds.has(p.project_name))
+              );
+              return NextResponse.json({ data: filteredProjects }, { status: 200 });
+            }
           }
-          // PM & Admin see ALL projects
+          // PMO / Admin & IT Admin see ALL authorized projects
         }
       }
 

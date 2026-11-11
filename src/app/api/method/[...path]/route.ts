@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from 'next/server';
+import { getSessionFromRequest } from '@/lib/server/session';
 
 export const dynamic = 'force-dynamic';
 
@@ -53,6 +54,18 @@ async function handleProxy(req: NextRequest, paramsPromise: Promise<{ path?: str
   try {
     const { path } = await paramsPromise;
     const subpath = path ? path.join('/') : '';
+
+    // Allow /api/method/version for health & connectivity check
+    if (subpath !== 'version') {
+      const session = getSessionFromRequest(req);
+      if (!session) {
+        return NextResponse.json(
+          { _error_message: '401 Unauthorized: Authentication required to access ERPNext methods.' },
+          { status: 401 }
+        );
+      }
+    }
+
     const searchParams = req.nextUrl.search;
     const erpUrl = getErpUrl();
     const targetUrl = `${erpUrl}/api/method/${subpath}${searchParams}`;

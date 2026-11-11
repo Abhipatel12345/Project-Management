@@ -6,7 +6,7 @@ import {
   reviewTaskSubmission,
 } from '@/lib/server/task-submission-store';
 import { saveTaskAttachment } from '@/lib/server/task-attachment-store';
-import { getSessionFromRequest, DEFAULT_ADMIN_SESSION } from '@/lib/server/session';
+import { getSessionFromRequest } from '@/lib/server/session';
 import { isTaskAssignedToUser } from '@/lib/server/rbac-scoping';
 
 export const dynamic = 'force-dynamic';
@@ -31,7 +31,13 @@ export async function GET(req: NextRequest, props: { params: Promise<{ id: strin
     const { id } = await props.params;
     const taskId = decodeURIComponent(id || '').trim();
 
-    const session = getSessionFromRequest(req) || DEFAULT_ADMIN_SESSION;
+    const session = getSessionFromRequest(req);
+    if (!session) {
+      return NextResponse.json(
+        { _error_message: '401 Unauthorized: Authentication required to view task submissions.' },
+        { status: 401 }
+      );
+    }
 
     const submissions = getTaskSubmissions(taskId);
     return NextResponse.json({ data: submissions, submissions }, { status: 200 });
@@ -52,7 +58,13 @@ export async function POST(req: NextRequest, props: { params: Promise<{ id: stri
     const { id } = await props.params;
     const taskId = decodeURIComponent(id || '').trim();
 
-    const session = getSessionFromRequest(req) || DEFAULT_ADMIN_SESSION;
+    const session = getSessionFromRequest(req);
+    if (!session) {
+      return NextResponse.json(
+        { _error_message: '401 Unauthorized: Authentication required to submit task packages.' },
+        { status: 401 }
+      );
+    }
 
     // RBAC: Team Member can only submit work packages for tasks assigned to them
     if (session.role === 'teammember') {
@@ -181,7 +193,13 @@ export async function PUT(req: NextRequest, props: { params: Promise<{ id: strin
     const { id } = await props.params;
     const taskId = decodeURIComponent(id || '').trim();
 
-    const session = getSessionFromRequest(req) || DEFAULT_ADMIN_SESSION;
+    const session = getSessionFromRequest(req);
+    if (!session) {
+      return NextResponse.json(
+        { _error_message: '401 Unauthorized: Authentication required to review task submissions.' },
+        { status: 401 }
+      );
+    }
 
     // RBAC: Team Members must NEVER review, approve, or sign off on tasks/submissions
     if (session.role === 'teammember') {

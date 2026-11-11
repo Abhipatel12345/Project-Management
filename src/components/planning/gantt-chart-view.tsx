@@ -949,30 +949,30 @@ export function GanttChartView({
 
       {/* Main Gantt Split Container (WBS Table on Left + Timeline Canvas on Right) */}
       <div className="rounded-2xl border border-slate-200 bg-white overflow-hidden shadow-xs">
-        <div className="flex flex-col lg:flex-row divide-y lg:divide-y-0 lg:divide-x divide-slate-200">
+        <div className="flex flex-row divide-x divide-slate-200 relative overflow-x-auto custom-scrollbar">
           {/* Left Table Panel: Fixed, comfortable width that fits all 8 columns without horizontal clipping on desktop */}
-          <div className="w-full lg:w-[580px] xl:w-[620px] shrink-0 overflow-x-auto bg-white z-10 custom-scrollbar">
+          <div className="w-[640px] xl:w-[680px] shrink-0 overflow-hidden bg-white sticky left-0 z-20 shadow-[2px_0_6px_-1px_rgba(0,0,0,0.06)] border-r border-slate-200">
             <table className="w-full text-left border-collapse text-xs table-fixed">
               <colgroup>
-                <col className="w-14" />
-                <col className="w-[190px] xl:w-[220px]" />
-                <col className="w-[95px]" />
-                <col className="w-[70px]" />
-                <col className="w-[85px]" />
-                <col className="w-[50px]" />
+                <col className="w-12" />
+                <col className="w-[204px] xl:w-[244px]" />
+                <col className="w-[92px]" />
+                <col className="w-[64px]" />
+                <col className="w-[80px]" />
                 <col className="w-[42px]" />
+                <col className="w-[36px]" />
                 <col className="w-[74px]" />
               </colgroup>
-              <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-[10px] font-bold text-slate-500 uppercase tracking-wider h-[44px]">
-                  <th className="py-2.5 px-3">WBS</th>
-                  <th className="py-2.5 px-2.5">Task Name & ID</th>
-                  <th className="py-2.5 px-2">Owner / Team</th>
-                  <th className="py-2.5 px-2 text-center">Fn / Role</th>
-                  <th className="py-2.5 px-2 text-center">Status</th>
-                  <th className="py-2.5 px-2 text-center">Prog</th>
-                  <th className="py-2.5 px-2 text-center">RYG</th>
-                  <th className="py-2.5 px-3 text-right">Actions</th>
+              <thead className="bg-slate-50 border-b border-slate-200 sticky top-0 z-30">
+                <tr className="text-[10px] font-bold text-slate-500 uppercase tracking-wider h-[44px]">
+                  <th className="py-2.5 px-2 text-center">WBS</th>
+                  <th className="py-2.5 px-3 text-left">Task Name & ID</th>
+                  <th className="py-2.5 px-2 text-left">Owner / Team</th>
+                  <th className="py-2.5 px-1 text-center">Fn / Role</th>
+                  <th className="py-2.5 px-1 text-center">Status</th>
+                  <th className="py-2.5 px-1 text-center">Prog</th>
+                  <th className="py-2.5 px-1 text-center">RYG</th>
+                  <th className="py-2.5 px-2 text-right">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 font-medium">
@@ -992,20 +992,20 @@ export function GanttChartView({
                         {/* WBS Phase Header Row - Fixed Height 40px */}
                         <tr
                           onClick={() => togglePhaseCollapse(phaseName)}
-                          className="bg-slate-100/80 hover:bg-slate-100 cursor-pointer transition select-none h-[40px]"
+                          className="bg-slate-100/90 hover:bg-slate-200/70 cursor-pointer transition select-none h-[40px]"
                         >
                           <td colSpan={8} className="py-2 px-3">
                             <div className="flex items-center justify-between">
-                              <div className="flex items-center gap-2">
+                              <div className="flex items-center gap-2 min-w-0">
                                 <ChevronDown
-                                  className={`h-4 w-4 text-slate-500 transition-transform ${
+                                  className={`h-4 w-4 text-slate-500 transition-transform shrink-0 ${
                                     isCollapsed ? '-rotate-90' : ''
                                   }`}
                                 />
-                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border ${phaseColors.badge}`}>
+                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-black border shrink-0 ${phaseColors.badge}`}>
                                   {phaseName}
                                 </span>
-                                <span className="text-[11px] font-bold text-slate-500">
+                                <span className="text-[11px] font-bold text-slate-500 shrink-0">
                                   ({phaseTasks.length} tasks)
                                 </span>
                               </div>
@@ -1045,12 +1045,12 @@ export function GanttChartView({
                                 }`}
                               >
                                 {/* WBS */}
-                                <td className="py-2 px-3 font-mono text-[11px] text-slate-500 truncate">
+                                <td className="py-2 px-2 font-mono text-[11px] text-slate-500 text-center truncate">
                                   {t.wbs || `${idx + 1}`}
                                 </td>
 
                                 {/* Task Name & ID */}
-                                <td className="py-2 px-2.5 truncate" title={t.subject}>
+                                <td className="py-2 px-3 truncate" title={t.subject}>
                                   <div className="flex items-center gap-1.5 min-w-0">
                                     {isCritical && (
                                       <span title="Critical Path (Calculated from dependencies)">
@@ -1082,27 +1082,27 @@ export function GanttChartView({
                                         {t.subject}
                                       </div>
                                       <div className="text-[10px] font-mono text-slate-400 flex items-center gap-1 truncate">
-                                        <span>{t.name}</span>
+                                        <span className="shrink-0">{t.name}</span>
                                         {isCustomerMilestone && (
-                                          <span className="px-1 py-0.2 rounded bg-purple-100 text-purple-800 text-[8px] font-black border border-purple-200">
+                                          <span className="px-1 py-0.2 rounded bg-purple-100 text-purple-800 text-[8px] font-black border border-purple-200 shrink-0">
                                             Customer MS
                                           </span>
                                         )}
                                         {!isCustomerMilestone && isMilestone && t.milestone_type && (
-                                          <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-800 text-[8px] font-bold border border-amber-200">
+                                          <span className="px-1 py-0.2 rounded bg-amber-100 text-amber-800 text-[8px] font-bold border border-amber-200 shrink-0">
                                             {t.milestone_type}
                                           </span>
                                         )}
                                         {isKgd && (
                                           <span
-                                            className="px-1 py-0.2 rounded bg-indigo-100 text-indigo-800 text-[8px] font-black border border-indigo-200"
+                                            className="px-1 py-0.2 rounded bg-indigo-100 text-indigo-800 text-[8px] font-black border border-indigo-200 shrink-0"
                                             title="Key Gate Deliverable"
                                           >
                                             KGD
                                           </span>
                                         )}
                                         {t.is_custom && !isMilestone && (
-                                          <span className="px-1 py-0.2 rounded bg-sky-50 text-sky-700 text-[8px] font-bold border border-sky-200">
+                                          <span className="px-1 py-0.2 rounded bg-sky-50 text-sky-700 text-[8px] font-bold border border-sky-200 shrink-0">
                                             Custom
                                           </span>
                                         )}
@@ -1123,13 +1123,13 @@ export function GanttChartView({
                                 <td className="py-2 px-1 text-center">
                                   <div className="flex flex-col items-center justify-center leading-tight">
                                     <span
-                                      className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 text-[9px] font-bold truncate max-w-[65px]"
+                                      className="px-1.5 py-0.2 rounded bg-slate-100 text-slate-700 text-[9px] font-bold truncate max-w-[58px]"
                                       title={t.function_name || t.custom_function || '-'}
                                     >
                                       {t.function_name || t.custom_function || '-'}
                                     </span>
                                     {(t.gate || t.linked_gate) && (
-                                      <span className="text-[9px] font-mono text-purple-700 font-bold truncate max-w-[65px]">
+                                      <span className="text-[9px] font-mono text-purple-700 font-bold truncate max-w-[58px]">
                                         {t.linked_gate || t.gate}
                                       </span>
                                     )}
@@ -1314,13 +1314,18 @@ export function GanttChartView({
 
               {/* Timeline Rows matching Table Rows exactly */}
               <div className="divide-y divide-slate-100">
-                {groupedTasksByPhase.map(([phaseName, phaseTasks]) => {
-                  const isCollapsed = collapsedPhases.has(phaseName);
+                {groupedTasksByPhase.length === 0 ? (
+                  <div className="py-12 text-center text-slate-400 text-xs italic">
+                    No timeline schedule data.
+                  </div>
+                ) : (
+                  groupedTasksByPhase.map(([phaseName, phaseTasks]) => {
+                    const isCollapsed = collapsedPhases.has(phaseName);
 
-                  return (
-                    <React.Fragment key={phaseName}>
-                      {/* Phase Spacer Row - Fixed Height 40px */}
-                      <div className="h-[40px] bg-slate-100/40 border-b border-slate-200/60" />
+                    return (
+                      <React.Fragment key={phaseName}>
+                        {/* Phase Spacer Row - Fixed Height 40px exactly matching left table */}
+                        <div className="h-[40px] bg-slate-100/40" />
 
                       {!isCollapsed &&
                         phaseTasks.map((t) => {
@@ -1505,7 +1510,7 @@ export function GanttChartView({
                         })}
                     </React.Fragment>
                   );
-                })}
+                }))}
               </div>
             </div>
           </div>

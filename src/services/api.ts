@@ -59,19 +59,9 @@ axiosClient.interceptors.request.use(
       }
     }
 
-    // Attach PDM User context header if available in browser localStorage
+    // Ensure withCredentials is true for local PDM API calls,
+    // so the secure signed httpOnly pdm_session cookie is sent automatically.
     if (typeof window !== 'undefined') {
-      try {
-        const storedUser = localStorage.getItem('pdm_user_session');
-        if (storedUser) {
-          config.headers['x-pdm-user'] = encodeURIComponent(storedUser);
-        }
-      } catch {
-        // ignore storage access issues
-      }
-
-      // Ensure withCredentials is true only for local PDM API calls,
-      // avoiding sending browser cookies directly to foreign ERPNext URLs.
       config.withCredentials = isLocalApi;
     }
 
@@ -120,10 +110,14 @@ const isGenericMsg = (msg: string | null | undefined): boolean => {
  * Never leaks raw traceback, whitelisting, or desk internal messages to the UI.
  * Preserves complete original ERPNext validation and link constraint messages.
  */
-export const normalizeApiError = (resData: any, status?: number): string => {
+export const normalizeApiError = (resData: any, status?: number, requestUrl?: string): string => {
+  const isLoginRequest = requestUrl?.includes('/api/auth/pdm-login') || false;
+
   if (!resData) {
     if (status === 401) {
-      return 'Your ERPNext authentication session has expired. Please sign in again.';
+      return isLoginRequest
+        ? 'Invalid username or password. Please verify your ERPNext credentials.'
+        : 'Your ERPNext authentication session has expired. Please sign in again.';
     }
     if (status === 403) {
       return 'You do not have permission to access this data.';
@@ -140,8 +134,7 @@ export const normalizeApiError = (resData: any, status?: number): string => {
   // Handle specific session or CSRF failures
   if (
     resData.exc_type === 'CSRFTokenError' ||
-    resData.exc_type === 'PermissionError' ||
-    (typeof resData === 'string' && (resData.includes('CSRFTokenError') || resData.includes('PermissionError')))
+    (typeof resData === 'string' && resData.includes('CSRFTokenError'))
   ) {
     return 'Your ERPNext authentication session has expired. Please sign in again.';
   }
@@ -208,9 +201,28 @@ export const normalizeApiError = (resData: any, status?: number): string => {
     return candidateMessage;
   }
 
-  // 1. Map HTTP status codes directly for authentication & authorization
+  // If candidate is a raw Frappe system/whitelisting error, sanitize to clean user message
+  if (isRawFrappeSystemError(candidateMessage)) {
+    if (candidateMessage.toLowerCase().includes('not whitelisted') || candidateMessage.toLowerCase().includes('login to access')) {
+      return isLoginRequest
+        ? 'Invalid username or password. Please verify your ERPNext credentials.'
+        : 'Your ERPNext authentication session has expired. Please sign in again.';
+    }
+    return 'You do not have permission to access this data.';
+  }
+
+  // If candidate is a valid, specific validation message, return it directly!
+  // This ensures "Invalid username or password", "User is disabled", "Account temporarily locked", etc.,
+  // are NEVER overwritten by generic status messages.
+  if (candidateMessage && !isGenericMsg(candidateMessage)) {
+    return candidateMessage;
+  }
+
+  // Fallback to HTTP status codes only when no specific server error message was provided
   if (status === 401) {
-    return 'Your ERPNext authentication session has expired. Please sign in again.';
+    return isLoginRequest
+      ? 'Invalid username or password. Please verify your ERPNext credentials.'
+      : 'Your ERPNext authentication session has expired. Please sign in again.';
   }
   if (status === 403) {
     return 'You do not have permission to access this data.';
@@ -225,19 +237,6 @@ export const normalizeApiError = (resData: any, status?: number): string => {
   // If status is 500+ and no domain validation message was found, return server error
   if (status && status >= 500) {
     return 'The ERPNext server is temporarily unavailable. Please try again later.';
-  }
-
-  // If candidate is a raw Frappe system/whitelisting error, sanitize to clean user message
-  if (isRawFrappeSystemError(candidateMessage)) {
-    if (candidateMessage.toLowerCase().includes('not whitelisted') || candidateMessage.toLowerCase().includes('login to access')) {
-      return 'Your ERPNext authentication session has expired. Please sign in again.';
-    }
-    return 'You do not have permission to access this data.';
-  }
-
-  // If candidate is a valid domain validation message (e.g. unique project name), return it
-  if (candidateMessage && !isGenericMsg(candidateMessage)) {
-    return candidateMessage;
   }
 
   return 'An unexpected error occurred while communicating with ERPNext.';
@@ -264,7 +263,7 @@ axiosClient.interceptors.response.use(
     let sanitizedMessage = 'An error occurred while connecting to the ERPNext server.';
 
     if (error.response) {
-      sanitizedMessage = normalizeApiError(resData, status);
+      sanitizedMessage = normalizeApiError(resData, status, error.config?.url);
     } else if (error.request) {
       sanitizedMessage = 'No response received from ERPNext server. Please check network connection.';
     } else {
@@ -314,11 +313,21 @@ axiosClient.interceptors.response.use(
     // Auto-redirect on 401 if in browser environment and on session auth check
     if (status === 401 && typeof window !== 'undefined' && !window.location.pathname.startsWith('/login')) {
       const requestUrl = error.config?.url || '';
-      const isAuthCheck =
-        requestUrl.includes('/api/auth/pdm-session') ||
-        requestUrl.includes('frappe.auth.get_logged_user');
-      if (isAuthCheck) {
-        window.location.href = '/login?session_expired=true';
+      // NEVER auto-redirect or treat login attempts as session expirations
+      if (!requestUrl.includes('/api/auth/pdm-login')) {
+        const isAuthCheck =
+          requestUrl.includes('/api/auth/pdm-session') ||
+          requestUrl.includes('frappe.auth.get_logged_user');
+        if (isAuthCheck) {
+          const hadActiveSession = !!localStorage.getItem('pdm_user_session');
+          if (hadActiveSession) {
+            localStorage.removeItem('pdm_user_session');
+            window.location.href = '/login?session_expired=true';
+          } else {
+            // Visitor was simply unauthenticated; do not falsely claim session expired
+            window.location.href = '/login';
+          }
+        }
       }
     }
 

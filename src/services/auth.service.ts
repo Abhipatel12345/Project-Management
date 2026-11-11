@@ -46,23 +46,9 @@ export const authService = {
    * GET /api/auth/pdm-session
    */
   async getLoggedUser(): Promise<UserDetails> {
-    try {
-      const res = await api.get<{ message: string; user?: UserDetails }>('/api/auth/pdm-session');
-      if (res && res.user) {
-        return res.user;
-      }
-    } catch {
-      // Fallback: Check localStorage if cookie read is delayed
-      if (typeof window !== 'undefined') {
-        const stored = localStorage.getItem('pdm_user_session');
-        if (stored) {
-          try {
-            return JSON.parse(stored);
-          } catch {
-            // ignore
-          }
-        }
-      }
+    const res = await api.get<{ message: string; user?: UserDetails }>('/api/auth/pdm-session');
+    if (res && res.user) {
+      return res.user;
     }
     throw new Error('User is not logged in to PDM');
   },

@@ -297,8 +297,8 @@ function ITAdminDashboard() {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {usersList.map((u) => (
-                <tr key={u.email} className="hover:bg-slate-50 transition">
+              {usersList.map((u, idx) => (
+                <tr key={u.name || `${u.username || u.email || 'user'}-${idx}`} className="hover:bg-slate-50 transition">
                   <td className="py-3 px-4 font-bold text-slate-900">{u.fullName}</td>
                   <td className="py-3 px-4 font-mono text-slate-500">{u.email} ({u.employeeId || 'N/A'})</td>
                   <td className="py-3 px-4">
@@ -320,7 +320,7 @@ function ITAdminDashboard() {
                   <td className="py-3 px-4 text-right">
                     <button
                       onClick={async () => {
-                        await userManagementService.toggleUserStatus(u.email, u.isActive);
+                        await userManagementService.toggleUserStatus(u.name || u.username || u.email, u.isActive);
                         await loadLocalData();
                         showToast(`User status toggled for ${u.fullName}!`, 'info');
                       }}
@@ -379,7 +379,7 @@ function ITAdminDashboard() {
 // ----------------------------------------------------------------------
 function PDMAdminDashboard() {
   const { user } = useAuth();
-  const { data, refetch, isFetching } = useDashboardSummary();
+  const { data, refetch, isFetching, isLoading, isError, error } = useDashboardSummary();
 
   const [matRequests] = useState<MaterialRequestItem[]>(() => materialRequestService.getRequests());
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => auditService.getLogs());
@@ -476,6 +476,28 @@ function PDMAdminDashboard() {
         </div>
       </div>
 
+      {/* Error Banner when ERPNext connectivity fails */}
+      {isError && (
+        <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 text-rose-800 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0" />
+            <div>
+              <p className="font-bold text-sm">Failed to retrieve projects from ERPNext</p>
+              <p className="text-xs text-rose-600">
+                {error?.message || 'Unable to establish live connection to ERPNext server. Please retry.'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs flex items-center gap-1.5"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} /> Retry
+          </button>
+        </div>
+      )}
+
       {/* PDM Business System Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 font-sans">
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-2 group hover:border-sky-300 transition">
@@ -486,10 +508,12 @@ function PDMAdminDashboard() {
             </div>
           </div>
           <div className="text-3xl font-black text-slate-900 tracking-tight">
-            {data?.totalProjects ?? 0}
+            {isLoading ? <span className="text-slate-300 animate-pulse text-2xl font-bold">...</span> : (data?.totalProjects ?? 0)}
           </div>
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-emerald-600 font-bold">{data?.activeProjects ?? 0} Active</span>
+            <span className="text-emerald-600 font-bold">
+              {isLoading ? 'Loading...' : `${data?.activeProjects ?? 0} Active`}
+            </span>
             <Link href="/projects" className="text-slate-400 group-hover:text-sky-600 font-semibold flex items-center gap-0.5">
               Projects <ArrowUpRight className="h-3 w-3" />
             </Link>
@@ -504,10 +528,12 @@ function PDMAdminDashboard() {
             </div>
           </div>
           <div className="text-3xl font-black text-slate-900 tracking-tight">
-            {data?.totalTasks ?? 20}
+            {isLoading ? <span className="text-slate-300 animate-pulse text-2xl font-bold">...</span> : (data?.totalTasks ?? 0)}
           </div>
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-amber-600 font-bold">{data?.pendingTasks ?? 15} Pending</span>
+            <span className="text-amber-600 font-bold">
+              {isLoading ? 'Loading...' : `${data?.pendingTasks ?? 0} Pending`}
+            </span>
             <Link href="/tasks" className="text-slate-400 group-hover:text-sky-600 font-semibold flex items-center gap-0.5">
               Task Board <ArrowUpRight className="h-3 w-3" />
             </Link>
@@ -522,10 +548,12 @@ function PDMAdminDashboard() {
             </div>
           </div>
           <div className="text-3xl font-black text-slate-900 tracking-tight">
-            {data?.openIssues ?? 20}
+            {isLoading ? <span className="text-slate-300 animate-pulse text-2xl font-bold">...</span> : (data?.openIssues ?? 0)}
           </div>
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-rose-600 font-bold">{data?.criticalIssues ?? 5} High/Critical</span>
+            <span className="text-rose-600 font-bold">
+              {isLoading ? 'Loading...' : `${data?.criticalIssues ?? 0} High/Critical`}
+            </span>
             <Link href="/issues" className="text-slate-400 group-hover:text-sky-600 font-semibold flex items-center gap-0.5">
               Issues Log <ArrowUpRight className="h-3 w-3" />
             </Link>
@@ -563,7 +591,7 @@ function PDMAdminDashboard() {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900">ERPNext Product Development Projects</h3>
-                <p className="text-xs text-slate-500">System-wide active programs & projects</p>
+                <p className="text-xs text-slate-500">System-wide active programs & projects ({projects.length} loaded)</p>
               </div>
             </div>
             <Link href="/projects" className="text-xs font-bold text-sky-600 hover:text-sky-500 flex items-center gap-1">
@@ -582,25 +610,62 @@ function PDMAdminDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {projects.slice(0, 8).map((project) => (
-                  <tr key={project.name} className="hover:bg-slate-50 transition">
-                    <td className="py-3 px-3 font-semibold text-slate-800">
-                      <div>{project.project_name || project.name}</div>
-                      <div className="text-[10px] text-slate-400 font-mono">{project.name}</div>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
-                        {project.status || 'Open'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-bold text-slate-700">
-                      {project.percent_complete ?? 0}%
-                    </td>
-                    <td className="py-3 px-3 text-right text-slate-500 font-mono text-[11px]">
-                      {project.expected_end_date || 'N/A'}
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={4} className="py-10 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <RefreshCw className="h-6 w-6 animate-spin text-sky-500" />
+                        <span className="text-xs font-medium text-slate-500">Loading projects from ERPNext...</span>
+                      </div>
                     </td>
                   </tr>
-                ))}
+                ) : projects.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-10 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-1">
+                        <Package className="h-8 w-8 text-slate-300 mb-1" />
+                        <span className="text-xs font-semibold text-slate-600">No projects found</span>
+                        <span className="text-[11px] text-slate-400">No active product development projects found in ERPNext.</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  projects.slice(0, 8).map((project) => (
+                    <tr key={project.name} className="hover:bg-slate-50 transition group">
+                      <td className="py-3 px-3 font-semibold text-slate-800">
+                        <Link href={`/projects/${encodeURIComponent(project.name)}`} className="hover:text-sky-600 transition block">
+                          <div className="group-hover:text-sky-600 transition font-bold text-slate-900">{project.project_name || project.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{project.name}</div>
+                        </Link>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={cn(
+                          'px-2.5 py-0.5 rounded-md text-[10px] font-bold border',
+                          project.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          project.status === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                          project.status === 'In Progress' || project.status === 'Open' ? 'bg-sky-50 text-sky-700 border-sky-200' :
+                          'bg-slate-50 text-slate-700 border-slate-200'
+                        )}>
+                          {project.status || 'Open'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-bold text-slate-700">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className="bg-sky-500 h-full rounded-full transition-all"
+                              style={{ width: `${Math.min(100, Math.max(0, project.percent_complete ?? 0))}%` }}
+                            />
+                          </div>
+                          <span>{project.percent_complete ?? 0}%</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-500 font-mono text-[11px]">
+                        {project.expected_end_date || 'N/A'}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>
@@ -652,7 +717,7 @@ function PDMAdminDashboard() {
 // ----------------------------------------------------------------------
 function ProjectManagerDashboard() {
   const { user } = useAuth();
-  const { data, refetch, isFetching } = useDashboardSummary();
+  const { data, refetch, isFetching, isLoading, isError, error } = useDashboardSummary();
   const [matRequests] = useState<MaterialRequestItem[]>(() => materialRequestService.getRequests());
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>(() => auditService.getLogs());
   const [isLoadingAudit, setIsLoadingAudit] = useState(false);
@@ -762,6 +827,28 @@ function ProjectManagerDashboard() {
         </Link>
       </div>
 
+      {/* Error Banner when ERPNext connectivity fails */}
+      {isError && (
+        <div className="rounded-2xl bg-rose-50 border border-rose-200 p-4 text-rose-800 flex items-center justify-between shadow-xs">
+          <div className="flex items-center gap-3">
+            <AlertTriangle className="h-5 w-5 text-rose-600 shrink-0" />
+            <div>
+              <p className="font-bold text-sm">Failed to retrieve projects from ERPNext</p>
+              <p className="text-xs text-rose-600">
+                {error?.message || 'Unable to establish live connection to ERPNext server. Please retry.'}
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => refetch()}
+            disabled={isFetching}
+            className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-xs font-bold rounded-xl transition cursor-pointer shadow-xs flex items-center gap-1.5"
+          >
+            <RefreshCw className={cn('h-3.5 w-3.5', isFetching && 'animate-spin')} /> Retry
+          </button>
+        </div>
+      )}
+
       {/* Program Metric Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 font-sans">
         <div className="bg-white rounded-2xl border border-slate-200 p-4 shadow-xs space-y-2 group hover:border-sky-300 transition">
@@ -772,10 +859,12 @@ function ProjectManagerDashboard() {
             </div>
           </div>
           <div className="text-3xl font-black text-slate-900 tracking-tight">
-            {data?.totalProjects ?? 0}
+            {isLoading ? <span className="text-slate-300 animate-pulse text-2xl font-bold">...</span> : (data?.totalProjects ?? 0)}
           </div>
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-emerald-600 font-bold">{data?.activeProjects ?? 0} Active</span>
+            <span className="text-emerald-600 font-bold">
+              {isLoading ? 'Loading...' : `${data?.activeProjects ?? 0} Active`}
+            </span>
             <Link href="/projects" className="text-slate-400 group-hover:text-sky-600 font-semibold flex items-center gap-0.5">
               Projects <ArrowUpRight className="h-3 w-3" />
             </Link>
@@ -790,10 +879,12 @@ function ProjectManagerDashboard() {
             </div>
           </div>
           <div className="text-3xl font-black text-slate-900 tracking-tight">
-            {data?.totalTasks ?? 20}
+            {isLoading ? <span className="text-slate-300 animate-pulse text-2xl font-bold">...</span> : (data?.totalTasks ?? 0)}
           </div>
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-amber-600 font-bold">{data?.pendingTasks ?? 15} Pending Review</span>
+            <span className="text-amber-600 font-bold">
+              {isLoading ? 'Loading...' : `${data?.pendingTasks ?? 0} Pending Review`}
+            </span>
             <Link href="/tasks" className="text-slate-400 group-hover:text-sky-600 font-semibold flex items-center gap-0.5">
               Task Engine <ArrowUpRight className="h-3 w-3" />
             </Link>
@@ -808,10 +899,12 @@ function ProjectManagerDashboard() {
             </div>
           </div>
           <div className="text-3xl font-black text-slate-900 tracking-tight">
-            {data?.openIssues ?? 20}
+            {isLoading ? <span className="text-slate-300 animate-pulse text-2xl font-bold">...</span> : (data?.openIssues ?? 0)}
           </div>
           <div className="flex items-center justify-between text-[11px]">
-            <span className="text-rose-600 font-bold">{data?.criticalIssues ?? 5} High/Critical</span>
+            <span className="text-rose-600 font-bold">
+              {isLoading ? 'Loading...' : `${data?.criticalIssues ?? 0} High/Critical`}
+            </span>
             <Link href="/tasks?tab=issues" className="text-slate-400 group-hover:text-sky-600 font-semibold flex items-center gap-0.5">
               Task Issues <ArrowUpRight className="h-3 w-3" />
             </Link>
@@ -849,7 +942,7 @@ function ProjectManagerDashboard() {
               </div>
               <div>
                 <h3 className="text-sm font-bold text-slate-900">Managed ERPNext Projects Portfolio</h3>
-                <p className="text-xs text-slate-500">Overview of active projects under PM direction</p>
+                <p className="text-xs text-slate-500">Overview of active projects under PM direction ({projects.length} loaded)</p>
               </div>
             </div>
             <Link href="/projects" className="text-xs font-bold text-sky-600 hover:text-sky-500 flex items-center gap-1">
@@ -868,27 +961,62 @@ function ProjectManagerDashboard() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-200">
-                {projects.slice(0, 8).map((project) => (
-                  <tr key={project.name} className="hover:bg-slate-50 transition">
-                    <td className="py-3 px-3 font-semibold text-slate-800">
-                      <Link href={`/projects/${encodeURIComponent(project.name)}`} className="hover:text-sky-600">
-                        <div>{project.project_name || project.name}</div>
-                        <div className="text-[10px] text-slate-400 font-mono">{project.name}</div>
-                      </Link>
-                    </td>
-                    <td className="py-3 px-3">
-                      <span className="px-2.5 py-0.5 rounded-md text-[10px] font-bold bg-sky-50 text-sky-700 border border-sky-200">
-                        {project.status || 'Open'}
-                      </span>
-                    </td>
-                    <td className="py-3 px-3 font-bold text-slate-700">
-                      {project.percent_complete ?? 0}%
-                    </td>
-                    <td className="py-3 px-3 text-right text-slate-500 font-mono text-[11px]">
-                      {project.expected_end_date || 'N/A'}
+                {isLoading ? (
+                  <tr>
+                    <td colSpan={4} className="py-10 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-2">
+                        <RefreshCw className="h-6 w-6 animate-spin text-sky-500" />
+                        <span className="text-xs font-medium text-slate-500">Loading projects from ERPNext...</span>
+                      </div>
                     </td>
                   </tr>
-                ))}
+                ) : projects.length === 0 ? (
+                  <tr>
+                    <td colSpan={4} className="py-10 text-center text-slate-400">
+                      <div className="flex flex-col items-center justify-center gap-1">
+                        <Package className="h-8 w-8 text-slate-300 mb-1" />
+                        <span className="text-xs font-semibold text-slate-600">No managed projects found</span>
+                        <span className="text-[11px] text-slate-400">No projects currently assigned to your project manager account.</span>
+                      </div>
+                    </td>
+                  </tr>
+                ) : (
+                  projects.slice(0, 8).map((project) => (
+                    <tr key={project.name} className="hover:bg-slate-50 transition group">
+                      <td className="py-3 px-3 font-semibold text-slate-800">
+                        <Link href={`/projects/${encodeURIComponent(project.name)}`} className="hover:text-sky-600 transition block">
+                          <div className="group-hover:text-sky-600 transition font-bold text-slate-900">{project.project_name || project.name}</div>
+                          <div className="text-[10px] text-slate-400 font-mono">{project.name}</div>
+                        </Link>
+                      </td>
+                      <td className="py-3 px-3">
+                        <span className={cn(
+                          'px-2.5 py-0.5 rounded-md text-[10px] font-bold border',
+                          project.status === 'Completed' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' :
+                          project.status === 'Cancelled' ? 'bg-rose-50 text-rose-700 border-rose-200' :
+                          project.status === 'In Progress' || project.status === 'Open' ? 'bg-sky-50 text-sky-700 border-sky-200' :
+                          'bg-slate-50 text-slate-700 border-slate-200'
+                        )}>
+                          {project.status || 'Open'}
+                        </span>
+                      </td>
+                      <td className="py-3 px-3 font-bold text-slate-700">
+                        <div className="flex items-center gap-2">
+                          <div className="w-16 bg-slate-100 h-1.5 rounded-full overflow-hidden">
+                            <div
+                              className="bg-sky-500 h-full rounded-full transition-all"
+                              style={{ width: `${Math.min(100, Math.max(0, project.percent_complete ?? 0))}%` }}
+                            />
+                          </div>
+                          <span>{project.percent_complete ?? 0}%</span>
+                        </div>
+                      </td>
+                      <td className="py-3 px-3 text-right text-slate-500 font-mono text-[11px]">
+                        {project.expected_end_date || 'N/A'}
+                      </td>
+                    </tr>
+                  ))
+                )}
               </tbody>
             </table>
           </div>

@@ -132,7 +132,7 @@ export const STANDARD_PDM_USERS: Record<string, Omit<PDMUserSession, 'permission
     department: 'Information Technology',
     functionName: 'IT',
     employeeId: 'EMP-002',
-    roles: ['System Administrator', 'User Manager'],
+    roles: ['PDM User Administrator', 'User Manager'],
   },
   projectmanager: {
     username: 'sarahjenkins@gmail.com',

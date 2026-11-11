@@ -189,8 +189,9 @@ export async function fetchAllProjectsFromERP(): Promise<any[]> {
       Authorization: `token ${getApiKey()}:${getApiSecret()}`,
       Accept: 'application/json',
     };
+    const fields = ['name', 'project_name', 'status', 'priority', 'percent_complete', 'owner', 'creation', 'modified'];
     const res = await fetch(
-      `${erpUrl}/api/resource/Project?fields=["name","project_name","status","priority","percent_complete","owner","creation","modified"]&limit_page_length=500&order_by=modified desc`,
+      `${erpUrl}/api/resource/Project?fields=${encodeURIComponent(JSON.stringify(fields))}&limit_page_length=500&order_by=${encodeURIComponent('modified desc')}`,
       { headers, cache: 'no-store' }
     );
     if (!res.ok) return [];
@@ -212,8 +213,9 @@ export async function fetchAllTasksFromERP(): Promise<any[]> {
       Authorization: `token ${getApiKey()}:${getApiSecret()}`,
       Accept: 'application/json',
     };
+    const fields = ['name', 'subject', 'project', 'status', 'priority', 'exp_start_date', 'exp_end_date', 'progress', 'description', 'owner', '_assign', 'modified'];
     const res = await fetch(
-      `${erpUrl}/api/resource/Task?fields=["name","subject","project","status","priority","exp_start_date","exp_end_date","progress","description","owner","_assign","modified"]&limit_page_length=1000&order_by=modified desc`,
+      `${erpUrl}/api/resource/Task?fields=${encodeURIComponent(JSON.stringify(fields))}&limit_page_length=1000&order_by=${encodeURIComponent('modified desc')}`,
       { headers, cache: 'no-store' }
     );
     if (!res.ok) return [];
@@ -289,6 +291,35 @@ export async function getAccessibleProjectIdsForTeamMember(session: PDMUserSessi
     }
   } catch {
     // non-blocking
+  }
+
+  return accessibleIds;
+}
+
+/**
+ * Get Set of Project Identifiers accessible to a Gate Reviewer
+ */
+export async function getAccessibleProjectIdsForGateReviewer(session: PDMUserSession): Promise<Set<string>> {
+  const accessibleIds = new Set<string>();
+  if (session.role === 'admin') {
+    return accessibleIds;
+  }
+
+  try {
+    const { loadAllGates } = await import('./gate-store');
+    const gates = loadAllGates();
+    for (const g of gates) {
+      if (
+        isUserMatch(g.gate_reviewer, session) ||
+        isUserMatch(g.reviewer_user_id, session) ||
+        (Array.isArray(g.board_reviews) && g.board_reviews.some((b: any) => isUserMatch(b.name, session)))
+      ) {
+        if (g.project) accessibleIds.add(g.project);
+        if (g.project_name) accessibleIds.add(g.project_name);
+      }
+    }
+  } catch (err) {
+    console.warn('[RBAC] getAccessibleProjectIdsForGateReviewer error:', err);
   }
 
   return accessibleIds;

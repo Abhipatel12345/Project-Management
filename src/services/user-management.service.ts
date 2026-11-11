@@ -43,6 +43,7 @@ export interface UpdateERPNextUserInput {
 }
 
 export interface UserRecord extends PDMUserSession {
+  name?: string;
   first_name?: string;
   middle_name?: string;
   last_name?: string;
@@ -142,6 +143,7 @@ export const userManagementService = {
           }
 
           return {
+            name: u.name,
             username: u.username || u.name,
             email: u.email || u.name,
             fullName: displayName,
@@ -187,7 +189,7 @@ export const userManagementService = {
       if (!u) return null;
 
       const users = await this.getUsers();
-      return users.find((item) => item.username === u.name || item.email === u.email) || null;
+      return users.find((item) => item.name === u.name || item.username === u.name || item.email === u.email) || null;
     } catch (error) {
       console.error(`[User Management Error] Failed to get user ${userId}:`, error);
       return null;
@@ -236,7 +238,7 @@ export const userManagementService = {
       input.role === 'admin'
         ? 'System Manager'
         : input.role === 'it_admin'
-          ? 'System Administrator'
+          ? 'PDM User Administrator'
           : input.role === 'projectmanager'
             ? 'Projects Manager'
             : input.role === 'gate_reviewer'
@@ -328,7 +330,7 @@ export const userManagementService = {
         input.role === 'admin'
           ? 'System Manager'
           : input.role === 'it_admin'
-            ? 'System Administrator'
+            ? 'PDM User Administrator'
             : input.role === 'projectmanager'
               ? 'Projects Manager'
               : input.role === 'gate_reviewer'

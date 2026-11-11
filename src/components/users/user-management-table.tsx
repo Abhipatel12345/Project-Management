@@ -63,7 +63,7 @@ export function UserManagementTable({
     setTogglingUser(userRecord.username || userRecord.email);
     try {
       await userManagementService.toggleUserStatus(
-        userRecord.email || userRecord.username,
+        userRecord.name || userRecord.username || userRecord.email,
         userRecord.isActive
       );
       showToast(
@@ -190,14 +190,14 @@ export function UserManagementTable({
                 </td>
               </tr>
             ) : (
-              filteredUsers.map((u) => {
+              filteredUsers.map((u, idx) => {
                 const isToggling = togglingUser === (u.username || u.email);
                 const firstName = u.first_name || u.fullName.split(' ')[0] || '-';
                 const lastName = u.last_name || u.fullName.split(' ').slice(1).join(' ') || '-';
 
                 return (
                   <tr
-                    key={u.username || u.email}
+                    key={u.name || `${u.username || u.email || 'user'}-${idx}`}
                     className="hover:bg-sky-50/30 transition-colors group cursor-default"
                   >
                     {/* User */}

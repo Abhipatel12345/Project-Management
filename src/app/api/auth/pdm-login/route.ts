@@ -1,14 +1,15 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { PDMRole, PDMPermissions, PDMUserSession } from '@/types/auth.types';
+import { signSession } from '@/lib/server/session';
 
 export const dynamic = 'force-dynamic';
 
-const ERP_URL = process.env.ERP_URL || process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083';
+const ERP_URL = (process.env.ERP_URL || process.env.NEXT_PUBLIC_ERP_URL || 'http://80.225.204.210:8083').replace(/\/$/, '');
 const API_KEY = process.env.ERP_API_KEY || process.env.NEXT_PUBLIC_API_KEY || 'df5d2dc4b819ad2';
 const API_SECRET = process.env.ERP_API_SECRET || process.env.NEXT_PUBLIC_API_SECRET || '25c592ffee48809';
 
 /**
- * Map actual ERPNext Roles array to PDM workflow capability persona
+ * Map actual ERPNext Roles array and verified user identity to PDM workflow capability persona
  */
 function derivePersonaFromERPNextRoles(
   username: string,
@@ -29,7 +30,7 @@ function derivePersonaFromERPNextRoles(
       role: 'admin',
       roleLabel: 'PMO / Administrator',
       permissions: {
-        manageUsers: false, // IT Admin manages accounts
+        manageUsers: false,
         manageProjects: true,
         manageTasks: true,
         manageDeliverables: true,
@@ -75,7 +76,7 @@ function derivePersonaFromERPNextRoles(
     };
   }
 
-  // 3. Team Member / Projects User (Yash - teammember@netlink.com - Restricted Execution Access)
+  // 3. Team Member / Projects User (Restricted Execution Access)
   if (
     normUser.includes('teammember') ||
     normUser.includes('yash') ||
@@ -102,7 +103,7 @@ function derivePersonaFromERPNextRoles(
     };
   }
 
-  // 4. Project Manager Persona (Sarah Jenkins / Project Manager - Full PM access, All Projects)
+  // 4. Project Manager Persona (Full PM access, All Projects)
   if (
     normUser.includes('sarah') ||
     normUser.includes('jenkins') ||
@@ -116,14 +117,14 @@ function derivePersonaFromERPNextRoles(
       roleLabel: 'Project Manager',
       permissions: {
         manageUsers: false,
-        manageProjects: true, // Full project management visibility
+        manageProjects: true,
         manageTasks: true,
         manageDeliverables: true,
-        manageTeamMembers: false, // PM cannot alter core team assignments
+        manageTeamMembers: false,
         manageBoardMembers: false,
         manageProjectSettings: false,
-        reviewGates: true, // Can prepare and submit gates
-        approveGates: false, // MUST NOT approve own gates
+        reviewGates: true,
+        approveGates: false,
         reviewDesign: true,
         approveDesign: false,
         manageWarehouse: true,
@@ -190,7 +191,7 @@ function derivePersonaFromERPNextRoles(
   }
 
   // --- ROLE FALLBACKS FOR GENERIC ACCOUNTS ---
-  if (roleSet.has('PDM User Administrator') || roleSet.has('User Manager') || roleSet.has('System Administrator')) {
+  if (roleSet.has('PDM User Administrator') || roleSet.has('User Manager')) {
     return {
       role: 'it_admin',
       roleLabel: 'IT Admin',
@@ -305,7 +306,7 @@ function derivePersonaFromERPNextRoles(
     };
   }
 
-  // Default Fallback: Team Member
+  // Default: Team Member persona
   return {
     role: 'teammember',
     roleLabel: 'Team Member',
@@ -329,26 +330,186 @@ function derivePersonaFromERPNextRoles(
 
 export async function POST(req: NextRequest) {
   try {
-    const body = await req.json();
-    const usr = body?.usr || body?.username;
-    const pwd = body?.pwd || body?.password;
-
-    if (!usr) {
+    let body: any = null;
+    try {
+      body = await req.json();
+    } catch {
       return NextResponse.json(
-        { _error_message: 'Username or email is required' },
+        { _error_message: 'Invalid JSON request payload' },
         { status: 400 }
       );
     }
 
-    const cleanUsr = usr.trim();
+    const usr = (body?.usr || body?.username || '').trim();
+    const pwd = (body?.pwd || body?.password || '').trim();
 
-    // Query ERPNext User DocType directly via backend API key
-    let erpUserData: any = null;
+    // 1. Mandatory credentials validation
+    if (!usr || !pwd) {
+      return NextResponse.json(
+        { _error_message: 'Username/email and password are required' },
+        { status: 400 }
+      );
+    }
 
+    // Resolve login identifier: Map common admin aliases or emails to canonical ERPNext User name
+    let loginId = usr;
+    const lowerUsr = usr.toLowerCase().trim();
+    if (
+      lowerUsr === 'admin' ||
+      lowerUsr === 'administrator' ||
+      lowerUsr === 'admin@pdm.netlink.com' ||
+      lowerUsr === 'admin@example.com'
+    ) {
+      loginId = 'Administrator';
+    } else {
+      // Look up user in ERPNext by email or username to resolve canonical User record
+      try {
+        let foundName: string | null = null;
+        if (usr.includes('@')) {
+          const filterStr = JSON.stringify([['email', '=', usr]]);
+          const searchRes = await fetch(
+            `${ERP_URL}/api/resource/User?filters=${encodeURIComponent(filterStr)}&fields=${encodeURIComponent(JSON.stringify(['name']))}`,
+            {
+              headers: {
+                Authorization: `token ${API_KEY}:${API_SECRET}`,
+                Accept: 'application/json',
+              },
+              cache: 'no-store',
+            }
+          );
+          if (searchRes.ok) {
+            const sJson = await searchRes.json();
+            if (sJson.data && sJson.data.length > 0 && sJson.data[0].name) {
+              foundName = sJson.data[0].name;
+            }
+          }
+        }
+        if (!foundName) {
+          const filterStr = JSON.stringify([['username', '=', usr]]);
+          const searchRes = await fetch(
+            `${ERP_URL}/api/resource/User?filters=${encodeURIComponent(filterStr)}&fields=${encodeURIComponent(JSON.stringify(['name']))}`,
+            {
+              headers: {
+                Authorization: `token ${API_KEY}:${API_SECRET}`,
+                Accept: 'application/json',
+              },
+              cache: 'no-store',
+            }
+          );
+          if (searchRes.ok) {
+            const sJson = await searchRes.json();
+            if (sJson.data && sJson.data.length > 0 && sJson.data[0].name) {
+              foundName = sJson.data[0].name;
+            }
+          }
+        }
+        if (foundName) {
+          loginId = foundName;
+        }
+      } catch {
+        // non-blocking
+      }
+    }
+
+    // 2. Authoritative ERPNext / Frappe Credential Verification
+    let erpLoginRes: Response;
     try {
-      // Attempt 1: Fetch by direct Name (e.g. Administrator or gatereviewer@netlink.com)
+      erpLoginRes = await fetch(`${ERP_URL}/api/method/login`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Accept: 'application/json',
+        },
+        body: JSON.stringify({ usr: loginId, pwd }),
+        cache: 'no-store',
+      });
+
+      // If 401 with resolved loginId and loginId !== usr, also try raw usr in case Frappe expects original input
+      if (erpLoginRes.status === 401 && loginId !== usr) {
+        const retryRes = await fetch(`${ERP_URL}/api/method/login`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            Accept: 'application/json',
+          },
+          body: JSON.stringify({ usr, pwd }),
+          cache: 'no-store',
+        });
+        if (retryRes.ok) {
+          erpLoginRes = retryRes;
+        }
+      }
+    } catch (networkErr: any) {
+      console.error('[ERPNext Auth Connection Error]', networkErr);
+      return NextResponse.json(
+        { _error_message: 'ERPNext authentication service is unavailable. Please check your connection.' },
+        { status: 503 }
+      );
+    }
+
+    // 3. Check ERPNext authentication outcome
+    if (erpLoginRes.status === 401) {
+      return NextResponse.json(
+        { _error_message: 'Invalid username or password. Please verify your ERPNext credentials.' },
+        { status: 401 }
+      );
+    }
+
+    if (erpLoginRes.status === 500) {
+      const errText = await erpLoginRes.text().catch(() => '');
+      if (errText.includes('locked') || errText.includes('SecurityException')) {
+        return NextResponse.json(
+          { _error_message: 'Your account has been temporarily locked due to multiple failed login attempts. Please wait 60 seconds.' },
+          { status: 429 }
+        );
+      }
+      return NextResponse.json(
+        { _error_message: 'Invalid username or password. Please verify your ERPNext credentials.' },
+        { status: 401 }
+      );
+    }
+
+    if (!erpLoginRes.ok) {
+      return NextResponse.json(
+        { _error_message: 'ERPNext authentication failed. Please verify your credentials.' },
+        { status: 401 }
+      );
+    }
+
+    // 4. Resolve authenticated identity from ERPNext
+    const setCookie = erpLoginRes.headers.get('set-cookie') || '';
+    const sidMatch = setCookie.match(/sid=([^;]+)/);
+    const sid = sidMatch ? sidMatch[1] : null;
+
+    const userIdMatch = setCookie.match(/user_id=([^;]+)/);
+    const cookieUserId = userIdMatch ? decodeURIComponent(userIdMatch[1]) : null;
+
+    let canonicalUsername = cookieUserId || loginId || usr;
+    if (sid) {
+      try {
+        const whoamiRes = await fetch(`${ERP_URL}/api/method/frappe.auth.get_logged_user`, {
+          headers: {
+            Cookie: `sid=${sid}`,
+            Accept: 'application/json',
+          },
+          cache: 'no-store',
+        });
+        if (whoamiRes.ok) {
+          const whoamiJson = await whoamiRes.json();
+          if (whoamiJson?.message && typeof whoamiJson.message === 'string') {
+            canonicalUsername = whoamiJson.message;
+          }
+        }
+      } catch {
+        // keep canonicalUsername
+      }
+    }
+
+    // 5. Query user record from ERPNext to verify status and retrieve real roles
+    let erpUserData: any = null;
+    try {
       const userRes = await fetch(
-        `${ERP_URL}/api/resource/User/${encodeURIComponent(cleanUsr)}`,
+        `${ERP_URL}/api/resource/User/${encodeURIComponent(canonicalUsername)}`,
         {
           headers: {
             Authorization: `token ${API_KEY}:${API_SECRET}`,
@@ -357,19 +518,17 @@ export async function POST(req: NextRequest) {
           cache: 'no-store',
         }
       );
-
       if (userRes.ok) {
-        const json = await userRes.json();
-        erpUserData = json.data;
+        const uJson = await userRes.json();
+        erpUserData = uJson.data;
       }
     } catch {
-      // Fallback
+      // non-blocking
     }
 
     if (!erpUserData) {
       try {
-        // Attempt 2: Search User by Email filter
-        const filterStr = JSON.stringify([['email', '=', cleanUsr]]);
+        const filterStr = JSON.stringify([['email', '=', canonicalUsername]]);
         const searchRes = await fetch(
           `${ERP_URL}/api/resource/User?filters=${encodeURIComponent(filterStr)}&fields=${encodeURIComponent(
             JSON.stringify(['name', 'email', 'full_name', 'enabled', 'user_type', 'department', 'designation'])
@@ -382,7 +541,6 @@ export async function POST(req: NextRequest) {
             cache: 'no-store',
           }
         );
-
         if (searchRes.ok) {
           const searchJson = await searchRes.json();
           if (searchJson.data && searchJson.data.length > 0) {
@@ -390,19 +548,36 @@ export async function POST(req: NextRequest) {
           }
         }
       } catch {
-        // Fallback
+        // non-blocking
       }
     }
 
-    // Extract real roles from ERPNext
+    // 6. Check account status & eligibility
+    if (erpUserData) {
+      if (erpUserData.enabled === 0 || erpUserData.enabled === false) {
+        return NextResponse.json(
+          { _error_message: 'Account is disabled in ERPNext. Please contact your system administrator.' },
+          { status: 403 }
+        );
+      }
+      if (erpUserData.user_type === 'Website User') {
+        return NextResponse.json(
+          { _error_message: 'Website users are not permitted to access the PDM system.' },
+          { status: 403 }
+        );
+      }
+    }
+
+    // 7. Extract authoritative roles from ERPNext
     let erpRoles: string[] = [];
     if (erpUserData?.roles && Array.isArray(erpUserData.roles)) {
-      erpRoles = erpUserData.roles.map((r: any) => r.role);
+      erpRoles = erpUserData.roles
+        .map((r: any) => (typeof r === 'string' ? r : r.role))
+        .filter(Boolean);
     } else {
-      // If user wasn't fetched with full child table, query User roles
       try {
         const roleRes = await fetch(
-          `${ERP_URL}/api/resource/User/${encodeURIComponent(erpUserData?.name || cleanUsr)}`,
+          `${ERP_URL}/api/resource/User/${encodeURIComponent(erpUserData?.name || canonicalUsername)}`,
           {
             headers: {
               Authorization: `token ${API_KEY}:${API_SECRET}`,
@@ -413,26 +588,30 @@ export async function POST(req: NextRequest) {
         );
         if (roleRes.ok) {
           const rJson = await roleRes.json();
-          erpRoles = (rJson.data?.roles || []).map((r: any) => r.role);
+          erpRoles = (rJson.data?.roles || [])
+            .map((r: any) => (typeof r === 'string' ? r : r.role))
+            .filter(Boolean);
         }
       } catch {
-        // Fallback
+        // non-blocking
       }
     }
 
-    // If still no roles found, assign standard default ERPNext user roles
     if (erpRoles.length === 0) {
       erpRoles = ['Projects User', 'Employee'];
     }
 
-    const { role, roleLabel, permissions } = derivePersonaFromERPNextRoles(cleanUsr, erpRoles);
+    const { role, roleLabel, permissions } = derivePersonaFromERPNextRoles(
+      canonicalUsername,
+      erpRoles
+    );
 
-    // Query Employee record from ERPNext
+    // 8. Retrieve linked Employee record if available
     let employeeId = `EMP-${Math.floor(100 + Math.random() * 900)}`;
     let department = erpUserData?.department || 'Engineering';
 
     try {
-      const empFilter = JSON.stringify([['user_id', '=', erpUserData?.name || cleanUsr]]);
+      const empFilter = JSON.stringify([['user_id', '=', erpUserData?.name || canonicalUsername]]);
       const empRes = await fetch(
         `${ERP_URL}/api/resource/Employee?filters=${encodeURIComponent(empFilter)}&fields=${encodeURIComponent(
           JSON.stringify(['name', 'employee_name', 'department', 'designation'])
@@ -457,13 +636,15 @@ export async function POST(req: NextRequest) {
     }
 
     const fullName =
-      cleanUsr === 'it_admin' || cleanUsr === 'itadmin' || role === 'it_admin'
-        ? 'IT Admin'
-        : (erpUserData?.full_name || erpUserData?.name || cleanUsr.split('@')[0]);
-    const email = erpUserData?.email || (cleanUsr.includes('@') ? cleanUsr : `${cleanUsr}@pdm.netlink.com`);
+      role === 'it_admin'
+        ? (erpUserData?.full_name || 'IT Admin')
+        : (erpUserData?.full_name || erpUserData?.name || canonicalUsername.split('@')[0]);
 
+    const email = erpUserData?.email || (canonicalUsername.includes('@') ? canonicalUsername : `${canonicalUsername}@pdm.netlink.com`);
+
+    // 9. Construct and sign the authenticated PDM session
     const userSession: PDMUserSession = {
-      username: erpUserData?.name || cleanUsr,
+      username: erpUserData?.name || canonicalUsername,
       email,
       fullName,
       role,
@@ -475,7 +656,7 @@ export async function POST(req: NextRequest) {
       roles: erpRoles,
     };
 
-    const sessionToken = Buffer.from(JSON.stringify(userSession)).toString('base64');
+    const signedToken = signSession(userSession);
 
     const response = NextResponse.json({
       message: 'Authenticated with ERPNext successfully',
@@ -484,8 +665,9 @@ export async function POST(req: NextRequest) {
 
     response.cookies.set({
       name: 'pdm_session',
-      value: sessionToken,
-      httpOnly: false,
+      value: signedToken,
+      httpOnly: true,
+      secure: req.nextUrl.protocol === 'https:',
       path: '/',
       sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7,
@@ -495,7 +677,7 @@ export async function POST(req: NextRequest) {
   } catch (error: any) {
     console.error('[ERPNext PDM Auth Login Error]', error);
     return NextResponse.json(
-      { _error_message: error.message || 'ERPNext Authentication failed' },
+      { _error_message: 'Authentication failed. Please verify your credentials.' },
       { status: 500 }
     );
   }

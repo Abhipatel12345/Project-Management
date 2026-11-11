@@ -10,6 +10,7 @@ import { generateMSPXml, generateExcelWorkbook } from '@/utils/msp-exporter';
 import { parseMSPXml } from '@/utils/msp-importer';
 import { Task } from '@/types/task.types';
 import { TaskRelationship } from '@/types/task-dependency.types';
+import { signSession } from '@/lib/server/session';
 
 export async function GET(req: NextRequest) {
   let passedCount = 0;
@@ -56,11 +57,12 @@ export async function GET(req: NextRequest) {
   };
 
   async function fetchApp(path: string, options: any = {}, session: any = ADMIN_SESSION) {
+    const sessionCookie = signSession(session);
     return fetch(`${host}${path}`, {
       ...options,
       headers: {
         'Content-Type': 'application/json',
-        'x-pdm-user': encodeURIComponent(JSON.stringify(session)),
+        Cookie: `pdm_session=${sessionCookie}`,
         ...(options.headers || {}),
       },
     });

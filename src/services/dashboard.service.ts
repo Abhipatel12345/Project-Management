@@ -1,4 +1,6 @@
 import api from './api';
+import projectService from './project.service';
+import taskService from './task.service';
 import issueService from './issue.service';
 import documentService from './document.service';
 import designReviewService from './design-review.service';
@@ -58,32 +60,64 @@ export interface DashboardSummaryData {
 
 export const dashboardService = {
   /**
-   * Fetch Projects from ERPNext REST API (/api/resource/Project)
+   * Fetch Projects from ERPNext REST API (/api/resource/Project) with fallback to projectService
    */
   async getProjects(): Promise<DashboardProjectItem[]> {
     try {
-      const response = await api.get<{ data: DashboardProjectItem[] }>(
-        '/api/resource/Project?fields=["name","project_name","status","percent_complete","expected_end_date","owner"]&limit_page_length=500&order_by=modified desc'
-      );
-      return response.data || [];
+      const fields = ['name', 'project_name', 'status', 'percent_complete', 'expected_end_date', 'owner', 'priority'];
+      const url = `/api/resource/Project?fields=${encodeURIComponent(JSON.stringify(fields))}&limit_page_length=500&order_by=${encodeURIComponent('modified desc')}`;
+      const response = await api.get<{ data: DashboardProjectItem[] }>(url);
+      if (response && Array.isArray(response.data)) {
+        return response.data;
+      }
+      throw new Error('Project data format unexpected');
     } catch (error) {
-      console.error('[ERPNext API Error] Failed to fetch Projects:', error);
-      return [];
+      console.warn('[dashboardService] Direct Project fetch failed, falling back to projectService:', error);
+      try {
+        const res = await projectService.getProjects({ pageSize: 500 });
+        return (res.projects || []).map((p) => ({
+          name: p.name,
+          project_name: p.project_name || p.name,
+          status: p.status || 'Open',
+          percent_complete: p.percent_complete ?? 0,
+          expected_end_date: p.expected_end_date || '',
+          priority: p.priority || 'Medium',
+        }));
+      } catch (fallbackErr) {
+        console.error('[dashboardService] All project fetch attempts failed:', fallbackErr);
+        throw fallbackErr;
+      }
     }
   },
 
   /**
-   * Fetch Tasks from ERPNext REST API (/api/resource/Task)
+   * Fetch Tasks from ERPNext REST API (/api/resource/Task) with fallback to taskService
    */
   async getTasks(): Promise<DashboardTaskItem[]> {
     try {
-      const response = await api.get<{ data: DashboardTaskItem[] }>(
-        '/api/resource/Task?fields=["name","subject","status","priority","exp_end_date","project"]&limit_page_length=500&order_by=modified desc'
-      );
-      return response.data || [];
+      const fields = ['name', 'subject', 'status', 'priority', 'exp_end_date', 'project'];
+      const url = `/api/resource/Task?fields=${encodeURIComponent(JSON.stringify(fields))}&limit_page_length=500&order_by=${encodeURIComponent('modified desc')}`;
+      const response = await api.get<{ data: DashboardTaskItem[] }>(url);
+      if (response && Array.isArray(response.data)) {
+        return response.data;
+      }
+      throw new Error('Task data format unexpected');
     } catch (error) {
-      console.error('[ERPNext API Error] Failed to fetch Tasks:', error);
-      return [];
+      console.warn('[dashboardService] Direct Task fetch failed, falling back to taskService:', error);
+      try {
+        const res = await taskService.getTasks({ pageSize: 500 });
+        return (res.tasks || []).map((t) => ({
+          name: t.name,
+          subject: t.subject,
+          status: t.status,
+          priority: t.priority,
+          exp_end_date: t.exp_end_date,
+          project: t.project,
+        }));
+      } catch (fallbackErr) {
+        console.error('[dashboardService] All task fetch attempts failed:', fallbackErr);
+        throw fallbackErr;
+      }
     }
   },
 
@@ -95,7 +129,7 @@ export const dashboardService = {
       const res = await issueService.getIssues({ pageSize: 100 });
       return res.issues;
     } catch (error) {
-      console.error('[ERPNext API Error] Failed to fetch Issues:', error);
+      console.warn('[dashboardService] Failed to fetch Issues:', error);
       return [];
     }
   },
@@ -105,9 +139,9 @@ export const dashboardService = {
    */
   async getRecentActivities(): Promise<DashboardActivityItem[]> {
     try {
-      const response = await api.get<{ data: { name: string; subject?: string; owner?: string; creation?: string }[] }>(
-        '/api/resource/Version?fields=["name","owner","creation"]&limit_page_length=5&order_by=creation desc'
-      );
+      const fields = ['name', 'owner', 'creation'];
+      const url = `/api/resource/Version?fields=${encodeURIComponent(JSON.stringify(fields))}&limit_page_length=5&order_by=${encodeURIComponent('creation desc')}`;
+      const response = await api.get<{ data: { name: string; subject?: string; owner?: string; creation?: string }[] }>(url);
 
       if (response?.data && response.data.length > 0) {
         return response.data.map((item) => ({
@@ -128,7 +162,7 @@ export const dashboardService = {
    * Aggregate Real ERPNext & Module Metrics using Services as Single Source of Truth
    */
   async getDashboardSummary(): Promise<DashboardSummaryData> {
-    const [projects, tasks, issueRes, docRes, reviewRes, gateRes, recentActivities] = await Promise.all([
+    const [projectsRes, tasksRes, issueRes, docRes, reviewRes, gateRes, activityRes] = await Promise.allSettled([
       this.getProjects(),
       this.getTasks(),
       issueService.getIssues({ pageSize: 100 }),
@@ -138,6 +172,20 @@ export const dashboardService = {
       this.getRecentActivities(),
     ]);
 
+    // If both primary data sources (Projects and Tasks) failed, propagate error to React Query
+    if (projectsRes.status === 'rejected' && tasksRes.status === 'rejected') {
+      const err = projectsRes.reason || new Error('Failed to retrieve ERPNext project information');
+      throw err;
+    }
+
+    const projects: DashboardProjectItem[] = projectsRes.status === 'fulfilled' ? projectsRes.value : [];
+    const tasks: DashboardTaskItem[] = tasksRes.status === 'fulfilled' ? tasksRes.value : [];
+    const issueData = issueRes.status === 'fulfilled' ? issueRes.value : null;
+    const docData = docRes.status === 'fulfilled' ? docRes.value : null;
+    const reviewData = reviewRes.status === 'fulfilled' ? reviewRes.value : null;
+    const gateData = gateRes.status === 'fulfilled' ? gateRes.value : null;
+    const activities = activityRes.status === 'fulfilled' ? activityRes.value : [];
+
     const activeProjects = projects.filter(
       (p: any) => p.status && p.status !== 'Completed' && p.status !== 'Cancelled'
     ).length;
@@ -146,23 +194,23 @@ export const dashboardService = {
       (t: any) => t.status && t.status !== 'Completed' && t.status !== 'Closed'
     ).length;
 
-    const issues = issueRes.issues;
-    const summary = issueRes.summary;
+    const issues = issueData?.issues || [];
+    const summary = issueData?.summary;
 
     return {
       totalProjects: projects.length,
       activeProjects,
       totalTasks: tasks.length,
       pendingTasks,
-      openIssues: summary.openIssues,
-      criticalIssues: summary.highPriorityIssues + summary.urgentIssues,
-      upcomingGates: gateRes.summary.upcomingGates,
-      pendingDesignReviews: reviewRes.summary.plannedReviews + reviewRes.summary.inProgressReviews,
-      documentsUnderReview: docRes.summary.requiringReview,
+      openIssues: summary?.openIssues ?? issues.filter((i) => i.status === 'Open').length,
+      criticalIssues: ((summary?.highPriorityIssues ?? 0) + (summary?.urgentIssues ?? 0)),
+      upcomingGates: gateData?.summary?.upcomingGates ?? 0,
+      pendingDesignReviews: ((reviewData?.summary?.plannedReviews ?? 0) + (reviewData?.summary?.inProgressReviews ?? 0)),
+      documentsUnderReview: docData?.summary?.requiringReview ?? 0,
       projects,
       tasks,
       issues,
-      recentActivities,
+      recentActivities: activities,
     };
   },
 };

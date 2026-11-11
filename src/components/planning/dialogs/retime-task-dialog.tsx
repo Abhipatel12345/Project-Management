@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Task } from '@/types/task.types';
 import { X, Clock, Calendar, AlertCircle } from 'lucide-react';
 import { formatDate } from '@/utils/gantt-scheduling-engine';
@@ -20,14 +20,24 @@ export function RetimeTaskDialog({
   task,
   onRetime,
 }: RetimeTaskDialogProps) {
-  if (!isOpen || !task) return null;
-
-  const [retimedTo, setRetimedTo] = useState(task.retimed_to || '3. TKO');
-  const [newStart, setNewStart] = useState(task.exp_start_date || formatDate(new Date()));
-  const [newEnd, setNewEnd] = useState(task.exp_end_date || formatDate(new Date()));
-  const [reason, setReason] = useState(task.skip_reason || '');
+  const [retimedTo, setRetimedTo] = useState('3. TKO');
+  const [newStart, setNewStart] = useState('');
+  const [newEnd, setNewEnd] = useState('');
+  const [reason, setReason] = useState('');
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (task && isOpen) {
+      setRetimedTo(task.retimed_to || '3. TKO');
+      setNewStart(task.exp_start_date || formatDate(new Date()));
+      setNewEnd(task.exp_end_date || formatDate(new Date()));
+      setReason(task.skip_reason || '');
+      setError(null);
+    }
+  }, [task, isOpen]);
+
+  if (!isOpen || !task) return null;
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();

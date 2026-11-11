@@ -503,8 +503,8 @@ export function GateReviewResultSummaryTab({
                         className="w-full px-2.5 py-1.5 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:bg-white focus:border-emerald-500 font-medium"
                       />
                       <datalist id={`user-options-${idx}`}>
-                        {usersList.map((u) => (
-                          <option key={u.email} value={u.fullName || u.username} />
+                        {Array.from(new Set(usersList.map((u) => u.fullName || u.username))).map((name) => (
+                          <option key={name} value={name} />
                         ))}
                       </datalist>
                     </td>
@@ -665,8 +665,8 @@ export function GateReviewResultSummaryTab({
                         className="w-full px-2 py-1 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:bg-white font-medium"
                       />
                       <datalist id={`chairman-options-${idx}`}>
-                        {usersList.map((u) => (
-                          <option key={u.email} value={u.fullName || u.username} />
+                        {Array.from(new Set(usersList.map((u) => u.fullName || u.username))).map((name) => (
+                          <option key={name} value={name} />
                         ))}
                       </datalist>
                     </td>
